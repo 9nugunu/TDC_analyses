@@ -1,0 +1,77 @@
+from pathlib import Path
+
+from deflector_tuning.data_loading.central_loader import DataLoader
+from deflector_tuning.data_loading.records import DataKind
+
+
+def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "sim" / "case_a"
+    folder.mkdir(parents=True)
+    (folder / "trace.s1p").write_text(
+        "# GHz S RI R 0\n2.6 1.0 0.0\n2.7 0.0 -1.0\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().select_loader(folder).load_touchstone(folder)
+
+    assert list(table.columns) == [
+        "dataset_id",
+        "data_kind",
+        "data_layer",
+        "source_file",
+        "freq_ghz",
+        "s_name",
+        "s_real",
+        "s_imag",
+        "s_db",
+        "s_phase_deg",
+        "source_format",
+        "reference_ohm",
+        "is_normalized",
+    ]
+    assert table.to_dict("records") == [
+        {
+            "dataset_id": "case_a",
+            "data_kind": "sim",
+            "data_layer": "sim",
+            "source_file": "trace.s1p",
+            "freq_ghz": 2.6,
+            "s_name": "S11",
+            "s_real": 1.0,
+            "s_imag": 0.0,
+            "s_db": 0.0,
+            "s_phase_deg": 0.0,
+            "source_format": "touchstone_ri",
+            "reference_ohm": 0.0,
+            "is_normalized": False,
+        },
+        {
+            "dataset_id": "case_a",
+            "data_kind": "sim",
+            "data_layer": "sim",
+            "source_file": "trace.s1p",
+            "freq_ghz": 2.7,
+            "s_name": "S11",
+            "s_real": 0.0,
+            "s_imag": -1.0,
+            "s_db": 0.0,
+            "s_phase_deg": -90.0,
+            "source_format": "touchstone_ri",
+            "reference_ohm": 0.0,
+            "is_normalized": False,
+        },
+    ]
+
+
+def test_raw_loader_reads_touchstone_but_keeps_experiment_kind(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "raw" / "case_b"
+    folder.mkdir(parents=True)
+    (folder / "trace.s2p").write_text(
+        "# GHz S RI R 50\n2.6 1 0 2 0 3 0 4 0\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().select_loader(folder).load_touchstone(folder)
+
+    assert table["data_kind"].unique().tolist() == [DataKind.EXP.value]
+    assert table["s_name"].tolist() == ["S11", "S21", "S12", "S22"]
