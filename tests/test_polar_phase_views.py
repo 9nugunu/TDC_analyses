@@ -1,9 +1,11 @@
 from pathlib import Path
 
+import matplotlib.figure
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
+import deflector_tuning.visualization.polar_phase_views as polar_phase_views
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
 from deflector_tuning.visualization.plot_config import PlotConfig
 
@@ -128,6 +130,34 @@ def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp
     assert paths["0.5"].name == "position_0p5.png"
     assert paths["overview"].name == "all_positions.png"
     assert plt.rcParams["font.sans-serif"][:4] == ["Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans"]
+
+
+def test_plot_marker_phase_polar_views_uses_full_typography_for_per_position_and_overview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    config = PlotConfig(dpi=120, title_size=21, compact_title_size=7, label_size=17, compact_label_size=6)
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(_marker_points(), tmp_path, config=config)
+
+    assert saved_figures
+    for fig in saved_figures:
+        for ax in fig.axes:
+            if not ax.get_visible():
+                continue
+            assert ax.title.get_fontsize() == pytest.approx(config.title_size)
+            marker_labels = [text for text in ax.texts if "f_{" in text.get_text()]
+            assert marker_labels
+            assert {text.get_fontsize() for text in marker_labels} == {float(config.label_size)}
 
 
 def test_plot_marker_phase_polar_views_rejects_empty_marker_points(tmp_path: Path) -> None:

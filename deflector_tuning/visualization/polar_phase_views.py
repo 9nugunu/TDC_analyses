@@ -79,7 +79,7 @@ def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *,
     )
     flat_axes = axes.ravel()
     for ax, (position_label, position_table) in zip(flat_axes, groups, strict=False):
-        _draw_position(ax, position_table, f"{position_label}: {title_prefix}", compact=True, config=config)
+        _draw_position(ax, position_table, f"{position_label}: {title_prefix}", compact=False, config=config)
     for ax in flat_axes[len(groups) :]:
         ax.set_visible(False)
     fig.subplots_adjust(wspace=0.32, hspace=0.44)
