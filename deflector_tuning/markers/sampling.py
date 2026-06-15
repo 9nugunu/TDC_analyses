@@ -28,6 +28,8 @@ OUTPUT_COLUMNS: list[str] = [
     "temp_meas_C",
     "humidity_fraction",
 ]
+PASSTHROUGH_PREFIXES: tuple[str, ...] = ("sim_",)
+PASSTHROUGH_COLUMNS: tuple[str, ...] = ("run_id",)
 MARKER_METADATA_COLUMNS: list[str] = [
     "uncorrected_freq_ghz",
     "frequency_scale_factor",
@@ -43,7 +45,9 @@ def sample_nearest_markers(sparameter_table: pd.DataFrame, markers: pd.DataFrame
     frames = [_sample_one_marker(sparameter_table, marker) for _, marker in markers.iterrows()]
     if not frames:
         return pd.DataFrame(columns=OUTPUT_COLUMNS)
-    return pd.concat(frames, ignore_index=True)[OUTPUT_COLUMNS]
+    sampled = pd.concat(frames, ignore_index=True)
+    passthrough_columns = _passthrough_columns(sparameter_table)
+    return sampled[[*OUTPUT_COLUMNS, *passthrough_columns]]
 
 
 def _sample_one_marker(sparameter_table: pd.DataFrame, marker: pd.Series) -> pd.DataFrame:
@@ -65,3 +69,13 @@ def _sample_one_marker(sparameter_table: pd.DataFrame, marker: pd.Series) -> pd.
     for column in MARKER_METADATA_COLUMNS:
         nearest[column] = marker[column] if column in marker else pd.NA
     return nearest
+
+
+def _passthrough_columns(sparameter_table: pd.DataFrame) -> list[str]:
+    columns: list[str] = []
+    for column in sparameter_table.columns:
+        if column in OUTPUT_COLUMNS or column in columns:
+            continue
+        if column in PASSTHROUGH_COLUMNS or any(column.startswith(prefix) for prefix in PASSTHROUGH_PREFIXES):
+            columns.append(column)
+    return columns

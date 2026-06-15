@@ -147,8 +147,9 @@ def _draw_spacing_arc(ax, angles: dict[str, float], start_marker: str, end_marke
         fontweight="bold",
         ha="center",
         va="center",
-        rotation=np.rad2deg(mid),
+        rotation=0,
         rotation_mode="anchor",
+        bbox={"boxstyle": "round,pad=0.18", "facecolor": "white", "edgecolor": "none", "alpha": 0.70},
     )
     text.set_clip_on(False)
 

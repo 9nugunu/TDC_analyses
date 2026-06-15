@@ -1,4 +1,7 @@
-dataset_id,data_kind,data_layer,marker_name,marker_role,port_side,s_name,transition_count,mean_phase_advance_deg,mean_phase_error_deg,mean_abs_phase_error_deg,rms_phase_error_deg,max_abs_phase_error_deg,worst_from_tune_position,worst_to_tune_position,worst_phase_error_deg
-260415_fullbrazing,experiment,prepro,f_2pi3,exp,,S11,21,106.21857857142857,-133.78142142857138,133.78142142857138,138.4561711379888,225.80705999999998,0.5,1.0,-225.80705999999998
-260415_fullbrazing,experiment,prepro,f_mean,exp,,S11,21,89.70462,-150.29538,150.29538,155.15724443505482,228.17428,0.5,1.0,-228.17428
-260415_fullbrazing,experiment,prepro,f_pi2,exp,,S11,21,83.59493614285715,-156.40506385714286,156.40506385714286,161.91990455265798,229.64021,0.5,1.0,-229.64021
+dataset_id,data_layer,marker_name,marker_role,s_name,position_family,transition_count,mean_phase_advance_deg,mean_phase_error_deg,mean_abs_phase_error_deg,rms_phase_error_deg,max_abs_phase_error_deg,worst_from_tune_position,worst_to_tune_position,worst_phase_error_deg
+260415_fullbrazing,prepro,f_2pi3,exp,S11,cell,10,220.291025,-19.708975,23.588226999999996,36.29364511008656,100.64715000000001,0.5,1.5,-100.64715000000001
+260415_fullbrazing,prepro,f_2pi3,exp,S11,iris,10,221.639721,-18.360278999999995,28.94971099999999,53.30628620088356,159.54037,10.0,11.0,-159.54037
+260415_fullbrazing,prepro,f_mean,exp,S11,cell,10,186.560912,-53.43908799999999,54.03898399999999,72.16738257371159,150.25128,0.5,1.5,-150.25128
+260415_fullbrazing,prepro,f_mean,exp,S11,iris,10,187.19713000000002,-52.802870000000006,58.49074800000001,78.48146426261209,182.32090999999997,10.0,11.0,-182.32090999999997
+260415_fullbrazing,prepro,f_pi2,exp,S11,cell,10,171.768129,-68.23187100000003,68.45465020000002,97.53671659007104,177.94971,0.5,1.5,-177.94971
+260415_fullbrazing,prepro,f_pi2,exp,S11,iris,10,174.5133869,-65.4866131,65.4866131,74.53140625121209,105.75959999999998,7.0,8.0,-105.75959999999998
