@@ -1,0 +1,24 @@
+{
+  "dataset_id": "260415_fullbrazing",
+  "analysis_family": "polar_views",
+  "variant": "marker_phase",
+  "sparameter_path": "data/prepro/260415_fullbrazing",
+  "dispersion_path": "data/sim/260505_single_cell_dispersion_step1",
+  "marker_role": "exp",
+  "marker_frequency_basis": "measurement-condition corrected from CST dispersion",
+  "generated_by": "deflector_tuning.visualization.polar_phase_views.plot_marker_phase_polar_views",
+  "plot_config": {
+    "dpi": 300,
+    "font_family": ["Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans"]
+  },
+  "tables": [
+    "data/markers.csv",
+    "data/marker_points.csv",
+    "data/phase_advance.csv",
+    "data/phase_summary.csv"
+  ],
+  "figures": {
+    "overview": "all_positions.png",
+    "per_position_pattern": "position_<tune_position>.png"
+  }
+}

@@ -1,0 +1,4 @@
+dataset_id,data_kind,data_layer,marker_name,marker_role,port_side,s_name,transition_count,mean_phase_advance_deg,mean_phase_error_deg,mean_abs_phase_error_deg,rms_phase_error_deg,max_abs_phase_error_deg,worst_from_tune_position,worst_to_tune_position,worst_phase_error_deg
+260415_fullbrazing,experiment,prepro,f_2pi3,exp,,S11,21,106.21857857142857,-133.78142142857138,133.78142142857138,138.4561711379888,225.80705999999998,0.5,1.0,-225.80705999999998
+260415_fullbrazing,experiment,prepro,f_mean,exp,,S11,21,89.70462,-150.29538,150.29538,155.15724443505482,228.17428,0.5,1.0,-228.17428
+260415_fullbrazing,experiment,prepro,f_pi2,exp,,S11,21,83.59493614285715,-156.40506385714286,156.40506385714286,161.91990455265798,229.64021,0.5,1.0,-229.64021
