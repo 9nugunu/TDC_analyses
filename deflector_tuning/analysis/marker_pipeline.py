@@ -60,6 +60,15 @@ def save_marker_analysis(tables: dict[str, pd.DataFrame], output_dir: str | Path
     paths: OrderedDict[str, Path] = OrderedDict()
     for name, filename in TABLE_FILENAMES.items():
         path = folder / filename
-        tables[name].to_csv(path, index=False)
+        _presentation_table(tables[name]).to_csv(path, index=False)
         paths[name] = path
     return paths
+
+
+def _presentation_table(table: pd.DataFrame) -> pd.DataFrame:
+    output = table.copy()
+    if "data_kind" in output:
+        output = output.drop(columns=["data_kind"])
+    if "port_side" in output and output["port_side"].isna().all():
+        output = output.drop(columns=["port_side"])
+    return output

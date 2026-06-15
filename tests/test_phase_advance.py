@@ -71,6 +71,7 @@ def test_compute_phase_advance_treats_negative_120_as_240_degree_advance() -> No
         "marker_role",
         "port_side",
         "s_name",
+        "position_family",
         "from_source_file",
         "to_source_file",
         "from_tune_position",
@@ -155,3 +156,39 @@ def test_compute_phase_advance_keeps_markers_and_port_sides_separate() -> None:
         assert row["to_tune_position"] == 1.5
         assert row["phase_advance_0to360_deg"] == pytest.approx(240.0)
         assert row["phase_error_from_240_deg"] == pytest.approx(0.0)
+
+
+def test_compute_phase_advance_uses_periodic_position_families_not_adjacent_mixed_positions() -> None:
+    rows = []
+    for tune_position, phase in [(0.5, 10.0), (1.0, 80.0), (1.5, -110.0), (2.0, -40.0), (2.5, 130.0)]:
+        rows.append(
+            {
+                "dataset_id": "dataset",
+                "data_kind": "experiment",
+                "data_layer": "prepro",
+                "source_file": f"{tune_position}_processed.csv",
+                "tune_position": tune_position,
+                "port_side": None,
+                "s_name": "S11",
+                "marker_name": "f_2pi3",
+                "marker_role": "exp",
+                "target_freq_ghz": 2.856,
+                "freq_ghz": 2.856,
+                "freq_error_ghz": 0.0,
+                "s_db": -1.0,
+                "s_phase_deg": phase,
+                "source_format": "processed_csv_db_phase",
+            }
+        )
+    marker_points = pd.DataFrame(rows)
+
+    result = compute_phase_advance(marker_points)
+
+    transitions = set(zip(result["position_family"], result["from_tune_position"], result["to_tune_position"]))
+    assert transitions == {
+        ("cell", 0.5, 1.5),
+        ("cell", 1.5, 2.5),
+        ("iris", 1.0, 2.0),
+    }
+    assert (0.5, 1.0) not in set(zip(result["from_tune_position"], result["to_tune_position"]))
+    assert (1.0, 1.5) not in set(zip(result["from_tune_position"], result["to_tune_position"]))

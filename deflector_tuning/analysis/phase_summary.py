@@ -12,6 +12,7 @@ GROUP_COLUMNS: list[str] = [
     "marker_role",
     "port_side",
     "s_name",
+    "position_family",
 ]
 OUTPUT_COLUMNS: list[str] = [
     *GROUP_COLUMNS,

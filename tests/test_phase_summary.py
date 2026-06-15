@@ -15,6 +15,7 @@ def test_summarize_phase_advance_reports_error_metrics_and_worst_transition() ->
                 "marker_role": "exp",
                 "port_side": None,
                 "s_name": "S11",
+                "position_family": "cell",
                 "from_tune_position": 0.5,
                 "to_tune_position": 1.0,
                 "phase_advance_0to360_deg": 230.0,
@@ -28,6 +29,7 @@ def test_summarize_phase_advance_reports_error_metrics_and_worst_transition() ->
                 "marker_role": "exp",
                 "port_side": None,
                 "s_name": "S11",
+                "position_family": "cell",
                 "from_tune_position": 1.0,
                 "to_tune_position": 1.5,
                 "phase_advance_0to360_deg": 245.0,
@@ -41,6 +43,7 @@ def test_summarize_phase_advance_reports_error_metrics_and_worst_transition() ->
                 "marker_role": "exp",
                 "port_side": None,
                 "s_name": "S11",
+                "position_family": "cell",
                 "from_tune_position": 1.5,
                 "to_tune_position": 2.0,
                 "phase_advance_0to360_deg": 220.0,
@@ -59,6 +62,7 @@ def test_summarize_phase_advance_reports_error_metrics_and_worst_transition() ->
         "marker_role",
         "port_side",
         "s_name",
+        "position_family",
         "transition_count",
         "mean_phase_advance_deg",
         "mean_phase_error_deg",
@@ -71,6 +75,7 @@ def test_summarize_phase_advance_reports_error_metrics_and_worst_transition() ->
     ]
     row = summary.iloc[0]
     assert pd.isna(row["port_side"])
+    assert row["position_family"] == "cell"
     assert row["transition_count"] == 3
     assert row["mean_phase_advance_deg"] == pytest.approx((230 + 245 + 220) / 3)
     assert row["mean_phase_error_deg"] == pytest.approx((-10 + 5 - 20) / 3)
@@ -93,6 +98,7 @@ def test_summarize_phase_advance_keeps_markers_and_port_sides_separate() -> None
                 "marker_role": "exp",
                 "port_side": port_side,
                 "s_name": "S11",
+                "position_family": "cell",
                 "from_tune_position": 0.5,
                 "to_tune_position": 1.5,
                 "phase_advance_0to360_deg": 240.0 + error,

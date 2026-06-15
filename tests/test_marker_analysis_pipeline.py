@@ -17,7 +17,7 @@ def _write_dispersion_summary(folder: Path) -> None:
 
 def _write_prepro_dataset(folder: Path) -> None:
     folder.mkdir(parents=True)
-    for tune_position, phases in [(0.5, [10.0, 20.0, 30.0]), (1.0, [-110.0, -100.0, -90.0])]:
+    for tune_position, phases in [(0.5, [10.0, 20.0, 30.0]), (1.5, [-110.0, -100.0, -90.0])]:
         filename = folder / f"{tune_position}_processed.csv"
         filename.write_text(
             "freq[Hz],Magnitude,Phase_deg\n"
@@ -45,19 +45,26 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
     assert len(result["marker_points"]) == 6
     assert len(result["phase_advance"]) == 3
     assert len(result["phase_summary"]) == 3
-    assert set(result["marker_points"]["source_file"]) == {"0.5_processed.csv", "1.0_processed.csv"}
+    assert set(result["marker_points"]["source_file"]) == {"0.5_processed.csv", "1.5_processed.csv"}
     assert "s_phase_deg" in result["marker_points"].columns
     first_phase = result["phase_advance"].sort_values("marker_name").iloc[0]
     assert first_phase["from_tune_position"] == 0.5
-    assert first_phase["to_tune_position"] == 1.0
+    assert first_phase["to_tune_position"] == 1.5
+    assert first_phase["position_family"] == "cell"
 
 
 def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
     result = {
         "markers": pd.DataFrame([{"marker_name": "f_2pi3", "freq_ghz": 2.856}]),
-        "marker_points": pd.DataFrame([{"marker_name": "f_2pi3", "s_phase_deg": 10.0}]),
-        "phase_advance": pd.DataFrame([{"marker_name": "f_2pi3", "phase_error_from_240_deg": 0.0}]),
-        "phase_summary": pd.DataFrame([{"marker_name": "f_2pi3", "transition_count": 1}]),
+        "marker_points": pd.DataFrame(
+            [{"marker_name": "f_2pi3", "s_phase_deg": 10.0, "data_kind": "experiment", "port_side": pd.NA}]
+        ),
+        "phase_advance": pd.DataFrame(
+            [{"marker_name": "f_2pi3", "phase_error_from_240_deg": 0.0, "data_kind": "experiment", "port_side": pd.NA}]
+        ),
+        "phase_summary": pd.DataFrame(
+            [{"marker_name": "f_2pi3", "transition_count": 1, "data_kind": "experiment", "port_side": pd.NA}]
+        ),
     }
     output_dir = tmp_path / "analysis_outputs"
 
@@ -66,4 +73,9 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
     assert list(paths.keys()) == ["markers", "marker_points", "phase_advance", "phase_summary"]
     for path in paths.values():
         assert path.exists()
-    assert pd.read_csv(paths["marker_points"]).loc[0, "s_phase_deg"] == 10.0
+    saved_marker_points = pd.read_csv(paths["marker_points"])
+    assert saved_marker_points.loc[0, "s_phase_deg"] == 10.0
+    for table_name in ["marker_points", "phase_advance", "phase_summary"]:
+        saved = pd.read_csv(paths[table_name])
+        assert "data_kind" not in saved.columns
+        assert "port_side" not in saved.columns
