@@ -34,6 +34,59 @@ class DataLoader:
             return loader.load_csv(path)
         raise NotImplementedError(f"No default loader for {path!s}")
 
+    def summarize(self, path: str | Path) -> pd.DataFrame:
+        """Return a one-row sanity-check summary for a loaded dataset."""
+
+        table = self.load(path)
+        return pd.DataFrame(
+            [
+                {
+                    "dataset_id": _first_value(table, "dataset_id"),
+                    "data_kind": _first_value(table, "data_kind"),
+                    "data_layer": _first_value(table, "data_layer"),
+                    "row_count": len(table),
+                    "file_count": table["source_file"].nunique() if "source_file" in table else 0,
+                    "freq_min_ghz": table["freq_ghz"].min() if "freq_ghz" in table else None,
+                    "freq_max_ghz": table["freq_ghz"].max() if "freq_ghz" in table else None,
+                    "source_formats": _unique_values(table, "source_format"),
+                    "s_names": _unique_values(table, "s_name"),
+                    "tune_positions": _unique_values(table, "tune_position"),
+                    "port_sides": _unique_values(table, "port_side"),
+                }
+            ]
+        )
+
+    def extract_nearest(self, path: str | Path, target_freq_ghz: float) -> pd.DataFrame:
+        """Return nearest-frequency S-parameter rows per file/metadata group."""
+
+        table = self.load(path).copy()
+        table["target_freq_ghz"] = target_freq_ghz
+        table["freq_error_ghz"] = table["freq_ghz"] - target_freq_ghz
+        table["_abs_freq_error_ghz"] = table["freq_error_ghz"].abs()
+
+        group_columns = ["source_file", "s_name", "tune_position", "port_side"]
+        for column in group_columns:
+            if column not in table:
+                table[column] = pd.NA
+
+        nearest_index = table.groupby(group_columns, dropna=False)["_abs_freq_error_ghz"].idxmin()
+        output_columns = [
+            "dataset_id",
+            "data_kind",
+            "data_layer",
+            "source_file",
+            "tune_position",
+            "port_side",
+            "s_name",
+            "target_freq_ghz",
+            "freq_ghz",
+            "freq_error_ghz",
+            "s_db",
+            "s_phase_deg",
+            "source_format",
+        ]
+        return table.loc[nearest_index, output_columns].reset_index(drop=True)
+
     def load_folder(self, path: str | Path) -> DataFolder:
         """Return only folder identity, without reading data files."""
 
@@ -50,3 +103,16 @@ class DataLoader:
         if data_layer is DataLayer.PREPRO:
             return PreproLoader()
         raise ValueError(f"No loader for data layer {data_layer!r}")
+
+
+def _first_value(table: pd.DataFrame, column: str) -> object:
+    if column not in table or table.empty:
+        return None
+    return table[column].iloc[0]
+
+
+def _unique_values(table: pd.DataFrame, column: str) -> list[object]:
+    if column not in table:
+        return []
+    values = table[column].dropna().unique().tolist()
+    return sorted(values)
