@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
@@ -180,14 +180,12 @@ def _plot_metric(
             )
 
     ax.axhline(reference_value, color="0.25", linestyle="--", linewidth=1.0, label=reference_label)
-    ax.set_title(title, fontsize=config.title_size, fontweight="bold")
-    ax.set_xlabel("Transition", fontsize=config.label_size, fontweight="bold")
-    ax.set_ylabel(ylabel, fontsize=config.label_size, fontweight="bold")
+    apply_axis_text_style(ax, xlabel="Transition", ylabel=ylabel, title=title, config=config)
     ax.set_xticks(range(len(labels)))
     ax.set_xticklabels(labels, rotation=45, ha="right")
-    ax.tick_params(axis="both", labelsize=max(config.label_size - 1, 1))
+    ax.tick_params(axis="x", labelrotation=45)
     ax.grid(True, axis="y", color="0.88", linewidth=0.8)
-    ax.legend(frameon=False, loc="best", fontsize=config.label_size)
+    ax.legend(frameon=False, loc="best", fontsize=config.legend_size)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)

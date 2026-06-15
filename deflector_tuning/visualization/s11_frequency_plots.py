@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
 
 REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "tune_position", "freq_ghz", "s_db", "s_phase_deg")
 REQUIRED_MARKER_COLUMNS: tuple[str, ...] = (
@@ -129,14 +129,17 @@ def _plot_one(
             )
         ax.set_ylim(y_min, y_max)
 
-    ax.set_title(title, fontsize=config.title_size, fontweight="bold")
-    ax.set_xlabel("Freq. (GHz)", fontsize=config.label_size, fontweight="bold")
-    ax.set_ylabel(r"S11 (dB)", fontsize=config.label_size, fontweight="bold")
-    ax.tick_params(axis="both", labelsize=max(config.label_size - 1, 1))
+    apply_axis_text_style(
+        ax,
+        xlabel="Freq. (GHz)",
+        ylabel=r"$S_{11}$ (dB)",
+        title=title,
+        config=config,
+    )
     ax.grid(True, which="major", color="0.78", linewidth=0.8, alpha=0.7)
     ax.grid(True, which="minor", color="0.90", linestyle=":", linewidth=0.7, alpha=0.7)
     ax.minorticks_on()
-    ax.legend(frameon=True, loc="best", fontsize=config.label_size)
+    ax.legend(frameon=True, loc="best", fontsize=config.legend_size)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)
