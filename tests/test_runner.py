@@ -167,6 +167,16 @@ def test_detect_analysis_modes_skips_grid_scan_for_experiment_marker_points() ->
     assert "grid_scan_spacing" not in detected
 
 
+def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Path) -> None:
+    sparameter_path, dispersion_path = runner.resolve_input_paths(
+        "prepro/sample_prepro",
+        data_root=tmp_path / "data",
+    )
+
+    assert sparameter_path == tmp_path / "data" / "prepro" / "sample_prepro"
+    assert dispersion_path == tmp_path / "data" / "sim" / "260505_single_cell_dispersion_step1"
+
+
 def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
     tables["phase_advance"] = tables["phase_advance"].iloc[0:0]

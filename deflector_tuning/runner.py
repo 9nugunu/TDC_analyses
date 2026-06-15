@@ -22,6 +22,8 @@ AnalysisPaths = OrderedDict[str, Path]
 FigurePaths = OrderedDict[str, OrderedDict[str, Path]]
 
 BASE_ANALYSIS_MODES: tuple[str, ...] = ("marker_analysis", "s11", "phase_advance", "polar")
+DEFAULT_DATA_ROOT = Path("data")
+DEFAULT_DISPERSION_SUBPATH = Path("sim") / "260505_single_cell_dispersion_step1"
 GRID_SCAN_REQUIRED_COLUMNS: frozenset[str] = frozenset(
     {"data_kind", "sim_r_c", "sim_w_c", "marker_name", "s_phase_deg"}
 )
@@ -42,9 +44,10 @@ class RunResult:
 def run_folder_analysis(
     *,
     sparameter_path: str | Path,
-    dispersion_path: str | Path,
+    dispersion_path: str | Path | None = None,
     output_dir: str | Path,
     marker_role: str,
+    data_root: str | Path = DEFAULT_DATA_ROOT,
     loader: DataLoader | None = None,
 ) -> RunResult:
     """Run the standard one-folder marker workflow and write tables/figures.
@@ -54,8 +57,11 @@ def run_folder_analysis(
     spacing maps, are enabled from conservative checks on the analysis tables.
     """
 
-    sparameter_path = Path(sparameter_path)
-    dispersion_path = Path(dispersion_path)
+    sparameter_path, dispersion_path = resolve_input_paths(
+        sparameter_path,
+        dispersion_path=dispersion_path,
+        data_root=data_root,
+    )
     output_dir = Path(output_dir)
     table_dir = output_dir / "tables"
     figure_root = output_dir / "figures"
@@ -111,6 +117,30 @@ def run_folder_analysis(
         analysis_modes=modes,
         manifest_path=manifest_path,
     )
+
+
+def resolve_input_paths(
+    sparameter_path: str | Path,
+    *,
+    dispersion_path: str | Path | None = None,
+    data_root: str | Path = DEFAULT_DATA_ROOT,
+) -> tuple[Path, Path]:
+    """Resolve data-relative inputs and default dispersion folder."""
+
+    data_root = Path(data_root)
+    resolved_sparameter_path = _data_relative_path(sparameter_path, data_root=data_root)
+    if dispersion_path is None:
+        resolved_dispersion_path = data_root / DEFAULT_DISPERSION_SUBPATH
+    else:
+        resolved_dispersion_path = _data_relative_path(dispersion_path, data_root=data_root)
+    return resolved_sparameter_path, resolved_dispersion_path
+
+
+def _data_relative_path(path: str | Path, *, data_root: Path) -> Path:
+    path = Path(path)
+    if path.is_absolute() or path.parts[:1] == (data_root.name,):
+        return path
+    return data_root / path
 
 
 def detect_analysis_modes(tables: dict[str, pd.DataFrame]) -> tuple[str, ...]:
