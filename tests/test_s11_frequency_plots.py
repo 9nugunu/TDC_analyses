@@ -240,6 +240,77 @@ def test_plot_s11_with_markers_uses_distinct_port_side_styles(
     assert ("out", s11_frequency_plots.PORT_SIDE_STYLES["out"]["color"], s11_frequency_plots.PORT_SIDE_STYLES["out"]["linestyle"]) in trace_styles
 
 
+def test_plot_s11_with_markers_filters_touchstone_table_to_s11_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_figures.append(fig)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(s11_frequency_plots, "save_figure", _capture_figure)
+    sparameter_table = pd.concat(
+        [
+            _sparameter_table(),
+            _sparameter_table().assign(s_name="S21", s_db=-60.0),
+        ],
+        ignore_index=True,
+    )
+    marker_points = pd.concat(
+        [
+            _marker_points(),
+            _marker_points().assign(s_name="S21", s_db=-60.0),
+        ],
+        ignore_index=True,
+    )
+
+    plot_s11_with_markers(sparameter_table, marker_points, tmp_path, split_by_position=True, config=PlotConfig(dpi=120))
+
+    ax = next(axis for axis in saved_figures[0].axes if axis.get_visible())
+    trace_lines = [line for line in ax.lines if line.get_label() != "_nolegend_"]
+    assert all(min(line.get_ydata()) > -10.0 for line in trace_lines)
+
+
+def test_plot_s11_with_markers_collapses_unlabelled_duplicate_position_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+    saved_paths: list[Path] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_figures.append(fig)
+        saved_paths.append(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(s11_frequency_plots, "save_figure", _capture_figure)
+    s1p = _sparameter_table().query("tune_position == 0.5").assign(source_file="0.5.S1P", port_side=pd.NA)
+    s2p = s1p.assign(source_file="0.5.S2P", s_db=s1p["s_db"] - 1.0)
+    marker_s1p = _marker_points().query("tune_position == 0.5").assign(source_file="0.5.S1P", port_side=pd.NA)
+    marker_s2p = marker_s1p.assign(source_file="0.5.S2P", s_db=marker_s1p["s_db"] - 1.0)
+
+    plot_s11_with_markers(
+        pd.concat([s1p, s2p], ignore_index=True),
+        pd.concat([marker_s1p, marker_s2p], ignore_index=True),
+        tmp_path,
+        split_by_position=True,
+        config=PlotConfig(dpi=120),
+    )
+
+    target_index = next(index for index, path in enumerate(saved_paths) if path.name == "s11_position_0p5.png")
+    ax = next(axis for axis in saved_figures[target_index].axes if axis.get_visible())
+    trace_lines = [line for line in ax.lines if line.get_label() == "0.5"]
+    marker_texts = [text for text in ax.texts if "f_{" in text.get_text()]
+    assert len(trace_lines) == 1
+    assert len(marker_texts) == 1
+
+
 def test_plot_s11_with_markers_separates_port_side_marker_annotations(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

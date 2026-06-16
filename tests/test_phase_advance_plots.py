@@ -95,6 +95,23 @@ def test_plot_phase_advance_can_write_individual_position_family_pngs(tmp_path: 
         assert path.stat().st_size > 0
 
 
+def test_plot_phase_advance_uses_only_s11_when_multiple_sparameters_exist(tmp_path: Path) -> None:
+    s11_table = _phase_advance_table().copy()
+    s11_table["position_family"] = "cell"
+    s21_table = s11_table.copy()
+    s21_table["s_name"] = "S21"
+    s21_table["phase_advance_0to360_deg"] = s21_table["phase_advance_0to360_deg"] - 15.0
+    table = pd.concat([s11_table, s21_table], ignore_index=True)
+
+    paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
+
+    assert list(paths.keys()) == ["phase_advance_cell"]
+    assert paths["phase_advance_cell"].name == "phase_advance_cell.png"
+    for path in paths.values():
+        assert path.exists()
+        assert path.stat().st_size > 0
+
+
 def test_plot_phase_advance_can_exclude_edge_transitions(tmp_path: Path) -> None:
     phase_table = pd.concat(
         [
