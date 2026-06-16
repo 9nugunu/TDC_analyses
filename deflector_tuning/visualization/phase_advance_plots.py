@@ -78,7 +78,7 @@ def plot_phase_advance(
         reference_label="zero error",
         config=config,
     )
-    if split_by_family:
+    if split_by_family and _has_named_position_families(table):
         for family in _position_family_order(table):
             family_table = table[table["position_family"] == family].copy()
             if family_table.empty:
@@ -203,6 +203,8 @@ def _format_position(position: object) -> str:
 
 
 def _position_family(tune_position: object) -> str:
+    if pd.isna(tune_position):
+        return "unknown"
     value = float(tune_position)
     fractional = value % 1.0
     if abs(fractional) < 1e-9:
@@ -216,3 +218,10 @@ def _position_family_order(table: pd.DataFrame) -> list[str]:
     family_order = [family for family in ("cell", "iris") if family in set(table["position_family"])]
     family_order.extend(family for family in table["position_family"].dropna().unique() if family not in family_order)
     return family_order
+
+
+def _has_named_position_families(table: pd.DataFrame) -> bool:
+    if "position_family" not in table:
+        return False
+    families = set(table["position_family"].dropna().astype(str))
+    return bool(families.difference({"unknown", "nan", "offset_nan"}))

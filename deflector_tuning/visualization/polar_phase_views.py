@@ -45,13 +45,14 @@ def plot_marker_phase_polar_views(
     folder.mkdir(parents=True, exist_ok=True)
     paths: OrderedDict[str, Path] = OrderedDict()
     groups = list(_iter_position_groups(marker_points))
-    for position_label, position_table in groups:
-        fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
-        _draw_position(ax, position_table, f"{position_label}: {title_prefix}", config=config)
-        output_path = folder / f"position_{_safe_label(position_label)}.png"
-        save_figure(fig, output_path, config)
-        plt.close(fig)
-        paths[position_label] = output_path
+    if _has_named_positions(marker_points):
+        for position_label, position_table in groups:
+            fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
+            _draw_position(ax, position_table, f"{position_label}: {title_prefix}", config=config)
+            output_path = folder / f"position_{_safe_label(position_label)}.png"
+            save_figure(fig, output_path, config)
+            plt.close(fig)
+            paths[position_label] = output_path
 
     overview_path = folder / "all_positions.png"
     _save_overview(groups, overview_path, title_prefix=title_prefix, config=config)
@@ -61,10 +62,17 @@ def plot_marker_phase_polar_views(
 
 def _iter_position_groups(marker_points: pd.DataFrame):
     table = marker_points.copy()
+    if not _has_named_positions(table):
+        yield "all", table.sort_values(["source_file", "marker_name"], kind="mergesort")
+        return
     table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
     table = table.sort_values(["_position_sort", "tune_position", "marker_name"], kind="mergesort")
     for position, group in table.groupby("tune_position", sort=False, dropna=False):
         yield _format_position(position), group
+
+
+def _has_named_positions(marker_points: pd.DataFrame) -> bool:
+    return "tune_position" in marker_points and marker_points["tune_position"].notna().any()
 
 
 def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *, title_prefix: str, config: PlotConfig) -> None:

@@ -160,6 +160,16 @@ def test_plot_marker_phase_polar_views_uses_full_typography_for_per_position_and
             assert {text.get_fontsize() for text in marker_labels} == {float(config.label_size)}
 
 
+def test_plot_marker_phase_polar_views_uses_overview_only_when_tune_positions_are_missing(tmp_path: Path) -> None:
+    table = _marker_points().assign(tune_position=pd.NA)
+
+    paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["overview"]
+    assert paths["overview"].name == "all_positions.png"
+    assert paths["overview"].exists()
+
+
 def test_plot_marker_phase_polar_views_rejects_empty_marker_points(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="marker_points is empty"):
         plot_marker_phase_polar_views(pd.DataFrame(), tmp_path)

@@ -136,6 +136,20 @@ def test_plot_phase_advance_can_exclude_edge_transitions(tmp_path: Path) -> None
     assert paths["phase_error"].exists()
 
 
+def test_plot_phase_advance_skips_family_split_when_positions_are_missing(tmp_path: Path) -> None:
+    table = _phase_advance_table().assign(
+        from_tune_position=pd.NA,
+        to_tune_position=pd.NA,
+        position_family="offset_nan",
+    )
+
+    paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["phase_advance", "phase_error"]
+    assert paths["phase_advance"].exists()
+    assert paths["phase_error"].exists()
+
+
 def test_plot_phase_advance_rejects_empty_table(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="phase_advance is empty"):
         plot_phase_advance(pd.DataFrame(), tmp_path)

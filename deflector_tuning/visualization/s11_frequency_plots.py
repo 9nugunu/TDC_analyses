@@ -13,10 +13,9 @@ import pandas as pd
 
 from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
 
-REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "tune_position", "freq_ghz", "s_db", "s_phase_deg")
+REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db", "s_phase_deg")
 REQUIRED_MARKER_COLUMNS: tuple[str, ...] = (
     "source_file",
-    "tune_position",
     "marker_name",
     "freq_ghz",
     "s_db",
@@ -73,7 +72,7 @@ def plot_s11_with_markers(
         title="S11 magnitude with marker points",
         config=config,
     )
-    if split_by_position:
+    if split_by_position and "tune_position" in s_table and "tune_position" in m_table:
         for tune_position, group in s_table.groupby("tune_position", dropna=False, sort=True):
             marker_group = m_table[m_table["tune_position"] == tune_position]
             key = f"position_{_format_position_key(tune_position)}"

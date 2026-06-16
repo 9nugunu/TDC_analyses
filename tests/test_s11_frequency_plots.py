@@ -91,6 +91,47 @@ def test_plot_s11_with_markers_writes_overview_and_individual_pngs(tmp_path: Pat
         assert path.stat().st_size > 0
 
 
+def test_plot_s11_with_markers_accepts_grid_scan_without_tune_position(tmp_path: Path) -> None:
+    sparameter_table = pd.DataFrame(
+        [
+            {
+                "source_file": "run1.s1p",
+                "freq_ghz": 2.85,
+                "s_db": -1.0,
+                "s_phase_deg": 10.0,
+                "sim_r_c": 56.59,
+                "sim_w_c": 19.32,
+            },
+            {
+                "source_file": "run1.s1p",
+                "freq_ghz": 2.86,
+                "s_db": -2.0,
+                "s_phase_deg": 20.0,
+                "sim_r_c": 56.59,
+                "sim_w_c": 19.32,
+            },
+        ]
+    )
+    marker_points = pd.DataFrame(
+        [
+            {
+                "source_file": "run1.s1p",
+                "marker_name": "f_2pi3",
+                "freq_ghz": 2.85,
+                "s_db": -1.0,
+                "s_phase_deg": 10.0,
+                "sim_r_c": 56.59,
+                "sim_w_c": 19.32,
+            }
+        ]
+    )
+
+    paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["overview"]
+    assert paths["overview"].exists()
+
+
 def test_plot_s11_with_markers_rejects_empty_sparameter_table(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="sparameter_table is empty"):
         plot_s11_with_markers(pd.DataFrame(), _marker_points(), tmp_path)
