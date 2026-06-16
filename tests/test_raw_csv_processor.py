@@ -65,3 +65,22 @@ def test_raw_loader_processes_formatted_mag_phase_csv_export(tmp_path: Path) -> 
     assert row["s_db"] == 0.188210142879
     assert row["s_phase_deg"] == -92.3982503755
     assert row["source_format"] == "raw_csv_db_phase"
+
+
+def test_raw_loader_skips_non_sparameter_csv_outputs(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "raw" / "case_with_outputs"
+    folder.mkdir(parents=True)
+    (folder / "in_0.5cell.csv").write_text(
+        "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
+        "2600000000.0;1.0;0.0;\n",
+        encoding="utf-8",
+    )
+    (folder / "marker_phase_from_png.csv").write_text(
+        "marker_name,freq_ghz,s_phase_deg\nf_mean,2.856,30.0\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().load(folder)
+
+    assert table["source_file"].tolist() == ["in_0.5cell.csv"]
+    assert len(table) == 1
