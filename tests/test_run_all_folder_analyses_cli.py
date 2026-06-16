@@ -9,6 +9,23 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = PROJECT_ROOT / "run_all_folder_analyses.py"
 
 
+def _write_cst_export(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "#",
+                '#"phase"\t"Mode 1 [Real / GHz]"',
+                "#-----------------------------",
+                "0\t3.10",
+                "90\t2.90",
+                "120\t2.86",
+                "180\t2.84",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 def _load_runner_module():
     import importlib.util
 
@@ -71,7 +88,7 @@ def test_build_batch_tasks_infers_output_and_marker_role(tmp_path: Path) -> None
         output_root=tmp_path / "analyses",
         marker_role=None,
         dispersion_path=None,
-        data_root=Path("data"),
+        data_root=tmp_path / "data",
     )
 
     assert [task.output_dir for task in tasks] == [
@@ -79,6 +96,65 @@ def test_build_batch_tasks_infers_output_and_marker_role(tmp_path: Path) -> None
         tmp_path / "analyses" / "sim_scan_dataset",
     ]
     assert [task.marker_role for task in tasks] == ["exp", "sim"]
+
+
+def test_prepare_batch_dispersion_input_processes_explicit_txt(tmp_path: Path) -> None:
+    module = _load_runner_module()
+    source = tmp_path / "data" / "sim" / "dispersion" / "dispersion.txt"
+    source.parent.mkdir(parents=True)
+    _write_cst_export(source)
+
+    prepared = module.prepare_batch_dispersion_input(
+        Path("sim") / "dispersion" / "dispersion.txt",
+        data_root=tmp_path / "data",
+    )
+
+    assert prepared == source.parent
+    assert (source.parent / "processed" / "dispersion_summary.csv").exists()
+
+
+def test_prepare_batch_dispersion_input_processes_single_txt_in_folder(tmp_path: Path) -> None:
+    module = _load_runner_module()
+    folder = tmp_path / "data" / "sim" / "dispersion"
+    folder.mkdir(parents=True)
+    source = folder / "dispersion.txt"
+    _write_cst_export(source)
+
+    prepared = module.prepare_batch_dispersion_input(
+        Path("sim") / "dispersion",
+        data_root=tmp_path / "data",
+    )
+
+    assert prepared == folder
+    assert (folder / "processed" / "dispersion_summary.csv").exists()
+
+
+def test_prepare_batch_dispersion_input_discovers_dispersion_named_folder(tmp_path: Path) -> None:
+    module = _load_runner_module()
+    folder = tmp_path / "data" / "sim" / "my_new_dispersion_export"
+    folder.mkdir(parents=True)
+    source = folder / "cst_dispersion_export.txt"
+    _write_cst_export(source)
+
+    prepared = module.prepare_batch_dispersion_input(None, data_root=tmp_path / "data")
+
+    assert prepared == folder
+    assert (folder / "processed" / "cst_dispersion_export_summary.csv").exists()
+
+
+def test_prepare_batch_dispersion_input_rejects_ambiguous_txt_exports(tmp_path: Path) -> None:
+    module = _load_runner_module()
+    folder = tmp_path / "data" / "sim" / "dispersion"
+    folder.mkdir(parents=True)
+    _write_cst_export(folder / "a_dispersion.txt")
+    _write_cst_export(folder / "b_dispersion.txt")
+
+    try:
+        module.prepare_batch_dispersion_input(Path("sim") / "dispersion", data_root=tmp_path / "data")
+    except ValueError as exc:
+        assert "Multiple CST txt exports" in str(exc)
+    else:
+        raise AssertionError("Expected ambiguous txt exports to fail")
 
 
 def test_default_worker_count_reserves_two_cpus(monkeypatch) -> None:
@@ -116,7 +192,7 @@ def test_main_runs_every_discovered_dataset_and_continues_after_failure(monkeypa
 
     monkeypatch.setattr(module, "execute_batch_tasks", fake_execute_batch_tasks)
 
-    exit_code = module.main(["--output-root", str(tmp_path / "analyses")])
+    exit_code = module.main(["--data-root", str(tmp_path / "data"), "--output-root", str(tmp_path / "analyses")])
     captured = capsys.readouterr()
 
     assert exit_code == 1
@@ -176,7 +252,7 @@ def test_main_passes_worker_count_to_batch_executor(monkeypatch, tmp_path: Path)
 
     monkeypatch.setattr(module, "execute_batch_tasks", fake_execute_batch_tasks)
 
-    exit_code = module.main(["--output-root", str(tmp_path / "analyses"), "--workers", "4"])
+    exit_code = module.main(["--data-root", str(tmp_path / "data"), "--output-root", str(tmp_path / "analyses"), "--workers", "4"])
 
     assert exit_code == 0
     assert recorded_workers == [4]
@@ -195,7 +271,7 @@ def test_main_uses_default_worker_count_when_nonpositive(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(module, "execute_batch_tasks", fake_execute_batch_tasks)
 
-    exit_code = module.main(["--output-root", str(tmp_path / "analyses"), "--workers", "0"])
+    exit_code = module.main(["--data-root", str(tmp_path / "data"), "--output-root", str(tmp_path / "analyses"), "--workers", "0"])
 
     assert exit_code == 0
     assert recorded_workers == [6]
