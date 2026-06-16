@@ -56,7 +56,10 @@ def plot_marker_phase_polar_views(
         for position_label, position_table in groups:
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_position(ax, position_table, f"{position_label}: {title_prefix}", config=config)
-            output_path = folder / f"position_{_safe_label(position_label)}.png"
+            output_stem = (
+                _tune_position_filename_label(position_table) if grouping_mode == "tune_position" else f"position_{_safe_label(position_label)}"
+            )
+            output_path = folder / f"{output_stem}.png"
             save_figure(fig, output_path, config)
             plt.close(fig)
             paths[position_label] = output_path
@@ -65,6 +68,26 @@ def plot_marker_phase_polar_views(
         overview_path = folder / "all_positions.png"
         _save_overview(groups, overview_path, title_prefix=title_prefix, config=config)
         paths["overview"] = overview_path
+    if grouping_mode == "tune_position":
+        for family, family_table in _iter_family_overlay_groups(marker_points):
+            fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
+            _draw_family_overlay(ax, family_table, f"{family.title()} overlay: {title_prefix}", config=config)
+            output_path = folder / f"{family}_overlay.png"
+            save_figure(fig, output_path, config)
+            plt.close(fig)
+            paths[f"{family}_overlay"] = output_path
+            fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
+            _draw_family_overlay(
+                ax,
+                family_table,
+                f"{family.title()} {MARKER_LABELS['f_2pi3']} overlay: {title_prefix}",
+                config=config,
+                markers=("f_2pi3",),
+            )
+            output_path = folder / f"{family}_f_2pi3_overlay.png"
+            save_figure(fig, output_path, config)
+            plt.close(fig)
+            paths[f"{family}_f_2pi3_overlay"] = output_path
     return paths
 
 
@@ -131,6 +154,20 @@ def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *,
     plt.close(fig)
 
 
+def _iter_family_overlay_groups(marker_points: pd.DataFrame):
+    table = marker_points.copy()
+    table = table.dropna(subset=["tune_position"]).copy()
+    if table.empty:
+        return
+    table["position_family"] = table["tune_position"].map(_position_family)
+    table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+    table = table.sort_values(["position_family", "_position_sort", "marker_name"], kind="mergesort")
+    for family, group in table.groupby("position_family", sort=False, dropna=False):
+        if family not in {"cell", "iris"} or group["tune_position"].dropna().nunique() < 1:
+            continue
+        yield str(family), group.copy()
+
+
 def _draw_position(ax, position_table: pd.DataFrame, title: str, *, compact: bool = False, config: PlotConfig) -> None:
     title_size = config.compact_title_size if compact else config.title_size
     label_size = config.compact_label_size if compact else config.label_size
@@ -171,6 +208,82 @@ def _draw_position(ax, position_table: pd.DataFrame, title: str, *, compact: boo
 
     _draw_spacing_arc(ax, angles, "f_2pi3", "f_mean", r"$\Delta\phi_{21}$", radius=0.70, compact=compact, config=config)
     _draw_spacing_arc(ax, angles, "f_mean", "f_pi2", r"$\Delta\phi_{32}$", radius=0.84, compact=compact, config=config)
+
+
+def _draw_family_overlay(
+    ax,
+    family_table: pd.DataFrame,
+    title: str,
+    *,
+    config: PlotConfig,
+    markers: tuple[str, ...] | None = None,
+) -> None:
+    ax.set_title(title, fontsize=config.title_size, fontweight="bold", pad=12)
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    ax.set_ylim(0, 1.12)
+    ax.set_yticks([])
+    ax.set_xticks(np.deg2rad([0, 90, 180, 270]))
+    ax.set_xticklabels([])
+    ax.grid(color="0.88", linewidth=0.6)
+    ax.spines["polar"].set_color("0.20")
+    ax.spines["polar"].set_linewidth(0.8)
+
+    positions = sorted(family_table["tune_position"].dropna().unique(), key=float)
+    if not positions:
+        return
+    marker_names = markers or MARKER_ORDER
+    radius_values = np.linspace(0.52, 1.0, len(positions))
+    for radius, tune_position in zip(radius_values, positions, strict=True):
+        position_rows = family_table[family_table["tune_position"] == tune_position]
+        by_marker = {row["marker_name"]: row for _, row in position_rows.iterrows()}
+        for marker in [name for name in marker_names if name in by_marker]:
+            angle = np.deg2rad(float(by_marker[marker]["s_phase_deg"]))
+            color = MARKER_COLORS.get(marker, "#444444")
+            ax.plot([angle, angle], [0.14, radius], color=color, alpha=0.28, linewidth=config.line_width)
+            ax.scatter(
+                [angle],
+                [radius],
+                marker="o",
+                s=max(config.marker_size * 0.42, 14.0),
+                facecolors=color,
+                edgecolors="white",
+                linewidths=0.6,
+                alpha=0.90,
+                zorder=3,
+            )
+        label = _format_position(tune_position)
+        text = ax.text(
+            np.deg2rad(182.0),
+            radius,
+            label,
+            color="0.25",
+            fontsize=config.annotation_size,
+            ha="right",
+            va="center",
+            bbox={"boxstyle": "round,pad=0.14", "facecolor": "white", "edgecolor": "0.85", "alpha": 0.88},
+        )
+        text.set_clip_on(False)
+
+    _draw_family_overlay_marker_legend(ax, config=config, markers=marker_names)
+
+
+def _draw_family_overlay_marker_legend(ax, *, config: PlotConfig, markers: tuple[str, ...]) -> None:
+    legend_lines: list[str] = []
+    for marker in markers:
+        color = MARKER_COLORS.get(marker, "#444444")
+        legend_lines.append(f"{MARKER_LABELS.get(marker, marker)}")
+        ax.text(
+            np.deg2rad(8.0),
+            1.08 - 0.07 * len(legend_lines),
+            legend_lines[-1],
+            color=color,
+            fontsize=config.label_size,
+            fontweight="bold",
+            ha="left",
+            va="center",
+            bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.72},
+        ).set_clip_on(False)
 
 
 def _draw_spacing_arc(ax, angles: dict[str, float], start_marker: str, end_marker: str, label: str, *, radius: float, compact: bool, config: PlotConfig) -> None:
@@ -218,6 +331,24 @@ def _format_position(position: object) -> str:
     if value.is_integer():
         return f"{value:.1f}"
     return f"{value:g}"
+
+
+def _tune_position_filename_label(position_table: pd.DataFrame) -> str:
+    tune_positions = position_table["tune_position"].dropna().unique()
+    if len(tune_positions) != 1:
+        return f"position_{_safe_label(_format_position(tune_positions[0] if len(tune_positions) else 'unknown'))}"
+    tune_position = tune_positions[0]
+    return f"{_position_family(tune_position)}_{_safe_label(_format_position(tune_position))}"
+
+
+def _position_family(tune_position: object) -> str:
+    value = float(tune_position)
+    fractional = value % 1.0
+    if abs(fractional) < 1e-9:
+        return "iris"
+    if abs(fractional - 0.5) < 1e-9:
+        return "cell"
+    return f"offset_{_safe_label(f'{fractional:g}')}"
 
 
 def _format_grid_label(sim_r_c: object, sim_w_c: object) -> str:

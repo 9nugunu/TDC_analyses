@@ -157,13 +157,26 @@ def _grid_scan_marker_points() -> pd.DataFrame:
 def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp_path: Path) -> None:
     paths = plot_marker_phase_polar_views(_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["0.5", "1.0", "overview"]
+    assert list(paths) == [
+        "0.5",
+        "1.0",
+        "overview",
+        "cell_overlay",
+        "cell_f_2pi3_overlay",
+        "iris_overlay",
+        "iris_f_2pi3_overlay",
+    ]
     for path in paths.values():
         assert path.exists()
         assert path.suffix == ".png"
         assert path.stat().st_size > 0
-    assert paths["0.5"].name == "position_0p5.png"
+    assert paths["0.5"].name == "cell_0p5.png"
+    assert paths["1.0"].name == "iris_1p0.png"
     assert paths["overview"].name == "all_positions.png"
+    assert paths["cell_overlay"].name == "cell_overlay.png"
+    assert paths["cell_f_2pi3_overlay"].name == "cell_f_2pi3_overlay.png"
+    assert paths["iris_overlay"].name == "iris_overlay.png"
+    assert paths["iris_f_2pi3_overlay"].name == "iris_f_2pi3_overlay.png"
     assert plt.rcParams["font.sans-serif"][:4] == ["Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans"]
 
 
@@ -241,3 +254,11 @@ def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_
 def test_plot_marker_phase_polar_views_rejects_empty_marker_points(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="marker_points is empty"):
         plot_marker_phase_polar_views(pd.DataFrame(), tmp_path)
+
+
+def test_plot_marker_phase_polar_views_skips_family_overlay_when_family_has_single_position(tmp_path: Path) -> None:
+    table = _marker_points().iloc[:3].copy()
+
+    paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["overview"]
