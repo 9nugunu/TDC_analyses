@@ -74,7 +74,10 @@ def test_build_batch_tasks_infers_output_and_marker_role(tmp_path: Path) -> None
         data_root=Path("data"),
     )
 
-    assert [task.output_dir for task in tasks] == [tmp_path / "analyses" / "good_dataset", tmp_path / "analyses" / "scan_dataset"]
+    assert [task.output_dir for task in tasks] == [
+        tmp_path / "analyses" / "exp_good_dataset",
+        tmp_path / "analyses" / "sim_scan_dataset",
+    ]
     assert [task.marker_role for task in tasks] == ["exp", "sim"]
 
 
@@ -107,7 +110,7 @@ def test_main_runs_every_discovered_dataset_and_continues_after_failure(monkeypa
         recorded_tasks.extend(tasks)
         assert workers == 1
         return (
-            [(Path("prepro") / "good_dataset", tmp_path / "analyses" / "good_dataset")],
+            [(Path("prepro") / "good_dataset", tmp_path / "analyses" / "exp_good_dataset")],
             [(Path("sim") / "bad_dataset", RuntimeError("bad dataset"))],
         )
 
@@ -118,9 +121,9 @@ def test_main_runs_every_discovered_dataset_and_continues_after_failure(monkeypa
 
     assert exit_code == 1
     assert len(recorded_tasks) == 2
-    assert recorded_tasks[0].output_dir == tmp_path / "analyses" / "good_dataset"
+    assert recorded_tasks[0].output_dir == tmp_path / "analyses" / "exp_good_dataset"
     assert recorded_tasks[0].marker_role == "exp"
-    assert recorded_tasks[1].output_dir == tmp_path / "analyses" / "bad_dataset"
+    assert recorded_tasks[1].output_dir == tmp_path / "analyses" / "sim_bad_dataset"
     assert "prepro\\good_dataset ->" in captured.out or "prepro/good_dataset ->" in captured.out
     assert "failed_datasets:" in captured.out
 
@@ -131,14 +134,14 @@ def test_execute_batch_tasks_logs_progress(monkeypatch, caplog) -> None:
         module.BatchTask(
             sparameter_path=Path("prepro") / "good_dataset",
             dispersion_path=None,
-            output_dir=Path("fig") / "analyses" / "good_dataset",
+            output_dir=Path("fig") / "analyses" / "exp_good_dataset",
             marker_role="exp",
             data_root=Path("data"),
         ),
         module.BatchTask(
             sparameter_path=Path("sim") / "bad_dataset",
             dispersion_path=None,
-            output_dir=Path("fig") / "analyses" / "bad_dataset",
+            output_dir=Path("fig") / "analyses" / "sim_bad_dataset",
             marker_role="sim",
             data_root=Path("data"),
         ),
@@ -154,7 +157,7 @@ def test_execute_batch_tasks_logs_progress(monkeypatch, caplog) -> None:
     with caplog.at_level("INFO", logger=module.logger.name):
         successes, failures = module.execute_batch_tasks(tasks, workers=1)
 
-    assert successes == [(Path("prepro") / "good_dataset", Path("fig") / "analyses" / "good_dataset")]
+    assert successes == [(Path("prepro") / "good_dataset", Path("fig") / "analyses" / "exp_good_dataset")]
     assert len(failures) == 1
     messages = [record.getMessage() for record in caplog.records]
     assert any("[1/2] completed: prepro" in message for message in messages)
@@ -169,7 +172,7 @@ def test_main_passes_worker_count_to_batch_executor(monkeypatch, tmp_path: Path)
 
     def fake_execute_batch_tasks(tasks, workers):
         recorded_workers.append(workers)
-        return ([(Path("sim") / "scan_dataset", tmp_path / "analyses" / "scan_dataset")], [])
+        return ([(Path("sim") / "scan_dataset", tmp_path / "analyses" / "sim_scan_dataset")], [])
 
     monkeypatch.setattr(module, "execute_batch_tasks", fake_execute_batch_tasks)
 
@@ -188,7 +191,7 @@ def test_main_uses_default_worker_count_when_nonpositive(monkeypatch, tmp_path: 
 
     def fake_execute_batch_tasks(tasks, workers):
         recorded_workers.append(workers)
-        return ([(Path("sim") / "scan_dataset", tmp_path / "analyses" / "scan_dataset")], [])
+        return ([(Path("sim") / "scan_dataset", tmp_path / "analyses" / "sim_scan_dataset")], [])
 
     monkeypatch.setattr(module, "execute_batch_tasks", fake_execute_batch_tasks)
 

@@ -58,7 +58,7 @@ def test_collect_interactive_args_only_asks_for_input_folder(monkeypatch) -> Non
     assert prompts == ["Input dataset id or folder, e.g. 260527_iris_line_sweep: "]
     assert args.input_folder == Path("sim/260527_iris_line_sweep")
     assert args.sparameter_path == Path("sim/260527_iris_line_sweep")
-    assert args.output_dir == Path("fig/analyses/260527_iris_line_sweep")
+    assert args.output_dir == Path("fig/analyses/sim_260527_iris_line_sweep")
     assert args.marker_role == "sim"
     assert args.dispersion_path is None
     assert args.data_root == Path("data")
@@ -71,7 +71,7 @@ def test_parse_args_infers_defaults_from_positional_input_folder() -> None:
 
     assert args.input_folder == Path("prepro/260415_fullbrazing")
     assert args.sparameter_path == Path("prepro/260415_fullbrazing")
-    assert args.output_dir == Path("fig/analyses/260415_fullbrazing")
+    assert args.output_dir == Path("fig/analyses/exp_260415_fullbrazing")
     assert args.marker_role == "exp"
     assert args.data_root == Path("data")
 
@@ -89,7 +89,7 @@ def test_parse_args_resolves_dataset_id_by_searching_data_layers(tmp_path: Path)
 
     assert args.input_folder == Path("260605_iris2dsweep_solver_export_no_norm")
     assert args.sparameter_path == Path("sim/260605_iris2dsweep_solver_export_no_norm")
-    assert args.output_dir == Path("fig/analyses/260605_iris2dsweep_solver_export_no_norm")
+    assert args.output_dir == Path("fig/analyses/sim_260605_iris2dsweep_solver_export_no_norm")
     assert args.marker_role == "sim"
 
 
@@ -104,6 +104,13 @@ def test_parse_args_prefers_prepro_then_raw_then_sim_for_dataset_id(tmp_path: Pa
 
     assert args.sparameter_path == Path("prepro") / dataset_id
     assert args.marker_role == "exp"
+
+
+def test_default_output_dir_does_not_duplicate_existing_kind_prefix() -> None:
+    module = _load_runner_module()
+
+    assert module.default_output_dir("sim_scan_dataset", marker_role="sim") == Path("fig/analyses/sim_scan_dataset")
+    assert module.default_output_dir("exp_measured_dataset", marker_role="exp") == Path("fig/analyses/exp_measured_dataset")
 
 
 def test_parse_args_keeps_advanced_overrides_when_provided() -> None:

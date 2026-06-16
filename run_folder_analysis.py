@@ -30,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         default=None,
-        help="Advanced override. Default: fig/analyses/<dataset_id>.",
+        help="Advanced override. Default: fig/analyses/<sim|exp>_<dataset_id>.",
     )
     parser.add_argument(
         "--marker-role",
@@ -102,8 +102,12 @@ def apply_inferred_defaults(args: argparse.Namespace) -> argparse.Namespace:
 
     args.input_folder = input_folder
     args.sparameter_path = resolved_input
-    args.output_dir = Path(args.output_dir) if args.output_dir is not None else default_output_dir(dataset_id)
     args.marker_role = args.marker_role or marker_role_for_layer(data_layer)
+    args.output_dir = (
+        Path(args.output_dir)
+        if args.output_dir is not None
+        else default_output_dir(dataset_id, marker_role=args.marker_role)
+    )
     args.dispersion_path = Path(args.dispersion_path) if args.dispersion_path is not None else None
     args.data_root = data_root
     return args
@@ -182,10 +186,19 @@ def marker_role_for_layer(data_layer: DataLayer) -> str:
     return "exp"
 
 
-def default_output_dir(dataset_id: str) -> Path:
+def prefixed_dataset_id(dataset_id: str, *, marker_role: str) -> str:
+    """Return the output dataset id with a sim/exp role prefix."""
+
+    prefix = f"{marker_role}_"
+    if dataset_id.startswith(("sim_", "exp_")):
+        return dataset_id
+    return f"{prefix}{dataset_id}"
+
+
+def default_output_dir(dataset_id: str, *, marker_role: str) -> Path:
     """Return the canonical default output directory for one-folder analysis."""
 
-    return Path("fig") / "analyses" / dataset_id
+    return Path("fig") / "analyses" / prefixed_dataset_id(dataset_id, marker_role=marker_role)
 
 
 def main(argv: list[str] | None = None) -> int:

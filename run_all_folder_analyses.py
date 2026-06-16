@@ -13,6 +13,7 @@ from run_folder_analysis import (
     DATASET_ID_LAYER_PRIORITY,
     DEFAULT_DATA_ROOT,
     apply_inferred_defaults,
+    prefixed_dataset_id,
     run_folder_analysis,
 )
 
@@ -138,17 +139,18 @@ def build_batch_tasks(
         dataset_args = apply_inferred_defaults(
             argparse.Namespace(
                 input_folder=dataset_input,
-                output_dir=output_root / dataset_input.name,
+                output_dir=None,
                 marker_role=marker_role,
                 dispersion_path=dispersion_path,
                 data_root=data_root,
             )
         )
+        output_dir = output_root / prefixed_dataset_id(dataset_input.name, marker_role=str(dataset_args.marker_role))
         tasks.append(
             BatchTask(
                 sparameter_path=Path(dataset_args.sparameter_path),
                 dispersion_path=Path(dataset_args.dispersion_path) if dataset_args.dispersion_path is not None else None,
-                output_dir=Path(dataset_args.output_dir),
+                output_dir=output_dir,
                 marker_role=str(dataset_args.marker_role),
                 data_root=Path(dataset_args.data_root),
             )
