@@ -10,6 +10,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.colors import to_hex, to_rgb
 import numpy as np
 import pandas as pd
@@ -55,7 +56,13 @@ def plot_marker_phase_polar_views(
     if len(groups) > 1:
         for position_label, position_table in groups:
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
-            _draw_position(ax, position_table, f"{position_label}: {title_prefix}", config=config)
+            _draw_position(
+                ax,
+                position_table,
+                f"{position_label}: {title_prefix}",
+                config=config,
+                guide_angles_deg=(0.0, 120.0, 240.0) if grouping_mode == "tune_position" else (),
+            )
             output_stem = (
                 _tune_position_filename_label(position_table) if grouping_mode == "tune_position" else f"position_{_safe_label(position_label)}"
             )
@@ -83,6 +90,7 @@ def plot_marker_phase_polar_views(
                 f"{family.title()} {MARKER_LABELS['f_2pi3']} overlay: {title_prefix}",
                 config=config,
                 markers=("f_2pi3",),
+                guide_angles_deg=(0.0, 120.0, 240.0),
             )
             output_path = folder / f"{family}_f_2pi3_overlay.png"
             save_figure(fig, output_path, config)
@@ -168,7 +176,15 @@ def _iter_family_overlay_groups(marker_points: pd.DataFrame):
         yield str(family), group.copy()
 
 
-def _draw_position(ax, position_table: pd.DataFrame, title: str, *, compact: bool = False, config: PlotConfig) -> None:
+def _draw_position(
+    ax,
+    position_table: pd.DataFrame,
+    title: str,
+    *,
+    compact: bool = False,
+    config: PlotConfig,
+    guide_angles_deg: tuple[float, ...] = (),
+) -> None:
     title_size = config.compact_title_size if compact else config.title_size
     label_size = config.compact_label_size if compact else config.label_size
     marker_size = config.compact_marker_size if compact else config.marker_size
@@ -183,6 +199,8 @@ def _draw_position(ax, position_table: pd.DataFrame, title: str, *, compact: boo
     ax.grid(color="0.88", linewidth=0.6)
     ax.spines["polar"].set_color("0.20")
     ax.spines["polar"].set_linewidth(0.8)
+    if guide_angles_deg:
+        _draw_angle_guides(ax, guide_angles_deg, config=config)
 
     by_marker = {row["marker_name"]: row for _, row in position_table.iterrows()}
     available = [marker for marker in MARKER_ORDER if marker in by_marker]
@@ -217,29 +235,34 @@ def _draw_family_overlay(
     *,
     config: PlotConfig,
     markers: tuple[str, ...] | None = None,
+    guide_angles_deg: tuple[float, ...] = (),
 ) -> None:
     ax.set_title(title, fontsize=config.title_size, fontweight="bold", pad=12)
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
-    ax.set_ylim(0, 1.12)
-    ax.set_yticks([])
+    ax.set_ylim(0, 1.06)
     ax.set_xticks(np.deg2rad([0, 90, 180, 270]))
     ax.set_xticklabels([])
     ax.grid(color="0.88", linewidth=0.6)
     ax.spines["polar"].set_color("0.20")
     ax.spines["polar"].set_linewidth(0.8)
+    if guide_angles_deg:
+        _draw_angle_guides(ax, guide_angles_deg, config=config)
 
     positions = sorted(family_table["tune_position"].dropna().unique(), key=float)
     if not positions:
         return
     marker_names = markers or MARKER_ORDER
-    radius_values = np.linspace(0.52, 1.0, len(positions))
+    radius_values = np.linspace(0.22, 1.0, len(positions))
     for radius, tune_position in zip(radius_values, positions, strict=True):
         position_rows = family_table[family_table["tune_position"] == tune_position]
         by_marker = {row["marker_name"]: row for _, row in position_rows.iterrows()}
+        label_anchor_angle: float | None = None
         for marker in [name for name in marker_names if name in by_marker]:
             angle = np.deg2rad(float(by_marker[marker]["s_phase_deg"]))
             color = MARKER_COLORS.get(marker, "#444444")
+            if label_anchor_angle is None or marker == "f_2pi3":
+                label_anchor_angle = float(angle)
             ax.plot([angle, angle], [0.14, radius], color=color, alpha=0.28, linewidth=config.line_width)
             ax.scatter(
                 [angle],
@@ -252,38 +275,88 @@ def _draw_family_overlay(
                 alpha=0.90,
                 zorder=3,
             )
-        label = _format_position(tune_position)
-        text = ax.text(
-            np.deg2rad(182.0),
-            radius,
-            label,
-            color="0.25",
-            fontsize=config.annotation_size,
-            ha="right",
-            va="center",
-            bbox={"boxstyle": "round,pad=0.14", "facecolor": "white", "edgecolor": "0.85", "alpha": 0.88},
-        )
-        text.set_clip_on(False)
+        if label_anchor_angle is not None:
+            _annotate_overlay_position(ax, label_anchor_angle, radius, _format_position(tune_position), config=config)
+    ax.set_yticks([])
 
-    _draw_family_overlay_marker_legend(ax, config=config, markers=marker_names)
+    if len(marker_names) > 1:
+        _draw_family_overlay_marker_legend(ax, config=config, markers=marker_names)
 
 
 def _draw_family_overlay_marker_legend(ax, *, config: PlotConfig, markers: tuple[str, ...]) -> None:
-    legend_lines: list[str] = []
+    handles: list[Line2D] = []
+    labels: list[str] = []
     for marker in markers:
         color = MARKER_COLORS.get(marker, "#444444")
-        legend_lines.append(f"{MARKER_LABELS.get(marker, marker)}")
-        ax.text(
-            np.deg2rad(8.0),
-            1.08 - 0.07 * len(legend_lines),
-            legend_lines[-1],
-            color=color,
-            fontsize=config.label_size,
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color=color,
+                markerfacecolor=color,
+                markeredgecolor="white",
+                markersize=8,
+                linewidth=1.6,
+            )
+        )
+        labels.append(MARKER_LABELS.get(marker, marker))
+    if not handles:
+        return
+    legend = ax.legend(
+        handles,
+        labels,
+        loc="center left",
+        bbox_to_anchor=(1.08, 0.50),
+        frameon=True,
+        fontsize=config.label_size,
+        handlelength=1.3,
+        borderpad=0.45,
+        labelspacing=0.35,
+    )
+    legend.get_frame().set_facecolor("white")
+    legend.get_frame().set_alpha(0.78)
+    legend.get_frame().set_edgecolor("0.85")
+    for text, marker in zip(legend.get_texts(), markers, strict=True):
+        text.set_color(MARKER_COLORS.get(marker, "#444444"))
+        text.set_fontweight("bold")
+
+
+def _draw_angle_guides(ax, angles_deg: tuple[float, ...], *, config: PlotConfig) -> None:
+    for angle_deg in angles_deg:
+        theta = np.deg2rad(angle_deg)
+        ax.plot([theta, theta], [0.0, 1.02], color="0.45", linestyle="--", linewidth=max(config.line_width - 0.2, 0.8), alpha=0.85, zorder=1)
+        text = ax.text(
+            theta,
+            1.07,
+            f"{angle_deg:.0f}°",
+            color="0.35",
+            fontsize=config.annotation_size,
             fontweight="bold",
-            ha="left",
+            ha="center",
             va="center",
-            bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.72},
-        ).set_clip_on(False)
+            bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.75},
+        )
+        text.set_clip_on(False)
+
+
+def _annotate_overlay_position(ax, angle: float, radius: float, label: str, *, config: PlotConfig) -> None:
+    angle_deg = float(np.rad2deg(angle))
+    angle_offset_deg = 8.0 if np.cos(angle) >= 0 else -8.0
+    text_angle = np.deg2rad(angle_deg + angle_offset_deg)
+    text_radius = min(radius + 0.035, 1.04)
+    ha = "left" if np.cos(angle) >= 0 else "right"
+    text = ax.text(
+        text_angle,
+        text_radius,
+        label,
+        color="0.25",
+        fontsize=config.annotation_size,
+        ha=ha,
+        va="center",
+        bbox={"boxstyle": "round,pad=0.14", "facecolor": "white", "edgecolor": "0.85", "alpha": 0.88},
+    )
+    text.set_clip_on(False)
 
 
 def _draw_spacing_arc(ax, angles: dict[str, float], start_marker: str, end_marker: str, label: str, *, radius: float, compact: bool, config: PlotConfig) -> None:
@@ -325,7 +398,7 @@ def _wrap180(angle_deg: float) -> float:
 
 def _format_position(position: object) -> str:
     try:
-        value = float(position)
+        value = _snap_tune_position(float(position))
     except (TypeError, ValueError):
         return str(position)
     if value.is_integer():
@@ -342,13 +415,21 @@ def _tune_position_filename_label(position_table: pd.DataFrame) -> str:
 
 
 def _position_family(tune_position: object) -> str:
-    value = float(tune_position)
+    value = _snap_tune_position(float(tune_position))
     fractional = value % 1.0
     if abs(fractional) < 1e-9:
         return "iris"
     if abs(fractional - 0.5) < 1e-9:
         return "cell"
     return f"offset_{_safe_label(f'{fractional:g}')}"
+
+
+def _snap_tune_position(value: float) -> float:
+    doubled = round(value * 2.0)
+    snapped = doubled / 2.0
+    if abs(value - snapped) < 1e-6:
+        return snapped
+    return value
 
 
 def _format_grid_label(sim_r_c: object, sim_w_c: object) -> str:

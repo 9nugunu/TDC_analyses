@@ -204,8 +204,14 @@ def test_plot_marker_phase_polar_views_uses_full_typography_for_per_position_and
                 continue
             assert ax.title.get_fontsize() == pytest.approx(config.title_size)
             marker_labels = [text for text in ax.texts if "f_{" in text.get_text()]
-            assert marker_labels
-            assert {text.get_fontsize() for text in marker_labels} == {float(config.label_size)}
+            if marker_labels:
+                assert {text.get_fontsize() for text in marker_labels} == {float(config.label_size)}
+                continue
+            legend = ax.get_legend()
+            if legend is not None:
+                legend_labels = [text for text in legend.get_texts() if "f_{" in text.get_text()]
+                if legend_labels:
+                    assert {text.get_fontsize() for text in legend_labels} == {float(config.label_size)}
 
 
 def test_plot_marker_phase_polar_views_uses_marker_specific_colors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -228,6 +234,68 @@ def test_plot_marker_phase_polar_views_uses_marker_specific_colors(tmp_path: Pat
     assert polar_phase_views.MARKER_COLORS["f_2pi3"] in line_colors
     assert polar_phase_views.MARKER_COLORS["f_mean"] in line_colors
     assert polar_phase_views.MARKER_COLORS["f_pi2"] in line_colors
+
+
+def test_plot_marker_phase_polar_views_adds_ideal_guides_to_f_2pi3_family_overlays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_paths: list[Path] = []
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_paths.append(path)
+        saved_figures.append(fig)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    guide_targets = {"cell_f_2pi3_overlay.png", "iris_f_2pi3_overlay.png"}
+    matched = [
+        fig
+        for fig, path in zip(saved_figures, saved_paths, strict=True)
+        if path.name in guide_targets
+    ]
+    assert len(matched) == 2
+    for fig in matched:
+        ax = next(axis for axis in fig.axes if axis.get_visible())
+        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "120°", "240°"}}
+        assert guide_labels == {"0°", "120°", "240°"}
+
+
+def test_plot_marker_phase_polar_views_adds_ideal_guides_to_per_position_tune_plots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_paths: list[Path] = []
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_paths.append(path)
+        saved_figures.append(fig)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    guide_targets = {"cell_0p5.png", "iris_1p0.png"}
+    matched = [
+        fig
+        for fig, path in zip(saved_figures, saved_paths, strict=True)
+        if path.name in guide_targets
+    ]
+    assert len(matched) == 2
+    for fig in matched:
+        ax = next(axis for axis in fig.axes if axis.get_visible())
+        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "120°", "240°"}}
+        assert guide_labels == {"0°", "120°", "240°"}
 
 
 def test_plot_marker_phase_polar_views_uses_overview_only_when_tune_positions_are_missing(tmp_path: Path) -> None:
