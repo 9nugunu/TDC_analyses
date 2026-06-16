@@ -13,6 +13,7 @@ import pandas as pd
 
 from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
 from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, save_marker_analysis
+from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
@@ -79,8 +80,11 @@ def run_folder_analysis(
     loader = loader or DataLoader()
     logger.info("Resolved input paths: sparameter=%s dispersion=%s", sparameter_path, dispersion_path)
     logger.info("Loading S-parameter table from %s", sparameter_path)
-    sparameter_table = loader.load(sparameter_path)
-    logger.info("Loaded S-parameter table with %d rows", len(sparameter_table))
+    loaded_sparameter_table = loader.load(sparameter_path)
+    logger.info("Loaded S-parameter table with %d rows", len(loaded_sparameter_table))
+    sparameter_table = select_s11_rows(loaded_sparameter_table)
+    if len(sparameter_table) != len(loaded_sparameter_table):
+        logger.info("Selected %d S11 rows for marker analysis outputs", len(sparameter_table))
     logger.info("Building marker analysis tables")
     tables = build_marker_analysis(
         sparameter_path=sparameter_path,
