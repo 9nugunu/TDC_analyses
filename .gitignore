@@ -7,3 +7,5 @@ __pycache__/
 # Local measurement/simulation data are loaded by path, not versioned here.
 data/
 *.omx
+# Generated analysis figures and tables.
+fig/

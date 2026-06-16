@@ -1,4 +1,0 @@
-dataset_id,data_layer,marker_name,marker_role,s_name,position_family,transition_count,mean_phase_advance_deg,mean_phase_error_deg,mean_abs_phase_error_deg,rms_phase_error_deg,max_abs_phase_error_deg,worst_from_tune_position,worst_to_tune_position,worst_phase_error_deg
-260603_iris2dsweep_sim50norm,sim,f_2pi3,sim,S11,offset_nan,153,304.4428164756698,64.44281647566976,129.25039655964645,134.5687727989926,238.2831322986961,,,-238.2831322986961
-260603_iris2dsweep_sim50norm,sim,f_mean,sim,S11,offset_nan,153,307.1955918164902,67.19559181649025,130.1382497796692,135.7079544002061,239.1414933768229,,,-239.1414933768229
-260603_iris2dsweep_sim50norm,sim,f_pi2,sim,S11,offset_nan,153,309.8540372109881,69.85403721098815,130.40994208178182,135.7756783385765,239.93987886054302,,,-239.93987886054302
