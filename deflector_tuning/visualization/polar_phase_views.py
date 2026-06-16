@@ -124,11 +124,20 @@ def _iter_position_groups(marker_points: pd.DataFrame):
 
 
 def _grouping_mode(marker_points: pd.DataFrame) -> str:
+    if _is_grid_scan(marker_points) and _has_multiple_grid_points(marker_points):
+        return "grid_point"
     if _has_multiple_tune_positions(marker_points):
         return "tune_position"
     if _has_multiple_grid_points(marker_points):
         return "grid_point"
     return "all"
+
+
+def _is_grid_scan(marker_points: pd.DataFrame) -> bool:
+    if "scan_type" not in marker_points:
+        return False
+    scan_types = set(marker_points["scan_type"].dropna().astype(str).str.lower())
+    return "grid_2d" in scan_types
 
 
 def _has_multiple_tune_positions(marker_points: pd.DataFrame) -> bool:

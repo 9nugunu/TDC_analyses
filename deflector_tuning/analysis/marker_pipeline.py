@@ -7,7 +7,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from deflector_tuning.analysis.phase_advance import OUTPUT_COLUMNS as PHASE_ADVANCE_COLUMNS
 from deflector_tuning.analysis.phase_advance import compute_phase_advance
+from deflector_tuning.analysis.phase_summary import OUTPUT_COLUMNS as PHASE_SUMMARY_COLUMNS
 from deflector_tuning.analysis.phase_summary import summarize_phase_advance
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import extract_marker_frequencies
@@ -40,8 +42,8 @@ def build_marker_analysis(
     sparameter_table = loader.load(sparameter_path)
     markers = extract_marker_frequencies(dispersion_path, marker_role=marker_role)
     marker_points = sample_nearest_markers(sparameter_table, markers)
-    phase_advance = compute_phase_advance(marker_points)
-    phase_summary = summarize_phase_advance(phase_advance)
+    phase_advance = _compute_phase_advance_when_supported(marker_points)
+    phase_summary = summarize_phase_advance(phase_advance) if not phase_advance.empty else _empty_phase_summary()
     return OrderedDict(
         [
             ("markers", markers),
@@ -63,6 +65,22 @@ def save_marker_analysis(tables: dict[str, pd.DataFrame], output_dir: str | Path
         _presentation_table(tables[name]).to_csv(path, index=False)
         paths[name] = path
     return paths
+
+
+def _compute_phase_advance_when_supported(marker_points: pd.DataFrame) -> pd.DataFrame:
+    if not _has_phase_advance_axis(marker_points):
+        return pd.DataFrame(columns=PHASE_ADVANCE_COLUMNS)
+    return compute_phase_advance(marker_points)
+
+
+def _has_phase_advance_axis(marker_points: pd.DataFrame) -> bool:
+    if "tune_position" not in marker_points:
+        return False
+    return marker_points["tune_position"].dropna().nunique() > 1
+
+
+def _empty_phase_summary() -> pd.DataFrame:
+    return pd.DataFrame(columns=PHASE_SUMMARY_COLUMNS)
 
 
 def _presentation_table(table: pd.DataFrame) -> pd.DataFrame:

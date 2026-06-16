@@ -28,6 +28,24 @@ def _write_prepro_dataset(folder: Path) -> None:
         )
 
 
+def _write_grid_sim_dataset(folder: Path) -> None:
+    folder.mkdir(parents=True)
+    (folder / "result_navigator.csv").write_text(
+        '" 3D Run ID"\t"r_c"\t"w_c"\n'
+        '"1"\t"54.59"\t"18.3224"\n'
+        '"2"\t"55.59"\t"19.3224"\n',
+        encoding="utf-8",
+    )
+    for run_id, phases in [(1, [10.0, 20.0, 30.0]), (2, [-110.0, -100.0, -90.0])]:
+        (folder / f"run_{run_id}.s1p").write_text(
+            "# GHz S DB R 50\n"
+            f"2.85588 -1.0 {phases[0]}\n"
+            f"2.86605 -2.0 {phases[1]}\n"
+            f"2.87621 -3.0 {phases[2]}\n",
+            encoding="utf-8",
+        )
+
+
 def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp_path: Path) -> None:
     sparameter_path = tmp_path / "data" / "prepro" / "sample_prepro"
     dispersion_path = tmp_path / "data" / "sim" / "260505_single_cell_dispersion_step1"
@@ -51,6 +69,26 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
     assert first_phase["from_tune_position"] == 0.5
     assert first_phase["to_tune_position"] == 1.5
     assert first_phase["position_family"] == "cell"
+
+
+def test_build_marker_analysis_skips_transition_phase_advance_for_grid_scan(tmp_path: Path) -> None:
+    sparameter_path = tmp_path / "data" / "sim" / "grid_scan"
+    dispersion_path = tmp_path / "data" / "sim" / "260505_single_cell_dispersion_step1"
+    _write_grid_sim_dataset(sparameter_path)
+    _write_dispersion_summary(dispersion_path)
+
+    result = build_marker_analysis(
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role="sim",
+    )
+
+    assert result["marker_points"]["scan_type"].unique().tolist() == ["grid_2d"]
+    assert result["marker_points"]["sim_r_c"].dropna().nunique() == 2
+    assert result["phase_advance"].empty
+    assert result["phase_summary"].empty
+    assert "phase_advance_0to360_deg" in result["phase_advance"].columns
+    assert "transition_count" in result["phase_summary"].columns
 
 
 def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
