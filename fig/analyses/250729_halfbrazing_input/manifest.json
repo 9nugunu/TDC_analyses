@@ -1,0 +1,43 @@
+{
+  "analysis_modes": [
+    "marker_analysis",
+    "s11",
+    "phase_advance",
+    "polar"
+  ],
+  "detected_modes": {
+    "grid_scan_spacing": {
+      "enabled": false,
+      "reason": "marker_points is missing required columns: ['sim_r_c', 'sim_w_c']"
+    }
+  },
+  "dispersion_path": "data\\sim\\260505_single_cell_dispersion_step1",
+  "marker_role": "exp",
+  "outputs": {
+    "figures": {
+      "phase_advance": {
+        "phase_advance_iris": "fig\\analyses\\250729_halfbrazing_input\\figures\\phase_advance\\phase_advance_iris.png"
+      },
+      "polar": {
+        "1.0": "fig\\analyses\\250729_halfbrazing_input\\figures\\polar\\iris_1p0.png",
+        "2.0": "fig\\analyses\\250729_halfbrazing_input\\figures\\polar\\iris_2p0.png",
+        "3.0": "fig\\analyses\\250729_halfbrazing_input\\figures\\polar\\iris_3p0.png",
+        "iris_f_2pi3_overlay": "fig\\analyses\\250729_halfbrazing_input\\figures\\polar\\iris_f_2pi3_overlay.png",
+        "iris_overlay": "fig\\analyses\\250729_halfbrazing_input\\figures\\polar\\iris_overlay.png",
+        "overview": "fig\\analyses\\250729_halfbrazing_input\\figures\\polar\\all_positions.png"
+      },
+      "s11": {
+        "position_1p0": "fig\\analyses\\250729_halfbrazing_input\\figures\\s11\\s11_position_1p0.png",
+        "position_2p0": "fig\\analyses\\250729_halfbrazing_input\\figures\\s11\\s11_position_2p0.png",
+        "position_3p0": "fig\\analyses\\250729_halfbrazing_input\\figures\\s11\\s11_position_3p0.png"
+      }
+    },
+    "tables": {
+      "marker_points": "fig\\analyses\\250729_halfbrazing_input\\tables\\marker_points.csv",
+      "markers": "fig\\analyses\\250729_halfbrazing_input\\tables\\markers.csv",
+      "phase_advance": "fig\\analyses\\250729_halfbrazing_input\\tables\\phase_advance.csv",
+      "phase_summary": "fig\\analyses\\250729_halfbrazing_input\\tables\\phase_summary.csv"
+    }
+  },
+  "sparameter_path": "data\\raw\\250729_halfbrazing_input"
+}

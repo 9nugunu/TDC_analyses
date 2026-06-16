@@ -1,0 +1,87 @@
+{
+  "analysis_modes": [
+    "marker_analysis",
+    "s11",
+    "phase_advance",
+    "polar"
+  ],
+  "detected_modes": {
+    "grid_scan_spacing": {
+      "enabled": false,
+      "reason": "marker_points is missing required columns: ['sim_r_c', 'sim_w_c']"
+    }
+  },
+  "dispersion_path": "data\\sim\\260505_single_cell_dispersion_step1",
+  "marker_role": "exp",
+  "outputs": {
+    "figures": {
+      "phase_advance": {
+        "phase_advance_cell": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\phase_advance\\phase_advance_cell.png",
+        "phase_advance_iris": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\phase_advance\\phase_advance_iris.png"
+      },
+      "polar": {
+        "0.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_0p5.png",
+        "1.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_1p0.png",
+        "1.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_1p5.png",
+        "10.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_10p0.png",
+        "10.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_10p5.png",
+        "11.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_11p0.png",
+        "2.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_2p0.png",
+        "2.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_2p5.png",
+        "20251117.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_20251117p0.png",
+        "3.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_3p0.png",
+        "3.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_3p5.png",
+        "4.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_4p0.png",
+        "4.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_4p5.png",
+        "5.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_5p0.png",
+        "5.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_5p5.png",
+        "6.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_6p0.png",
+        "6.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_6p5.png",
+        "7.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_7p0.png",
+        "7.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_7p5.png",
+        "8.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_8p0.png",
+        "8.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_8p5.png",
+        "9.0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_9p0.png",
+        "9.5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_9p5.png",
+        "cell_f_2pi3_overlay": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_f_2pi3_overlay.png",
+        "cell_overlay": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\cell_overlay.png",
+        "iris_f_2pi3_overlay": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_f_2pi3_overlay.png",
+        "iris_overlay": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\iris_overlay.png",
+        "overview": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\polar\\all_positions.png"
+      },
+      "s11": {
+        "overview": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_with_markers.png",
+        "position_0p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_0p5.png",
+        "position_10p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_10p0.png",
+        "position_10p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_10p5.png",
+        "position_11p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_11p0.png",
+        "position_1p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_1p0.png",
+        "position_1p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_1p5.png",
+        "position_20251117p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_20251117p0.png",
+        "position_2p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_2p0.png",
+        "position_2p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_2p5.png",
+        "position_3p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_3p0.png",
+        "position_3p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_3p5.png",
+        "position_4p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_4p0.png",
+        "position_4p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_4p5.png",
+        "position_5p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_5p0.png",
+        "position_5p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_5p5.png",
+        "position_6p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_6p0.png",
+        "position_6p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_6p5.png",
+        "position_7p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_7p0.png",
+        "position_7p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_7p5.png",
+        "position_8p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_8p0.png",
+        "position_8p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_8p5.png",
+        "position_9p0": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_9p0.png",
+        "position_9p5": "fig\\analyses\\260401_fullbrazing_sparams\\figures\\s11\\s11_position_9p5.png"
+      }
+    },
+    "tables": {
+      "marker_points": "fig\\analyses\\260401_fullbrazing_sparams\\tables\\marker_points.csv",
+      "markers": "fig\\analyses\\260401_fullbrazing_sparams\\tables\\markers.csv",
+      "phase_advance": "fig\\analyses\\260401_fullbrazing_sparams\\tables\\phase_advance.csv",
+      "phase_summary": "fig\\analyses\\260401_fullbrazing_sparams\\tables\\phase_summary.csv"
+    }
+  },
+  "sparameter_path": "data\\raw\\260401_fullbrazing_sparams"
+}

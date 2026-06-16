@@ -1,0 +1,4 @@
+marker_name,freq_ghz,marker_role,marker_source,source_file,uncorrected_freq_ghz,frequency_scale_factor,temp_op_C,temp_meas_C,humidity_fraction,thermal_alpha_per_C,eps_air_humid
+f_2pi3,2.8571160335532,sim,dispersion_mode_1,processed/260505_regular_cell_phase_sweep_0p180_step1_modes01-10_summary.csv,2.8571160335532,1.0,,,,,
+f_mean,2.8672804543714,sim,dispersion_mode_1,processed/260505_regular_cell_phase_sweep_0p180_step1_modes01-10_summary.csv,2.8672804543714,1.0,,,,,
+f_pi2,2.8774448751896,sim,dispersion_mode_1,processed/260505_regular_cell_phase_sweep_0p180_step1_modes01-10_summary.csv,2.8774448751896,1.0,,,,,

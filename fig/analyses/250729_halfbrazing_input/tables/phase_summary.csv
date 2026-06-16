@@ -1,0 +1,4 @@
+dataset_id,data_layer,marker_name,marker_role,port_side,s_name,position_family,transition_count,mean_phase_advance_deg,mean_phase_error_deg,mean_abs_phase_error_deg,rms_phase_error_deg,max_abs_phase_error_deg,worst_from_tune_position,worst_to_tune_position,worst_phase_error_deg
+250729_halfbrazing_input,raw,f_2pi3,exp,in,S11,iris,2,227.73525771292165,-12.264742287078349,12.264742287078349,14.94015028932503,20.79610720127414,2.0,3.0,-20.79610720127414
+250729_halfbrazing_input,raw,f_mean,exp,in,S11,iris,2,194.92055713569442,-45.07944286430558,45.07944286430558,50.86258523137267,68.63462079745773,1.0,2.0,-68.63462079745773
+250729_halfbrazing_input,raw,f_pi2,exp,in,S11,iris,2,179.02581534282618,-60.97418465717382,61.748401237128945,86.77969952672456,122.72258589430277,1.0,2.0,-122.72258589430277
