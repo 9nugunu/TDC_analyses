@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path, PurePath
 
@@ -191,6 +192,7 @@ def default_output_dir(dataset_id: str) -> Path:
 def main(argv: list[str] | None = None) -> int:
     """Parse inputs, run analysis, and print generated paths."""
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = parse_args(argv)
     result = run_folder_analysis(
         sparameter_path=args.sparameter_path,

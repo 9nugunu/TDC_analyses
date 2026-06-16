@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +29,7 @@ GRID_SCAN_REQUIRED_COLUMNS: frozenset[str] = frozenset(
     {"data_kind", "sim_r_c", "sim_w_c", "marker_name", "s_phase_deg"}
 )
 GRID_SCAN_REQUIRED_MARKERS: frozenset[str] = frozenset({"f_2pi3", "f_mean", "f_pi2"})
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,13 @@ def run_folder_analysis(
     spacing maps, are enabled from conservative checks on the analysis tables.
     """
 
+    logger.info(
+        "Starting folder analysis: sparameter_path=%s dispersion_path=%s output_dir=%s marker_role=%s",
+        sparameter_path,
+        dispersion_path,
+        output_dir,
+        marker_role,
+    )
     sparameter_path, dispersion_path = resolve_input_paths(
         sparameter_path,
         dispersion_path=dispersion_path,
@@ -68,37 +77,56 @@ def run_folder_analysis(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     loader = loader or DataLoader()
+    logger.info("Resolved input paths: sparameter=%s dispersion=%s", sparameter_path, dispersion_path)
+    logger.info("Loading S-parameter table from %s", sparameter_path)
     sparameter_table = loader.load(sparameter_path)
+    logger.info("Loaded S-parameter table with %d rows", len(sparameter_table))
+    logger.info("Building marker analysis tables")
     tables = build_marker_analysis(
         sparameter_path=sparameter_path,
         dispersion_path=dispersion_path,
         marker_role=marker_role,
         loader=loader,
     )
+    logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
+    logger.info("Saving analysis tables to %s", table_dir)
     table_paths = AnalysisPaths(save_marker_analysis(tables, table_dir))
+    logger.info("Saved %d analysis tables", len(table_paths))
     modes = detect_analysis_modes(tables)
+    logger.info("Enabled analysis modes: %s", ", ".join(modes))
 
     figures: FigurePaths = OrderedDict()
+    logger.info("Rendering S11 figures")
     figures["s11"] = OrderedDict(
         plot_s11_with_markers(sparameter_table, tables["marker_points"], figure_root / "s11")
     )
     if _has_rows(tables.get("phase_advance")):
+        logger.info("Rendering phase advance figures")
         figures["phase_advance"] = OrderedDict(
             plot_phase_advance(tables["phase_advance"], figure_root / "phase_advance", split_by_family=True)
         )
+    else:
+        logger.info("Skipping phase advance figures because phase_advance is missing or empty")
     if _has_rows(tables.get("marker_points")):
+        logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
             plot_marker_phase_polar_views(tables["marker_points"], figure_root / "polar")
         )
+    else:
+        logger.info("Skipping polar phase figures because marker_points is missing or empty")
 
     detection = _detection_report(tables)
     if "grid_scan_spacing" in modes:
+        logger.info("Rendering grid-scan spacing figures")
         spacing_summary = summarize_marker_spacing_for_grid_scan(tables["marker_points"])
         figures["grid_scan_spacing"] = OrderedDict(
             plot_grid_scan_spacing_error_maps(spacing_summary, figure_root / "grid_scan_spacing")
         )
+    else:
+        logger.info("Skipping grid-scan spacing figures: %s", detection["grid_scan_spacing"]["reason"])
 
     manifest_path = output_dir / "manifest.json"
+    logger.info("Writing manifest to %s", manifest_path)
     _write_manifest(
         manifest_path,
         sparameter_path=sparameter_path,
@@ -109,6 +137,7 @@ def run_folder_analysis(
         tables=table_paths,
         figures=figures,
     )
+    logger.info("Folder analysis completed successfully")
 
     return RunResult(
         output_dir=output_dir,

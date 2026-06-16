@@ -229,3 +229,58 @@ def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path
     assert "phase_advance" not in result.figures
     assert result.figures["s11"]["overview"].exists()
     assert result.figures["polar"]["overview"].exists()
+
+
+def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, caplog) -> None:
+    tables = _tables()
+    sparameter_table = pd.DataFrame(
+        [
+            {
+                "source_file": "run1.s2p",
+                "tune_position": 0.5,
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": 0.0,
+            }
+        ]
+    )
+    output_dir = tmp_path / "out"
+
+    monkeypatch.setattr(runner, "build_marker_analysis", lambda **_: tables)
+    monkeypatch.setattr(runner.DataLoader, "load", lambda self, path: sparameter_table)
+    monkeypatch.setattr(
+        runner,
+        "save_marker_analysis",
+        lambda analysis_tables, output: {name: Path(output) / f"{name}.csv" for name in analysis_tables},
+    )
+
+    def fake_plot(name):
+        def _plot(*args, **kwargs):
+            folder = Path(args[2] if name == "s11" else args[1])
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"{name}.png"
+            path.write_text(name, encoding="utf-8")
+            return {"overview": path}
+
+        return _plot
+
+    monkeypatch.setattr(runner, "plot_s11_with_markers", fake_plot("s11"))
+    monkeypatch.setattr(runner, "plot_phase_advance", fake_plot("phase_advance"))
+    monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
+    monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
+
+    with caplog.at_level("INFO", logger="deflector_tuning.runner"):
+        runner.run_folder_analysis(
+            sparameter_path=tmp_path / "data" / "sim" / "scan",
+            dispersion_path=tmp_path / "data" / "sim" / "dispersion",
+            output_dir=output_dir,
+            marker_role="sim",
+        )
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("Starting folder analysis" in message for message in messages)
+    assert any("Loading S-parameter table" in message for message in messages)
+    assert any("Building marker analysis tables" in message for message in messages)
+    assert any("Rendering S11 figures" in message for message in messages)
+    assert any("Writing manifest" in message for message in messages)
+    assert any("Folder analysis completed successfully" in message for message in messages)
