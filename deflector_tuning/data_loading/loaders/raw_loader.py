@@ -22,6 +22,8 @@ class RawLoader(FolderLoader):
         data_folder = self.load(path)
         rows: list[pd.DataFrame] = []
         for csv_file in self.list_files(path).csv_files:
+            if not _is_supported_raw_csv(csv_file):
+                continue
             rows.append(_read_raw_csv(csv_file, data_folder.dataset_id))
         if not rows:
             return pd.DataFrame(columns=_RAW_COLUMNS)
@@ -36,6 +38,12 @@ def _read_raw_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
     if _has_formatted_data_header(lines):
         return _read_mag_phase_csv(csv_file, dataset_id)
     raise ValueError(f"Unsupported raw CSV schema in {csv_file.name}")
+
+
+def _is_supported_raw_csv(csv_file: Path) -> bool:
+    text = csv_file.read_text(encoding="utf-8", errors="replace")
+    lines = text.splitlines()
+    return _has_ri_header(lines) or _has_formatted_data_header(lines)
 
 
 def _has_ri_header(lines: list[str]) -> bool:
