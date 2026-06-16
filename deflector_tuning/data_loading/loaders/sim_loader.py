@@ -23,7 +23,25 @@ class SimLoader(FolderLoader):
             return table
         table = table.copy()
         table["run_id"] = table["source_file"].map(_run_id_from_file_name)
+        return _merge_result_navigator(table, navigator)
+
+
+def _merge_result_navigator(table: pd.DataFrame, navigator: pd.DataFrame) -> pd.DataFrame:
+    if table["run_id"].notna().any():
+        table = table.copy()
+        table["run_id"] = table["run_id"].astype("Int64")
+        navigator = navigator.copy()
+        navigator["run_id"] = navigator["run_id"].astype("Int64")
         return table.merge(navigator, on="run_id", how="left")
+    if "sim_NumTune" in navigator and "tune_position" in table:
+        table = table.copy()
+        table["sim_NumTune"] = table["tune_position"].map(_num_tune_from_cell_position)
+        navigator_without_empty_tunes = navigator.dropna(subset=["sim_NumTune"]).copy()
+        navigator_without_empty_tunes["sim_NumTune"] = navigator_without_empty_tunes["sim_NumTune"].astype("Int64")
+        table["sim_NumTune"] = table["sim_NumTune"].astype("Int64")
+        table = table.drop(columns=["run_id"])
+        return table.merge(navigator_without_empty_tunes, on="sim_NumTune", how="left")
+    return table
 
 
 def _read_result_navigator(path: Path) -> pd.DataFrame:
@@ -66,3 +84,12 @@ def _run_id_from_file_name(file_name: str) -> int | None:
     if match is None:
         return None
     return int(match.group(1))
+
+
+def _num_tune_from_cell_position(tune_position: object) -> int | None:
+    if pd.isna(tune_position):
+        return None
+    value = float(tune_position) - 0.5
+    if abs(value - round(value)) > 1e-9:
+        return None
+    return int(round(value))

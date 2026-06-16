@@ -25,6 +25,9 @@ def metadata_from_filename(file_path: str | Path, dataset_id: str) -> dict[str, 
 
 
 def _first_number(text: str) -> float | None:
+    cell_match = re.search(r"(?:^|[_-])cell[_-]?(\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
+    if cell_match is not None:
+        return float(cell_match.group(1))
     match = re.search(r"\d+(?:\.\d+)?", text)
     if match is None:
         return None

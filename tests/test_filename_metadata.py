@@ -47,3 +47,18 @@ def test_simple_numeric_file_gets_tune_position_only(tmp_path: Path) -> None:
     row = table.iloc[0]
     assert row["tune_position"] == 8.0
     assert row["port_side"] is None
+
+
+def test_touchstone_cell_file_gets_cell_tune_position_not_date(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "sim" / "260504_tds_body_plunger"
+    folder.mkdir(parents=True)
+    (folder / "260504_Cell_0.5_RI.s2p").write_text(
+        "# GHz S RI R 50\n2.6 1 0 0 0 0 0 1 0\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().load(folder)
+
+    row = table.iloc[0]
+    assert row["tune_position"] == 0.5
+    assert row["port_side"] is None

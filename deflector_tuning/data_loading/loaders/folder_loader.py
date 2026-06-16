@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from deflector_tuning.data_loading.filename_metadata import metadata_from_filename
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
 from deflector_tuning.data_loading.records import DataFiles, DataFolder, DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
@@ -59,6 +60,7 @@ class FolderLoader:
         rows: list[dict[str, object]] = []
         for touchstone_file in self.list_files(path).touchstone_files:
             touchstone_data = read_touchstone(touchstone_file)
+            metadata = metadata_from_filename(touchstone_file, data_folder.dataset_id)
             for freq, s_values_at_freq in zip(
                 touchstone_data.frequency,
                 touchstone_data.s_values,
@@ -81,6 +83,8 @@ class FolderLoader:
                             "source_format": f"touchstone_{touchstone_data.header.data_format.lower()}",
                             "reference_ohm": touchstone_data.header.reference_ohm,
                             "is_normalized": touchstone_data.header.is_normalized,
+                            "tune_position": metadata["tune_position"],
+                            "port_side": metadata["port_side"],
                         }
                     )
         return pd.DataFrame(rows, columns=_TOUCHSTONE_COLUMNS)
@@ -100,6 +104,8 @@ _TOUCHSTONE_COLUMNS = [
     "source_format",
     "reference_ohm",
     "is_normalized",
+    "tune_position",
+    "port_side",
 ]
 
 
