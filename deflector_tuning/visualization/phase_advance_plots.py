@@ -11,7 +11,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import (
+    PlotConfig,
+    apply_axis_text_style,
+    apply_legend_text_style,
+    apply_plot_style,
+    save_figure,
+)
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
@@ -40,7 +46,7 @@ SERIES_ID_COLUMNS: tuple[str, ...] = (
     "s_name",
 )
 SERIES_LINESTYLES: tuple[str, ...] = ("-", "--", ":", "-.")
-FACET_COLUMNS: tuple[str, ...] = ()
+FACET_COLUMNS: tuple[str, ...] = ("sim_r_c", "sim_w_c")
 
 
 def plot_phase_advance(
@@ -73,8 +79,8 @@ def plot_phase_advance(
             family_table = table[table["position_family"] == family].copy()
             if family_table.empty:
                 continue
-            for facet_suffix, facet_title, facet_table in _iter_plot_facets(family_table):
-                key = f"phase_advance_{family}{facet_suffix}"
+            for facet_stem, facet_title, facet_table in _iter_plot_facets(family_table):
+                key = _phase_advance_key(family, facet_stem)
                 paths[key] = _plot_metric(
                     facet_table,
                     folder / f"{key}.png",
@@ -172,7 +178,8 @@ def _plot_metric(
     ax.set_xticklabels(labels, rotation=45, ha="right")
     ax.tick_params(axis="x", labelrotation=45)
     ax.grid(True, axis="y", color="0.88", linewidth=0.8)
-    ax.legend(frameon=False, loc="best", fontsize=config.legend_size)
+    legend = ax.legend(frameon=False, loc="best", fontsize=config.legend_size)
+    apply_legend_text_style(legend, config)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)
@@ -276,11 +283,19 @@ def _iter_plot_facets(table: pd.DataFrame):
             for column, value in zip(facet_columns, facet_values, strict=True)
             if not pd.isna(value)
         ]
-        suffix = "".join(f"_{_safe_label(value)}" for _, value in parts)
+        facet_stem = "_".join(_facet_suffix_part(column, value) for column, value in parts)
         title = ""
         if parts:
             title = " (" + ", ".join(f"{_facet_label(column)}={value}" for column, value in parts) + ")"
-        yield suffix, title, group.copy()
+        yield facet_stem, title, group.copy()
+
+
+def _phase_advance_key(family: str, facet_stem: str) -> str:
+    if not facet_stem:
+        return f"phase_advance_{family}"
+    if "r_c_" in facet_stem or "w_c_" in facet_stem:
+        return f"{family}_{facet_stem}"
+    return f"phase_advance_{family}_{facet_stem}"
 
 
 def _needs_faceting(table: pd.DataFrame, column: str) -> bool:
@@ -291,7 +306,15 @@ def _needs_faceting(table: pd.DataFrame, column: str) -> bool:
 
 
 def _facet_label(column: str) -> str:
-    return {"s_name": "S", "port_side": "port"}.get(column, column)
+    return {"s_name": "S", "port_side": "port", "sim_r_c": "r_c", "sim_w_c": "w_c"}.get(column, column)
+
+
+def _facet_suffix_part(column: str, value: object) -> str:
+    prefix = {"sim_r_c": "r_c", "sim_w_c": "w_c"}.get(column)
+    label = _safe_label(value)
+    if prefix is None:
+        return label
+    return f"{prefix}_{label}"
 
 
 def _safe_label(value: object) -> str:

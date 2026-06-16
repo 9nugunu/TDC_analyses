@@ -330,7 +330,7 @@ def _draw_family_overlay_marker_legend(ax, *, config: PlotConfig, markers: tuple
     legend.get_frame().set_edgecolor("0.85")
     for text, marker in zip(legend.get_texts(), markers, strict=True):
         text.set_color(MARKER_COLORS.get(marker, "#444444"))
-        text.set_fontweight("bold")
+        text.set_fontweight(config.legend_weight)
 
 
 def _draw_angle_guides(ax, angles_deg: tuple[float, ...], *, config: PlotConfig) -> None:

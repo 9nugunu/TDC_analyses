@@ -27,6 +27,7 @@ class PlotConfig:
     label_weight: str = "bold"
     tick_weight: str = "bold"
     title_weight: str = "bold"
+    legend_weight: str = "bold"
     math_bold: bool = True
     line_width: float = 1.8
     marker_size: int = 52
@@ -110,6 +111,16 @@ def apply_axis_text_style(
     ax.tick_params(axis="both", labelsize=tick_size)
     for tick in [*ax.get_xticklabels(), *ax.get_yticklabels()]:
         tick.set_fontweight(config.tick_weight)
+
+
+def apply_legend_text_style(legend, config: PlotConfig | None = None) -> None:
+    """Apply shared legend text styling."""
+
+    if legend is None:
+        return
+    config = config or PlotConfig()
+    for text in legend.get_texts():
+        text.set_fontweight(config.legend_weight)
 
 
 def save_figure(fig, output_path: str | Path, config: PlotConfig | None = None) -> Path:

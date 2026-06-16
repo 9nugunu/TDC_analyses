@@ -13,7 +13,13 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import (
+    PlotConfig,
+    apply_axis_text_style,
+    apply_legend_text_style,
+    apply_plot_style,
+    save_figure,
+)
 
 REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db", "s_phase_deg")
 REQUIRED_MARKER_COLUMNS: tuple[str, ...] = (
@@ -103,14 +109,6 @@ def plot_s11_with_markers(
             )
         return paths
 
-    if not _skip_overview_for_port_sides(s_table):
-        paths["overview"] = _plot_one(
-            s_table,
-            m_table,
-            folder / "s11_with_markers.png",
-            title="S11 magnitude with marker points",
-            config=config,
-        )
     if split_by_position and "tune_position" in s_table and "tune_position" in m_table:
         for tune_position, group in s_table.groupby("tune_position", dropna=False, sort=True):
             marker_group = m_table[m_table["tune_position"] == tune_position]
@@ -189,7 +187,8 @@ def _plot_one(
     ax.grid(True, which="major", color="0.78", linewidth=0.8, alpha=0.7)
     ax.grid(True, which="minor", color="0.90", linestyle=":", linewidth=0.7, alpha=0.7)
     ax.minorticks_on()
-    ax.legend(frameon=True, loc="best", fontsize=config.legend_size)
+    legend = ax.legend(frameon=True, loc="best", fontsize=config.legend_size)
+    apply_legend_text_style(legend, config)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)

@@ -11,7 +11,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import (
+    PlotConfig,
+    apply_axis_text_style,
+    apply_legend_text_style,
+    apply_plot_style,
+    save_figure,
+)
 
 REQUIRED_COLUMNS: tuple[str, ...] = ("mode_index", "phase_deg", "freq_GHz")
 
@@ -63,7 +69,8 @@ def plot_dispersion_curves(
     ax.grid(True, which="major", color="0.78", linewidth=0.8, alpha=0.7)
     ax.grid(True, which="minor", color="0.90", linestyle=":", linewidth=0.7, alpha=0.7)
     ax.minorticks_on()
-    ax.legend(frameon=True, loc="best", ncol=2 if table["mode_index"].nunique() > 6 else 1)
+    legend = ax.legend(frameon=True, loc="best", ncol=2 if table["mode_index"].nunique() > 6 else 1)
+    apply_legend_text_style(legend, config)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)

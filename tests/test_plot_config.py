@@ -1,6 +1,12 @@
 import matplotlib.pyplot as plt
 
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, bold_math, math_label
+from deflector_tuning.visualization.plot_config import (
+    PlotConfig,
+    apply_axis_text_style,
+    apply_legend_text_style,
+    bold_math,
+    math_label,
+)
 
 
 def test_plot_config_defaults_use_larger_readable_typography() -> None:
@@ -11,6 +17,7 @@ def test_plot_config_defaults_use_larger_readable_typography() -> None:
     assert config.tick_size >= 12
     assert config.annotation_size >= 11
     assert config.label_weight == "bold"
+    assert config.legend_weight == "bold"
     assert config.math_bold is True
 
 
@@ -29,4 +36,15 @@ def test_apply_axis_text_style_bolds_axis_labels_and_ticks() -> None:
     assert ax.xaxis.label.get_fontsize() >= 15
     for tick in ax.get_xticklabels():
         assert tick.get_fontweight() == "bold"
+    plt.close(fig)
+
+
+def test_apply_legend_text_style_bolds_legend_labels() -> None:
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1], label="trace")
+    legend = ax.legend()
+
+    apply_legend_text_style(legend, PlotConfig())
+
+    assert legend.get_texts()[0].get_fontweight() == "bold"
     plt.close(fig)
