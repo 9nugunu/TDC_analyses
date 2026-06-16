@@ -9,6 +9,7 @@ import pandas as pd
 
 from deflector_tuning.analysis.phase_advance import compute_phase_advance
 from deflector_tuning.analysis.phase_summary import summarize_phase_advance
+from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import extract_marker_frequencies
 from deflector_tuning.markers.sampling import sample_nearest_markers
@@ -37,7 +38,7 @@ def build_marker_analysis(
     """
 
     loader = loader or DataLoader()
-    sparameter_table = loader.load(sparameter_path)
+    sparameter_table = select_s11_rows(loader.load(sparameter_path))
     markers = extract_marker_frequencies(dispersion_path, marker_role=marker_role)
     marker_points = sample_nearest_markers(sparameter_table, markers)
     phase_advance = compute_phase_advance(marker_points)
