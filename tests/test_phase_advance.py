@@ -192,3 +192,75 @@ def test_compute_phase_advance_uses_periodic_position_families_not_adjacent_mixe
     }
     assert (0.5, 1.0) not in set(zip(result["from_tune_position"], result["to_tune_position"]))
     assert (1.0, 1.5) not in set(zip(result["from_tune_position"], result["to_tune_position"]))
+
+
+def test_compute_phase_advance_returns_empty_table_when_geometry_scan_has_no_tune_positions() -> None:
+    marker_points = pd.DataFrame(
+        [
+            {
+                "dataset_id": "grid_scan",
+                "data_kind": "simulation",
+                "data_layer": "sim",
+                "source_file": "run_001.s1p",
+                "tune_position": pd.NA,
+                "port_side": None,
+                "s_name": "S11",
+                "marker_name": "f_2pi3",
+                "marker_role": "sim",
+                "target_freq_ghz": 2.856,
+                "freq_ghz": 2.856,
+                "freq_error_ghz": 0.0,
+                "s_db": -1.0,
+                "s_phase_deg": 10.0,
+                "source_format": "touchstone_ri",
+                "sim_r_c": 54.5,
+                "sim_w_c": 18.5,
+            }
+        ]
+    )
+
+    result = compute_phase_advance(marker_points)
+
+    assert result.empty
+    assert "sim_r_c" in result.columns
+    assert "sim_w_c" in result.columns
+
+
+def test_compute_phase_advance_keeps_simulation_geometry_points_separate() -> None:
+    rows = []
+    for sim_r_c, sim_w_c, phase_offset in [(54.5, 18.5, 0.0), (54.75, 18.75, 15.0)]:
+        for tune_position, phase in [(0.5, 10.0), (1.5, -110.0)]:
+            rows.append(
+                {
+                    "dataset_id": "grid_scan",
+                    "data_kind": "simulation",
+                    "data_layer": "sim",
+                    "source_file": f"cell_{tune_position}_{sim_r_c}_{sim_w_c}.s1p",
+                    "tune_position": tune_position,
+                    "port_side": None,
+                    "s_name": "S11",
+                    "marker_name": "f_2pi3",
+                    "marker_role": "sim",
+                    "target_freq_ghz": 2.856,
+                    "freq_ghz": 2.856,
+                    "freq_error_ghz": 0.0,
+                    "s_db": -1.0,
+                    "s_phase_deg": phase + phase_offset,
+                    "source_format": "touchstone_ri",
+                    "sim_r_c": sim_r_c,
+                    "sim_w_c": sim_w_c,
+                    "sim_NumTune": int(tune_position - 0.5),
+                }
+            )
+    marker_points = pd.DataFrame(rows)
+
+    result = compute_phase_advance(marker_points)
+
+    assert len(result) == 2
+    assert set(result["sim_r_c"]) == {54.5, 54.75}
+    assert set(result["sim_w_c"]) == {18.5, 18.75}
+    assert "sim_NumTune" not in result.columns
+    for _, row in result.iterrows():
+        assert row["from_tune_position"] == 0.5
+        assert row["to_tune_position"] == 1.5
+        assert row["phase_advance_0to360_deg"] == pytest.approx(240.0)

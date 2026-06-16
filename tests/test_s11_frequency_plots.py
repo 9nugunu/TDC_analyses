@@ -174,7 +174,7 @@ def _port_side_marker_points() -> pd.DataFrame:
     )
 
 
-def test_plot_s11_with_markers_writes_overview_and_individual_pngs(tmp_path: Path) -> None:
+def test_plot_s11_with_markers_writes_individual_position_pngs_without_overview(tmp_path: Path) -> None:
     paths = plot_s11_with_markers(
         _sparameter_table(),
         _marker_points(),
@@ -183,11 +183,11 @@ def test_plot_s11_with_markers_writes_overview_and_individual_pngs(tmp_path: Pat
         config=PlotConfig(dpi=120),
     )
 
-    assert "overview" in paths
+    assert "overview" not in paths
     assert "position_0p5" in paths
     assert "position_1p5" in paths
-    assert paths["overview"].name == "s11_with_markers.png"
     assert paths["position_0p5"].name == "s11_position_0p5.png"
+    assert not (tmp_path / "s11_with_markers.png").exists()
     for path in paths.values():
         assert path.exists()
         assert path.suffix == ".png"

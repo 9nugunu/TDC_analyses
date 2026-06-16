@@ -13,6 +13,8 @@ GROUP_COLUMNS: list[str] = [
     "port_side",
     "s_name",
 ]
+GEOMETRY_METADATA_PREFIXES: tuple[str, ...] = ("sim_",)
+TUNE_SWEEP_METADATA_COLUMNS: frozenset[str] = frozenset({"sim_NumTune"})
 OUTPUT_COLUMNS: list[str] = [
     "dataset_id",
     "data_kind",
@@ -52,12 +54,21 @@ def compute_phase_advance(marker_points: pd.DataFrame) -> pd.DataFrame:
     for column in GROUP_COLUMNS:
         if column not in table:
             table[column] = pd.NA
-    table["position_family"] = table["tune_position"].map(_position_family)
+    if "tune_position" not in table:
+        table["tune_position"] = pd.NA
+    metadata_columns = _geometry_metadata_columns(table)
+    output_columns = _output_columns(metadata_columns)
+
+    table["_tune_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+    table = table[table["_tune_sort"].notna()].copy()
+    if table.empty:
+        return pd.DataFrame(columns=output_columns)
+    table["position_family"] = table["_tune_sort"].map(_position_family)
 
     rows: list[dict[str, object]] = []
-    grouping_columns = [*GROUP_COLUMNS, "position_family"]
+    grouping_columns = [*GROUP_COLUMNS, *metadata_columns, "position_family"]
     for group_values, group in table.groupby(grouping_columns, dropna=False, sort=False):
-        group = group.sort_values("tune_position", kind="mergesort").reset_index(drop=True)
+        group = group.sort_values("_tune_sort", kind="mergesort").reset_index(drop=True)
         if len(group) < 2:
             continue
         group_metadata = dict(zip(grouping_columns, group_values, strict=True))
@@ -85,14 +96,29 @@ def compute_phase_advance(marker_points: pd.DataFrame) -> pd.DataFrame:
                     "phase_error_from_240_deg": phase_advance - 240.0,
                 }
             )
-    return pd.DataFrame(rows, columns=OUTPUT_COLUMNS)
+    return pd.DataFrame(rows, columns=output_columns)
+
+
+def _geometry_metadata_columns(table: pd.DataFrame) -> list[str]:
+    return [
+        column
+        for column in table.columns
+        if column not in GROUP_COLUMNS
+        and column not in TUNE_SWEEP_METADATA_COLUMNS
+        and any(column.startswith(prefix) for prefix in GEOMETRY_METADATA_PREFIXES)
+    ]
+
+
+def _output_columns(metadata_columns: list[str]) -> list[str]:
+    insert_index = OUTPUT_COLUMNS.index("position_family")
+    return [*OUTPUT_COLUMNS[:insert_index], *metadata_columns, *OUTPUT_COLUMNS[insert_index:]]
 
 
 def _wrap180(angle_deg: float) -> float:
     return ((angle_deg + 180.0) % 360.0) - 180.0
 
 
-def _position_family(tune_position: object) -> str:
+def _position_family(tune_position: float) -> str:
     value = float(tune_position)
     fractional = value % 1.0
     if abs(fractional) < 1e-9:

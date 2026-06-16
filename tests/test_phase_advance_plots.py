@@ -95,6 +95,29 @@ def test_plot_phase_advance_can_write_individual_position_family_pngs(tmp_path: 
         assert path.stat().st_size > 0
 
 
+def test_plot_phase_advance_writes_one_file_per_grid_point_and_position_family(tmp_path: Path) -> None:
+    first_grid_point = _phase_advance_table().assign(position_family=["cell", "cell", "iris", "iris"])
+    first_grid_point["sim_r_c"] = 54.5
+    first_grid_point["sim_w_c"] = 18.5
+    second_grid_point = _phase_advance_table().assign(position_family=["cell", "cell", "iris", "iris"])
+    second_grid_point["sim_r_c"] = 54.75
+    second_grid_point["sim_w_c"] = 18.75
+    second_grid_point["phase_advance_0to360_deg"] = second_grid_point["phase_advance_0to360_deg"] - 5.0
+    table = pd.concat([first_grid_point, second_grid_point], ignore_index=True)
+
+    paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
+
+    assert list(paths.keys()) == [
+        "cell_r_c_54p5_w_c_18p5",
+        "cell_r_c_54p75_w_c_18p75",
+        "iris_r_c_54p5_w_c_18p5",
+        "iris_r_c_54p75_w_c_18p75",
+    ]
+    for path in paths.values():
+        assert path.exists()
+        assert path.stat().st_size > 0
+
+
 def test_plot_phase_advance_uses_only_s11_when_multiple_sparameters_exist(tmp_path: Path) -> None:
     s11_table = _phase_advance_table().copy()
     s11_table["position_family"] = "cell"
