@@ -32,6 +32,7 @@ def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
         "is_normalized",
         "tune_position",
         "port_side",
+        "scan_type",
     ]
     assert table.to_dict("records") == [
         {
@@ -50,6 +51,7 @@ def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
             "is_normalized": False,
             "tune_position": None,
             "port_side": None,
+            "scan_type": "single_point",
         },
         {
             "dataset_id": "case_a",
@@ -67,6 +69,7 @@ def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
             "is_normalized": False,
             "tune_position": None,
             "port_side": None,
+            "scan_type": "single_point",
         },
     ]
 

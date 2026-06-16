@@ -158,6 +158,7 @@ def test_sample_nearest_markers_groups_sim_without_tune_position_or_port_side() 
                 "s_phase_deg": 80.0,
                 "source_format": "touchstone_ri",
                 "run_id": 1,
+                "scan_type": "grid_2d",
                 "sim_r_c": 54.5,
                 "sim_w_c": 18.5,
             },
@@ -172,6 +173,7 @@ def test_sample_nearest_markers_groups_sim_without_tune_position_or_port_side() 
                 "s_phase_deg": 90.0,
                 "source_format": "touchstone_ri",
                 "run_id": 1,
+                "scan_type": "grid_2d",
                 "sim_r_c": 54.5,
                 "sim_w_c": 18.5,
             },
@@ -199,5 +201,6 @@ def test_sample_nearest_markers_groups_sim_without_tune_position_or_port_side() 
     assert row["freq_ghz"] == 2.8575
     assert row["freq_error_ghz"] == pytest.approx(0.0001)
     assert row["run_id"] == 1
+    assert row["scan_type"] == "grid_2d"
     assert row["sim_r_c"] == 54.5
     assert row["sim_w_c"] == 18.5

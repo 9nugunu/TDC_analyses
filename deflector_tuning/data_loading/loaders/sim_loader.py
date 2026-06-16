@@ -20,10 +20,10 @@ class SimLoader(FolderLoader):
         table = super().load_touchstone(path)
         navigator = _read_result_navigator(Path(path))
         if navigator.empty:
-            return table
+            return _assign_scan_type(table)
         table = table.copy()
         table["run_id"] = table["source_file"].map(_run_id_from_file_name)
-        return _merge_result_navigator(table, navigator)
+        return _assign_scan_type(_merge_result_navigator(table, navigator))
 
 
 def _merge_result_navigator(table: pd.DataFrame, navigator: pd.DataFrame) -> pd.DataFrame:
@@ -59,6 +59,22 @@ def _read_result_navigator(path: Path) -> pd.DataFrame:
     for column in navigator.columns:
         navigator[column] = _to_number_if_possible(navigator[column])
     return navigator
+
+
+def _assign_scan_type(table: pd.DataFrame) -> pd.DataFrame:
+    output = table.copy()
+    output["scan_type"] = _scan_type(output)
+    return output
+
+
+def _scan_type(table: pd.DataFrame) -> str:
+    if "tune_position" in table and table["tune_position"].dropna().nunique() > 1:
+        return "tune_position"
+    if "sim_r_c" in table and "sim_w_c" in table:
+        grid_points = table[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
+        if len(grid_points) > 1:
+            return "grid_2d"
+    return "single_point"
 
 
 def _to_number_if_possible(series: pd.Series) -> pd.Series:
