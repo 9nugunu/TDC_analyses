@@ -162,8 +162,8 @@ def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp
         assert path.exists()
         assert path.suffix == ".png"
         assert path.stat().st_size > 0
-    assert paths["0.5"].name == "position_0p5.png"
-    assert paths["overview"].name == "all_positions.png"
+    assert paths["0.5"].name == "plot_polar_0p5.png"
+    assert paths["overview"].name == "plot_polar_overview.png"
     assert plt.rcParams["font.sans-serif"][:4] == ["Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans"]
 
 
@@ -201,16 +201,16 @@ def test_plot_marker_phase_polar_views_uses_overview_only_when_tune_positions_ar
     paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["overview"]
-    assert paths["overview"].name == "all_positions.png"
+    assert paths["overview"].name == "plot_polar_overview.png"
     assert paths["overview"].exists()
 
 
 def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_not_vary(tmp_path: Path) -> None:
     paths = plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["r_c=54.59, w_c=18.3224", "r_c=55.59, w_c=19.3224", "overview"]
-    assert paths["r_c=54.59, w_c=18.3224"].name == "position_r_c_54p59_w_c_18p3224.png"
-    assert paths["r_c=55.59, w_c=19.3224"].name == "position_r_c_55p59_w_c_19p3224.png"
+    assert list(paths) == ["r_c=54.59, w_c=18.3224", "r_c=55.59, w_c=19.3224"]
+    assert paths["r_c=54.59, w_c=18.3224"].name == "plot_polar_r_c_54p59_w_c_18p3224.png"
+    assert paths["r_c=55.59, w_c=19.3224"].name == "plot_polar_r_c_55p59_w_c_19p3224.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0

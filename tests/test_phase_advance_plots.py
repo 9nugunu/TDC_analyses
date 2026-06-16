@@ -82,8 +82,8 @@ def test_plot_phase_advance_writes_advance_and_error_pngs(tmp_path: Path) -> Non
         assert path.exists()
         assert path.suffix == ".png"
         assert path.stat().st_size > 0
-    assert paths["phase_advance"].name == "phase_advance_by_marker.png"
-    assert paths["phase_error"].name == "phase_error_by_marker.png"
+    assert paths["phase_advance"].name == "plot_phase_advance_by_marker.png"
+    assert paths["phase_error"].name == "plot_phase_error_by_marker.png"
 
 
 def test_plot_phase_advance_can_write_individual_position_family_pngs(tmp_path: Path) -> None:
@@ -96,8 +96,8 @@ def test_plot_phase_advance_can_write_individual_position_family_pngs(tmp_path: 
     assert "phase_error_cell" in paths
     assert "phase_advance_iris" in paths
     assert "phase_error_iris" in paths
-    assert paths["phase_advance_cell"].name == "phase_advance_cell.png"
-    assert paths["phase_error_iris"].name == "phase_error_iris.png"
+    assert paths["phase_advance_cell"].name == "plot_phase_advance_cell.png"
+    assert paths["phase_error_iris"].name == "plot_phase_error_iris.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0

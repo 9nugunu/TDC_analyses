@@ -65,10 +65,23 @@ def plot_s11_with_markers(
     s_table = sparameter_table.copy()
     m_table = marker_points.copy()
     paths: OrderedDict[str, Path] = OrderedDict()
+    if _has_grid_point_groups(s_table, m_table):
+        for sim_r_c, sim_w_c, group in _iter_grid_point_groups(s_table):
+            marker_group = _select_grid_point_rows(m_table, sim_r_c=sim_r_c, sim_w_c=sim_w_c)
+            key = f"grid_{_format_grid_point_key(sim_r_c, sim_w_c)}"
+            paths[key] = _plot_one(
+                group,
+                marker_group,
+                folder / f"plot_s11_{_format_grid_point_key(sim_r_c, sim_w_c)}.png",
+                title=f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}: S11 magnitude",
+                config=config,
+            )
+        return paths
+
     paths["overview"] = _plot_one(
         s_table,
         m_table,
-        folder / "s11_with_markers.png",
+        folder / "plot_s11_with_markers.png",
         title="S11 magnitude with marker points",
         config=config,
     )
@@ -79,7 +92,7 @@ def plot_s11_with_markers(
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"s11_position_{_format_position_key(tune_position)}.png",
+                folder / f"plot_s11_position_{_format_position_key(tune_position)}.png",
                 title=f"Position {_format_position(tune_position)}: S11 magnitude",
                 config=config,
             )
@@ -168,3 +181,45 @@ def _format_position(position: object) -> str:
 
 def _format_position_key(position: object) -> str:
     return _format_position(position).replace(".", "p")
+
+
+def _has_grid_point_groups(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:
+    if "tune_position" in s_table and s_table["tune_position"].dropna().nunique() > 1:
+        return False
+    if "tune_position" in m_table and m_table["tune_position"].dropna().nunique() > 1:
+        return False
+    if "sim_r_c" not in s_table or "sim_w_c" not in s_table:
+        return False
+    grid_points = s_table[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
+    return len(grid_points) >= 1
+
+
+def _iter_grid_point_groups(s_table: pd.DataFrame):
+    table = s_table.copy()
+    table["_r_sort"] = pd.to_numeric(table["sim_r_c"], errors="coerce")
+    table["_w_sort"] = pd.to_numeric(table["sim_w_c"], errors="coerce")
+    table = table.sort_values(
+        ["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "freq_ghz"],
+        kind="mergesort",
+    )
+    for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
+        yield sim_r_c, sim_w_c, group
+
+
+def _select_grid_point_rows(table: pd.DataFrame, *, sim_r_c: object, sim_w_c: object) -> pd.DataFrame:
+    if "sim_r_c" not in table or "sim_w_c" not in table:
+        return table.iloc[0:0].copy()
+    mask = (table["sim_r_c"] == sim_r_c) & (table["sim_w_c"] == sim_w_c)
+    return table.loc[mask].copy()
+
+
+def _format_grid_point_key(sim_r_c: object, sim_w_c: object) -> str:
+    return f"r_c_{_format_grid_value(sim_r_c).replace('.', 'p')}_w_c_{_format_grid_value(sim_w_c).replace('.', 'p')}"
+
+
+def _format_grid_value(value: object) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f"{numeric:g}"

@@ -60,7 +60,7 @@ def plot_phase_advance(
     paths: OrderedDict[str, Path] = OrderedDict()
     paths["phase_advance"] = _plot_metric(
         table,
-        folder / "phase_advance_by_marker.png",
+        folder / "plot_phase_advance_by_marker.png",
         value_column="phase_advance_0to360_deg",
         ylabel="Phase advance [deg]",
         title="Marker phase advance by transition",
@@ -70,7 +70,7 @@ def plot_phase_advance(
     )
     paths["phase_error"] = _plot_metric(
         table,
-        folder / "phase_error_by_marker.png",
+        folder / "plot_phase_error_by_marker.png",
         value_column="phase_error_from_240_deg",
         ylabel="Phase error from 240° [deg]",
         title="Marker phase error by transition",
@@ -85,7 +85,7 @@ def plot_phase_advance(
                 continue
             paths[f"phase_advance_{family}"] = _plot_metric(
                 family_table,
-                folder / f"phase_advance_{family}.png",
+                folder / f"plot_phase_advance_{family}.png",
                 value_column="phase_advance_0to360_deg",
                 ylabel="Phase advance [deg]",
                 title=f"{family.title()} phase advance by transition",
@@ -96,7 +96,7 @@ def plot_phase_advance(
             )
             paths[f"phase_error_{family}"] = _plot_metric(
                 family_table,
-                folder / f"phase_error_{family}.png",
+                folder / f"plot_phase_error_{family}.png",
                 value_column="phase_error_from_240_deg",
                 ylabel="Phase error from 240° [deg]",
                 title=f"{family.title()} phase error by transition",

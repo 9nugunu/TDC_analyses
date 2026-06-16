@@ -13,7 +13,6 @@ from deflector_tuning.runner import run_folder_analysis
 
 DESCRIPTION = "Run one folder through the standard deflector tuning analysis workflow."
 DEFAULT_DATA_ROOT = Path("data")
-DEFAULT_ANALYSIS_FAMILY = "folder_analysis"
 DATASET_ID_LAYER_PRIORITY: tuple[str, ...] = ("prepro", "raw", "sim")
 
 
@@ -31,7 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         type=Path,
         default=None,
-        help="Advanced override. Default: fig/analyses/<dataset_id>/folder_analysis.",
+        help="Advanced override. Default: fig/analyses/<dataset_id>.",
     )
     parser.add_argument(
         "--marker-role",
@@ -186,7 +185,7 @@ def marker_role_for_layer(data_layer: DataLayer) -> str:
 def default_output_dir(dataset_id: str) -> Path:
     """Return the canonical default output directory for one-folder analysis."""
 
-    return Path("fig") / "analyses" / dataset_id / DEFAULT_ANALYSIS_FAMILY
+    return Path("fig") / "analyses" / dataset_id
 
 
 def main(argv: list[str] | None = None) -> int:

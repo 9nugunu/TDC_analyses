@@ -16,10 +16,10 @@ from deflector_tuning.markers.sampling import sample_nearest_markers
 AnalysisTables = OrderedDict[str, pd.DataFrame]
 
 TABLE_FILENAMES: dict[str, str] = {
-    "markers": "markers.csv",
-    "marker_points": "marker_points.csv",
-    "phase_advance": "phase_advance.csv",
-    "phase_summary": "phase_summary.csv",
+    "markers": "table_markers.csv",
+    "marker_points": "table_marker_points.csv",
+    "phase_advance": "table_phase_advance.csv",
+    "phase_summary": "table_phase_summary.csv",
 }
 
 

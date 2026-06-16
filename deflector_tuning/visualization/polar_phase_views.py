@@ -44,19 +44,21 @@ def plot_marker_phase_polar_views(
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     paths: OrderedDict[str, Path] = OrderedDict()
+    grouping_mode = _grouping_mode(marker_points)
     groups = list(_iter_position_groups(marker_points))
     if len(groups) > 1:
         for position_label, position_table in groups:
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_position(ax, position_table, f"{position_label}: {title_prefix}", config=config)
-            output_path = folder / f"position_{_safe_label(position_label)}.png"
+            output_path = folder / f"plot_polar_{_safe_label(position_label)}.png"
             save_figure(fig, output_path, config)
             plt.close(fig)
             paths[position_label] = output_path
 
-    overview_path = folder / "all_positions.png"
-    _save_overview(groups, overview_path, title_prefix=title_prefix, config=config)
-    paths["overview"] = overview_path
+    if grouping_mode != "grid_point":
+        overview_path = folder / "plot_polar_overview.png"
+        _save_overview(groups, overview_path, title_prefix=title_prefix, config=config)
+        paths["overview"] = overview_path
     return paths
 
 
