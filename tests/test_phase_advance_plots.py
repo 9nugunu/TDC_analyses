@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from deflector_tuning.visualization import phase_advance_plots
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
 from deflector_tuning.visualization.plot_config import PlotConfig
 
@@ -133,6 +134,70 @@ def test_plot_phase_advance_can_exclude_edge_transitions(tmp_path: Path) -> None
 
     assert paths["phase_advance_cell"].exists()
     assert paths["phase_advance_iris"].exists()
+
+
+def test_plot_phase_advance_separates_duplicate_transition_series(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    table = pd.DataFrame(
+        [
+            {
+                "marker_name": "f_2pi3",
+                "port_side": "in",
+                "from_tune_position": 0.5,
+                "to_tune_position": 1.5,
+                "position_family": "cell",
+                "phase_advance_0to360_deg": 12.0,
+                "phase_error_from_240_deg": -228.0,
+            },
+            {
+                "marker_name": "f_2pi3",
+                "port_side": "out",
+                "from_tune_position": 0.5,
+                "to_tune_position": 1.5,
+                "position_family": "cell",
+                "phase_advance_0to360_deg": 18.0,
+                "phase_error_from_240_deg": -222.0,
+            },
+            {
+                "marker_name": "f_2pi3",
+                "port_side": "in",
+                "from_tune_position": 1.5,
+                "to_tune_position": 2.5,
+                "position_family": "cell",
+                "phase_advance_0to360_deg": 267.0,
+                "phase_error_from_240_deg": 27.0,
+            },
+            {
+                "marker_name": "f_2pi3",
+                "port_side": "out",
+                "from_tune_position": 1.5,
+                "to_tune_position": 2.5,
+                "position_family": "cell",
+                "phase_advance_0to360_deg": 253.0,
+                "phase_error_from_240_deg": 13.0,
+            },
+        ]
+    )
+    captured_lines: list[tuple[str, list[float], list[float]]] = []
+
+    def capture_figure(fig, output_path: Path, config: PlotConfig) -> Path:
+        output_path.touch()
+        for line in fig.axes[0].lines:
+            if line.get_label() == "ideal 240°":
+                continue
+            captured_lines.append((line.get_label(), list(line.get_xdata()), list(line.get_ydata())))
+        return output_path
+
+    monkeypatch.setattr(phase_advance_plots, "save_figure", capture_figure)
+
+    paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
+
+    assert paths["phase_advance_cell"].exists()
+    assert len(captured_lines) == 2
+    assert {line[0] for line in captured_lines} == {r"$f_{2\pi/3}$ in", r"$f_{2\pi/3}$ out"}
+    assert all(line[1] == [0, 1] for line in captured_lines)
+    assert sorted(line[2] for line in captured_lines) == [[12.0, 267.0], [18.0, 253.0]]
 
 
 def test_plot_phase_advance_skips_family_split_when_positions_are_missing(tmp_path: Path) -> None:

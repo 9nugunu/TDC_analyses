@@ -31,6 +31,15 @@ MARKER_COLORS: dict[str, str] = {
     "f_mean": "#1f77b4",
     "f_pi2": "#2ca02c",
 }
+SERIES_ID_COLUMNS: tuple[str, ...] = (
+    "dataset_id",
+    "data_kind",
+    "data_layer",
+    "marker_role",
+    "port_side",
+    "s_name",
+)
+SERIES_LINESTYLES: tuple[str, ...] = ("-", "--", ":", "-.")
 
 
 def plot_phase_advance(
@@ -126,27 +135,33 @@ def _plot_metric(
     marker_order = [marker for marker in MARKER_ORDER if marker in set(table["marker_name"])]
     marker_order.extend(marker for marker in table["marker_name"].dropna().unique() if marker not in marker_order)
     family_order = _position_family_order(table)
+    series_columns = _series_columns(table)
 
     for marker in marker_order:
         for family in family_order:
             group = table[(table["marker_name"] == marker) & (table["position_family"] == family)].copy()
             if group.empty:
                 continue
-            x_values = [x_by_label[label] for label in group["transition_label"]]
-            ax.plot(
-                x_values,
-                group[value_column],
-                marker="o",
-                linewidth=1.6,
-                markersize=4.5,
-                linestyle="-" if family == "cell" else "--",
-                label=(
-                    f"{MARKER_LABELS.get(marker, marker)} {family}"
-                    if include_family_in_label
-                    else MARKER_LABELS.get(marker, marker)
-                ),
-                color=MARKER_COLORS.get(marker),
-            )
+            series_groups = list(group.groupby(series_columns, dropna=False, sort=False)) if series_columns else [((), group)]
+            for series_index, (series_values, series_group) in enumerate(series_groups):
+                series_group = series_group.sort_values(["_from_sort", "_to_sort"], kind="mergesort")
+                x_values = [x_by_label[label] for label in series_group["transition_label"]]
+                ax.plot(
+                    x_values,
+                    series_group[value_column],
+                    marker="o",
+                    linewidth=1.6,
+                    markersize=4.5,
+                    linestyle=SERIES_LINESTYLES[series_index % len(SERIES_LINESTYLES)],
+                    label=_series_label(
+                        marker,
+                        family,
+                        include_family=include_family_in_label,
+                        columns=series_columns,
+                        values=series_values,
+                    ),
+                    color=MARKER_COLORS.get(marker),
+                )
 
     ax.axhline(reference_value, color="0.25", linestyle="--", linewidth=1.0, label=reference_label)
     apply_axis_text_style(ax, xlabel="Transition", ylabel=ylabel, title=title, config=config)
@@ -169,6 +184,46 @@ def _format_position(position: object) -> str:
     if value.is_integer():
         return f"{value:.1f}"
     return f"{value:g}"
+
+
+def _series_columns(table: pd.DataFrame) -> list[str]:
+    """Return metadata columns that distinguish independent line series."""
+
+    columns: list[str] = []
+    for column in SERIES_ID_COLUMNS:
+        if column not in table:
+            continue
+        values = table[column].fillna("<NA>").astype(str)
+        if values.nunique(dropna=False) > 1:
+            columns.append(column)
+    return columns
+
+
+def _series_label(
+    marker: object,
+    family: object,
+    *,
+    include_family: bool,
+    columns: list[str],
+    values: object,
+) -> str:
+    marker_label = MARKER_LABELS.get(str(marker), str(marker))
+    parts = [marker_label]
+    if include_family:
+        parts.append(str(family))
+
+    if columns:
+        if len(columns) == 1:
+            series_values = values if isinstance(values, tuple) else (values,)
+        else:
+            series_values = tuple(values)
+        suffix = [
+            str(value)
+            for column, value in zip(columns, series_values, strict=True)
+            if not pd.isna(value) and str(value) not in {"", "<NA>", "nan", "None"}
+        ]
+        parts.extend(suffix)
+    return " ".join(parts)
 
 
 def _position_family(tune_position: object) -> str:
