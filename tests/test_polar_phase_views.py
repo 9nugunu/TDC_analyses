@@ -298,14 +298,18 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_per_position_tune_pl
         assert guide_labels == {"0°", "120°", "240°"}
 
 
-def test_plot_marker_phase_polar_views_uses_overview_only_when_tune_positions_are_missing(tmp_path: Path) -> None:
+def test_plot_marker_phase_polar_views_splits_by_source_file_when_tune_positions_are_missing(tmp_path: Path) -> None:
     table = _marker_points().assign(tune_position=pd.NA)
 
     paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["overview"]
+    assert list(paths) == ["0.5_processed", "1.0_processed", "overview"]
+    assert paths["0.5_processed"].name == "position_0p5_processed.png"
+    assert paths["1.0_processed"].name == "position_1p0_processed.png"
     assert paths["overview"].name == "all_positions.png"
-    assert paths["overview"].exists()
+    for path in paths.values():
+        assert path.exists()
+        assert path.stat().st_size > 0
 
 
 def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_not_vary(tmp_path: Path) -> None:
@@ -314,6 +318,28 @@ def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_
     assert list(paths) == ["r_c=54.59, w_c=18.3224", "r_c=55.59, w_c=19.3224"]
     assert paths["r_c=54.59, w_c=18.3224"].name == "position_r_c_54p59_w_c_18p3224.png"
     assert paths["r_c=55.59, w_c=19.3224"].name == "position_r_c_55p59_w_c_19p3224.png"
+    for path in paths.values():
+        assert path.exists()
+        assert path.stat().st_size > 0
+
+
+def test_plot_marker_phase_polar_views_splits_duplicate_positions_by_source_file(tmp_path: Path) -> None:
+    table = pd.concat(
+        [
+            _marker_points().iloc[:3],
+            _marker_points().iloc[:3].assign(
+                source_file="repeat_processed.csv",
+                s_phase_deg=[40.0, -80.0, 160.0],
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["0.5_processed", "repeat_processed", "overview"]
+    assert paths["0.5_processed"].name == "position_0p5_processed.png"
+    assert paths["repeat_processed"].name == "position_repeat_processed.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0

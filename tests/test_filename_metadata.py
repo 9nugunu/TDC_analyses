@@ -49,6 +49,36 @@ def test_simple_numeric_file_gets_tune_position_only(tmp_path: Path) -> None:
     assert row["port_side"] is None
 
 
+def test_date_prefixed_iris_file_gets_iris_position_not_date(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "raw" / "260604_iris_portE"
+    folder.mkdir(parents=True)
+    (folder / "260604_iris_1_portE.csv").write_text(
+        "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
+        "2600000000.0;1.0;0.0;\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().load(folder)
+
+    row = table.iloc[0]
+    assert row["tune_position"] == 1.0
+    assert row["port_side"] is None
+
+
+def test_leading_date_token_is_not_used_as_fallback_position(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "raw" / "260604_iris_portE"
+    folder.mkdir(parents=True)
+    (folder / "260604_portE.csv").write_text(
+        "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
+        "2600000000.0;1.0;0.0;\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().load(folder)
+
+    assert table.iloc[0]["tune_position"] is None
+
+
 def test_touchstone_cell_file_gets_cell_tune_position_not_date(tmp_path: Path) -> None:
     folder = tmp_path / "data" / "sim" / "260504_tds_body_plunger"
     folder.mkdir(parents=True)

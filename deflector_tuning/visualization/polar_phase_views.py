@@ -65,9 +65,7 @@ def plot_marker_phase_polar_views(
                 config=config,
                 guide_angles_deg=(0.0, 120.0, 240.0) if grouping_mode == "tune_position" else (),
             )
-            output_stem = (
-                _tune_position_filename_label(position_table) if grouping_mode == "tune_position" else f"position_{_safe_label(position_label)}"
-            )
+            output_stem = _position_output_stem(position_table, position_label, grouping_mode=grouping_mode)
             output_path = folder / f"{output_stem}.png"
             save_figure(fig, output_path, config)
             plt.close(fig)
@@ -106,19 +104,24 @@ def _iter_position_groups(marker_points: pd.DataFrame):
     grouping_mode = _grouping_mode(table)
     if grouping_mode == "tune_position":
         table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
-        table = table.sort_values(["_position_sort", "tune_position", "marker_name"], kind="mergesort")
-        for position, group in table.groupby("tune_position", sort=False, dropna=False):
-            yield _format_position(position), group
+        group_columns = _position_group_columns(table, base_columns=("tune_position",))
+        table = table.sort_values(["_position_sort", *group_columns, "marker_name"], kind="mergesort")
+        for group_key, group in table.groupby(group_columns, sort=False, dropna=False):
+            yield _format_group_label(group_key, group_columns), group
         return
     if grouping_mode == "grid_point":
         table["_r_sort"] = pd.to_numeric(table["sim_r_c"], errors="coerce")
         table["_w_sort"] = pd.to_numeric(table["sim_w_c"], errors="coerce")
-        table = table.sort_values(
-            ["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "marker_name"],
-            kind="mergesort",
-        )
-        for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
-            yield _format_grid_label(sim_r_c, sim_w_c), group
+        group_columns = _position_group_columns(table, base_columns=("sim_r_c", "sim_w_c"))
+        table = table.sort_values(["_r_sort", "_w_sort", *group_columns, "marker_name"], kind="mergesort")
+        for group_key, group in table.groupby(group_columns, sort=False, dropna=False):
+            yield _format_group_label(group_key, group_columns), group
+        return
+    if grouping_mode == "source_file":
+        group_columns = _position_group_columns(table, base_columns=("source_file",))
+        table = table.sort_values([*group_columns, "marker_name"], kind="mergesort")
+        for group_key, group in table.groupby(group_columns, sort=False, dropna=False):
+            yield _format_group_label(group_key, group_columns), group
         return
     yield "all", table.sort_values(["source_file", "marker_name"], kind="mergesort")
 
@@ -130,6 +133,8 @@ def _grouping_mode(marker_points: pd.DataFrame) -> str:
         return "tune_position"
     if _has_multiple_grid_points(marker_points):
         return "grid_point"
+    if _has_multiple_source_files(marker_points):
+        return "source_file"
     return "all"
 
 
@@ -151,6 +156,31 @@ def _has_multiple_grid_points(marker_points: pd.DataFrame) -> bool:
         return False
     grid_points = marker_points[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
     return len(grid_points) > 1
+
+
+def _has_multiple_source_files(marker_points: pd.DataFrame) -> bool:
+    if "source_file" not in marker_points:
+        return False
+    return marker_points["source_file"].dropna().nunique() > 1
+
+
+def _position_group_columns(table: pd.DataFrame, *, base_columns: tuple[str, ...]) -> list[str]:
+    group_columns = list(base_columns)
+    if not _has_duplicate_markers(table, group_columns):
+        return group_columns
+    for column in ("source_file", "s_name", "port_side"):
+        if column in table and table[column].dropna().nunique() > 1 and column not in group_columns:
+            group_columns.append(column)
+        if not _has_duplicate_markers(table, group_columns):
+            break
+    return group_columns
+
+
+def _has_duplicate_markers(table: pd.DataFrame, group_columns: list[str]) -> bool:
+    required_columns = [*group_columns, "marker_name"]
+    if any(column not in table for column in required_columns):
+        return False
+    return bool(table.duplicated(required_columns, keep=False).any())
 
 
 def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *, title_prefix: str, config: PlotConfig) -> None:
@@ -417,6 +447,35 @@ def _format_position(position: object) -> str:
     return f"{value:g}"
 
 
+def _format_group_label(group_key: object, group_columns: list[str]) -> str:
+    values = group_key if isinstance(group_key, tuple) else (group_key,)
+    if tuple(group_columns) == ("sim_r_c", "sim_w_c"):
+        return _format_grid_label(values[0], values[1])
+    parts: list[str] = []
+    for column, value in zip(group_columns, values, strict=True):
+        if column == "tune_position":
+            parts.append(_format_position(value))
+        elif column == "sim_r_c":
+            parts.append(f"r_c={_format_grid_value(value)}")
+        elif column == "sim_w_c":
+            parts.append(f"w_c={_format_grid_value(value)}")
+        elif column == "source_file":
+            parts.append(Path(str(value)).stem)
+        elif column == "s_name":
+            parts.append(str(value))
+        elif column == "port_side" and not pd.isna(value):
+            parts.append(f"port={value}")
+        elif not pd.isna(value):
+            parts.append(str(value))
+    return " | ".join(parts)
+
+
+def _position_output_stem(position_table: pd.DataFrame, position_label: str, *, grouping_mode: str) -> str:
+    if grouping_mode == "tune_position" and " | " not in position_label:
+        return _tune_position_filename_label(position_table)
+    return f"position_{_safe_label(position_label)}"
+
+
 def _tune_position_filename_label(position_table: pd.DataFrame) -> str:
     tune_positions = position_table["tune_position"].dropna().unique()
     if len(tune_positions) != 1:
@@ -456,7 +515,14 @@ def _format_grid_value(value: object) -> str:
 
 
 def _safe_label(label: str) -> str:
-    sanitized = label.replace("=", "_").replace(",", "").replace(".", "p").replace("-", "m").replace(" ", "_")
+    sanitized = (
+        label.replace("=", "_")
+        .replace(",", "")
+        .replace(".", "p")
+        .replace("-", "m")
+        .replace(" ", "_")
+        .replace("|", "_")
+    )
     while "__" in sanitized:
         sanitized = sanitized.replace("__", "_")
     return sanitized
