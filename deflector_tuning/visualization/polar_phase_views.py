@@ -21,7 +21,7 @@ MARKER_LABELS: dict[str, str] = {
     "f_mean": r"$f_{mean}$",
     "f_pi2": r"$f_{\pi/2}$",
 }
-REQUIRED_COLUMNS: tuple[str, ...] = ("tune_position", "marker_name", "s_phase_deg")
+REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "s_phase_deg")
 
 
 def plot_marker_phase_polar_views(
@@ -31,7 +31,7 @@ def plot_marker_phase_polar_views(
     title_prefix: str = "marker-frequency polar phase view",
     config: PlotConfig | None = None,
 ) -> OrderedDict[str, Path]:
-    """Write one unit-circle polar phase view per tune position plus an overview."""
+    """Write one unit-circle polar phase view per sweep position plus an overview."""
 
     if marker_points.empty:
         raise ValueError("marker_points is empty")
@@ -45,7 +45,7 @@ def plot_marker_phase_polar_views(
     folder.mkdir(parents=True, exist_ok=True)
     paths: OrderedDict[str, Path] = OrderedDict()
     groups = list(_iter_position_groups(marker_points))
-    if _has_named_positions(marker_points):
+    if len(groups) > 1:
         for position_label, position_table in groups:
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_position(ax, position_table, f"{position_label}: {title_prefix}", config=config)
@@ -62,17 +62,45 @@ def plot_marker_phase_polar_views(
 
 def _iter_position_groups(marker_points: pd.DataFrame):
     table = marker_points.copy()
-    if not _has_named_positions(table):
-        yield "all", table.sort_values(["source_file", "marker_name"], kind="mergesort")
+    grouping_mode = _grouping_mode(table)
+    if grouping_mode == "tune_position":
+        table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+        table = table.sort_values(["_position_sort", "tune_position", "marker_name"], kind="mergesort")
+        for position, group in table.groupby("tune_position", sort=False, dropna=False):
+            yield _format_position(position), group
         return
-    table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
-    table = table.sort_values(["_position_sort", "tune_position", "marker_name"], kind="mergesort")
-    for position, group in table.groupby("tune_position", sort=False, dropna=False):
-        yield _format_position(position), group
+    if grouping_mode == "grid_point":
+        table["_r_sort"] = pd.to_numeric(table["sim_r_c"], errors="coerce")
+        table["_w_sort"] = pd.to_numeric(table["sim_w_c"], errors="coerce")
+        table = table.sort_values(
+            ["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "marker_name"],
+            kind="mergesort",
+        )
+        for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
+            yield _format_grid_label(sim_r_c, sim_w_c), group
+        return
+    yield "all", table.sort_values(["source_file", "marker_name"], kind="mergesort")
 
 
-def _has_named_positions(marker_points: pd.DataFrame) -> bool:
-    return "tune_position" in marker_points and marker_points["tune_position"].notna().any()
+def _grouping_mode(marker_points: pd.DataFrame) -> str:
+    if _has_multiple_tune_positions(marker_points):
+        return "tune_position"
+    if _has_multiple_grid_points(marker_points):
+        return "grid_point"
+    return "all"
+
+
+def _has_multiple_tune_positions(marker_points: pd.DataFrame) -> bool:
+    if "tune_position" not in marker_points:
+        return False
+    return marker_points["tune_position"].dropna().nunique() > 1
+
+
+def _has_multiple_grid_points(marker_points: pd.DataFrame) -> bool:
+    if "sim_r_c" not in marker_points or "sim_w_c" not in marker_points:
+        return False
+    grid_points = marker_points[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
+    return len(grid_points) > 1
 
 
 def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *, title_prefix: str, config: PlotConfig) -> None:
@@ -176,5 +204,20 @@ def _format_position(position: object) -> str:
     return f"{value:g}"
 
 
+def _format_grid_label(sim_r_c: object, sim_w_c: object) -> str:
+    return f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+
+
+def _format_grid_value(value: object) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    return f"{numeric:g}"
+
+
 def _safe_label(label: str) -> str:
-    return label.replace(".", "p").replace("-", "m").replace(" ", "_")
+    sanitized = label.replace("=", "_").replace(",", "").replace(".", "p").replace("-", "m").replace(" ", "_")
+    while "__" in sanitized:
+        sanitized = sanitized.replace("__", "_")
+    return sanitized
