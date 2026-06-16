@@ -6,7 +6,12 @@ import re
 from pathlib import Path
 
 
-def metadata_from_filename(file_path: str | Path, dataset_id: str) -> dict[str, object]:
+def metadata_from_filename(
+    file_path: str | Path,
+    dataset_id: str,
+    *,
+    strict_cell_position: bool = False,
+) -> dict[str, object]:
     """Extract lightweight metadata from known tuning filenames.
 
     ``in``/``out`` side labels are only meaningful before full brazing. Once a
@@ -19,15 +24,17 @@ def metadata_from_filename(file_path: str | Path, dataset_id: str) -> dict[str, 
     if "fullbrazing" in dataset_id.lower():
         side = None
     return {
-        "tune_position": _first_number(stem),
+        "tune_position": _first_number(stem, strict_cell_position=strict_cell_position),
         "port_side": side,
     }
 
 
-def _first_number(text: str) -> float | None:
+def _first_number(text: str, *, strict_cell_position: bool = False) -> float | None:
     cell_match = re.search(r"(?:^|[_-])cell[_-]?(\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
     if cell_match is not None:
         return float(cell_match.group(1))
+    if strict_cell_position:
+        return None
     match = re.search(r"\d+(?:\.\d+)?", text)
     if match is None:
         return None

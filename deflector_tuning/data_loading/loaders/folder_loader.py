@@ -60,7 +60,11 @@ class FolderLoader:
         rows: list[dict[str, object]] = []
         for touchstone_file in self.list_files(path).touchstone_files:
             touchstone_data = read_touchstone(touchstone_file)
-            metadata = metadata_from_filename(touchstone_file, data_folder.dataset_id)
+            metadata = metadata_from_filename(
+                touchstone_file,
+                data_folder.dataset_id,
+                strict_cell_position=self.data_layer is DataLayer.SIM,
+            )
             for freq, s_values_at_freq in zip(
                 touchstone_data.frequency,
                 touchstone_data.s_values,

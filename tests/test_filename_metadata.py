@@ -62,3 +62,18 @@ def test_touchstone_cell_file_gets_cell_tune_position_not_date(tmp_path: Path) -
     row = table.iloc[0]
     assert row["tune_position"] == 0.5
     assert row["port_side"] is None
+
+
+def test_sim_touchstone_run_id_is_not_treated_as_tune_position(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "sim" / "260527_iris_line_sweep"
+    folder.mkdir(parents=True)
+    (folder / "run_001.s1p").write_text(
+        "# GHz S RI R 0\n2.6 1 0\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().load(folder)
+
+    row = table.iloc[0]
+    assert row["tune_position"] is None
+    assert row["port_side"] is None
