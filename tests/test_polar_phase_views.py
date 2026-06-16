@@ -162,8 +162,8 @@ def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp
         assert path.exists()
         assert path.suffix == ".png"
         assert path.stat().st_size > 0
-    assert paths["0.5"].name == "plot_polar_0p5.png"
-    assert paths["overview"].name == "plot_polar_overview.png"
+    assert paths["0.5"].name == "position_0p5.png"
+    assert paths["overview"].name == "all_positions.png"
     assert plt.rcParams["font.sans-serif"][:4] == ["Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans"]
 
 
@@ -195,13 +195,35 @@ def test_plot_marker_phase_polar_views_uses_full_typography_for_per_position_and
             assert {text.get_fontsize() for text in marker_labels} == {float(config.label_size)}
 
 
+def test_plot_marker_phase_polar_views_uses_marker_specific_colors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    assert saved_figures
+    first_axis = next(ax for ax in saved_figures[0].axes if ax.get_visible())
+    line_colors = {line.get_color() for line in first_axis.lines}
+    assert polar_phase_views.MARKER_COLORS["f_2pi3"] in line_colors
+    assert polar_phase_views.MARKER_COLORS["f_mean"] in line_colors
+    assert polar_phase_views.MARKER_COLORS["f_pi2"] in line_colors
+
+
 def test_plot_marker_phase_polar_views_uses_overview_only_when_tune_positions_are_missing(tmp_path: Path) -> None:
     table = _marker_points().assign(tune_position=pd.NA)
 
     paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["overview"]
-    assert paths["overview"].name == "plot_polar_overview.png"
+    assert paths["overview"].name == "all_positions.png"
     assert paths["overview"].exists()
 
 
@@ -209,8 +231,8 @@ def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_
     paths = plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["r_c=54.59, w_c=18.3224", "r_c=55.59, w_c=19.3224"]
-    assert paths["r_c=54.59, w_c=18.3224"].name == "plot_polar_r_c_54p59_w_c_18p3224.png"
-    assert paths["r_c=55.59, w_c=19.3224"].name == "plot_polar_r_c_55p59_w_c_19p3224.png"
+    assert paths["r_c=54.59, w_c=18.3224"].name == "position_r_c_54p59_w_c_18p3224.png"
+    assert paths["r_c=55.59, w_c=19.3224"].name == "position_r_c_55p59_w_c_19p3224.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0

@@ -74,16 +74,10 @@ def _phase_advance_table() -> pd.DataFrame:
     )
 
 
-def test_plot_phase_advance_writes_advance_and_error_pngs(tmp_path: Path) -> None:
+def test_plot_phase_advance_returns_no_paths_without_family_split(tmp_path: Path) -> None:
     paths = plot_phase_advance(_phase_advance_table(), tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["phase_advance", "phase_error"]
-    for path in paths.values():
-        assert path.exists()
-        assert path.suffix == ".png"
-        assert path.stat().st_size > 0
-    assert paths["phase_advance"].name == "plot_phase_advance_by_marker.png"
-    assert paths["phase_error"].name == "plot_phase_error_by_marker.png"
+    assert list(paths) == []
 
 
 def test_plot_phase_advance_can_write_individual_position_family_pngs(tmp_path: Path) -> None:
@@ -93,11 +87,9 @@ def test_plot_phase_advance_can_write_individual_position_family_pngs(tmp_path: 
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
 
     assert "phase_advance_cell" in paths
-    assert "phase_error_cell" in paths
     assert "phase_advance_iris" in paths
-    assert "phase_error_iris" in paths
-    assert paths["phase_advance_cell"].name == "plot_phase_advance_cell.png"
-    assert paths["phase_error_iris"].name == "plot_phase_error_iris.png"
+    assert paths["phase_advance_cell"].name == "phase_advance_cell.png"
+    assert paths["phase_advance_iris"].name == "phase_advance_iris.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
@@ -130,10 +122,17 @@ def test_plot_phase_advance_can_exclude_edge_transitions(tmp_path: Path) -> None
         ignore_index=True,
     )
 
-    paths = plot_phase_advance(phase_table, tmp_path, transition_scope="internal", config=PlotConfig(dpi=120))
+    phase_table["position_family"] = ["cell", "cell", "iris", "iris", "iris"]
+    paths = plot_phase_advance(
+        phase_table,
+        tmp_path,
+        transition_scope="internal",
+        split_by_family=True,
+        config=PlotConfig(dpi=120),
+    )
 
-    assert paths["phase_advance"].exists()
-    assert paths["phase_error"].exists()
+    assert paths["phase_advance_cell"].exists()
+    assert paths["phase_advance_iris"].exists()
 
 
 def test_plot_phase_advance_skips_family_split_when_positions_are_missing(tmp_path: Path) -> None:
@@ -145,9 +144,7 @@ def test_plot_phase_advance_skips_family_split_when_positions_are_missing(tmp_pa
 
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["phase_advance", "phase_error"]
-    assert paths["phase_advance"].exists()
-    assert paths["phase_error"].exists()
+    assert list(paths) == []
 
 
 def test_plot_phase_advance_rejects_empty_table(tmp_path: Path) -> None:

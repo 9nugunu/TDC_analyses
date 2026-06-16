@@ -10,6 +10,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_hex, to_rgb
 import numpy as np
 import pandas as pd
 
@@ -20,6 +21,11 @@ MARKER_LABELS: dict[str, str] = {
     "f_2pi3": r"$f_{2\pi/3}$",
     "f_mean": r"$f_{mean}$",
     "f_pi2": r"$f_{\pi/2}$",
+}
+MARKER_COLORS: dict[str, str] = {
+    "f_2pi3": "#d62728",
+    "f_pi2": "#2ca02c",
+    "f_mean": "#1f77b4",
 }
 REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "s_phase_deg")
 
@@ -50,13 +56,13 @@ def plot_marker_phase_polar_views(
         for position_label, position_table in groups:
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_position(ax, position_table, f"{position_label}: {title_prefix}", config=config)
-            output_path = folder / f"plot_polar_{_safe_label(position_label)}.png"
+            output_path = folder / f"position_{_safe_label(position_label)}.png"
             save_figure(fig, output_path, config)
             plt.close(fig)
             paths[position_label] = output_path
 
     if grouping_mode != "grid_point":
-        overview_path = folder / "plot_polar_overview.png"
+        overview_path = folder / "all_positions.png"
         _save_overview(groups, overview_path, title_prefix=title_prefix, config=config)
         paths["overview"] = overview_path
     return paths
@@ -147,8 +153,9 @@ def _draw_position(ax, position_table: pd.DataFrame, title: str, *, compact: boo
 
     for marker in available:
         angle = angles[marker]
-        ax.plot([angle, angle], [0, 1.0], color="red", alpha=0.55, linewidth=config.line_width)
-        ax.scatter([angle], [1.0], marker="s", s=marker_size, facecolors="white", edgecolors="red", linewidths=config.line_width, zorder=3)
+        color = MARKER_COLORS.get(marker, "#444444")
+        ax.plot([angle, angle], [0, 1.0], color=color, alpha=0.65, linewidth=config.line_width)
+        ax.scatter([angle], [1.0], marker="s", s=marker_size, facecolors="white", edgecolors=color, linewidths=config.line_width, zorder=3)
         text = ax.text(
             angle,
             1.08,
@@ -158,7 +165,7 @@ def _draw_position(ax, position_table: pd.DataFrame, title: str, *, compact: boo
             fontweight="bold",
             ha="center",
             va="center",
-            bbox={"boxstyle": "square,pad=0.12", "edgecolor": "red", "facecolor": "white", "linewidth": 0.6},
+            bbox={"boxstyle": "square,pad=0.12", "edgecolor": color, "facecolor": "white", "linewidth": 0.6},
         )
         text.set_clip_on(False)
 
@@ -174,13 +181,14 @@ def _draw_spacing_arc(ax, angles: dict[str, float], start_marker: str, end_marke
     delta = _wrap180(end_deg - start_deg)
     theta_deg = np.linspace(start_deg, start_deg + delta, 64)
     theta = np.deg2rad(theta_deg)
-    ax.plot(theta, np.full_like(theta, radius), color="red", linewidth=config.line_width)
+    pair_color = _blend_marker_colors(start_marker, end_marker)
+    ax.plot(theta, np.full_like(theta, radius), color=pair_color, linewidth=config.line_width)
     mid = np.deg2rad(start_deg + delta / 2.0)
     text = ax.text(
         mid,
         radius + 0.06,
         f"{label} = {delta:+.1f}°",
-        color="red",
+        color=pair_color,
         fontsize=config.compact_annotation_size if compact else config.annotation_size,
         fontweight="bold",
         ha="center",
@@ -190,6 +198,12 @@ def _draw_spacing_arc(ax, angles: dict[str, float], start_marker: str, end_marke
         bbox={"boxstyle": "round,pad=0.18", "facecolor": "white", "edgecolor": "none", "alpha": 0.70},
     )
     text.set_clip_on(False)
+
+
+def _blend_marker_colors(start_marker: str, end_marker: str) -> str:
+    start_color = np.array(to_rgb(MARKER_COLORS.get(start_marker, "#444444")))
+    end_color = np.array(to_rgb(MARKER_COLORS.get(end_marker, "#444444")))
+    return to_hex((start_color + end_color) / 2.0)
 
 
 def _wrap180(angle_deg: float) -> float:

@@ -72,7 +72,7 @@ def plot_s11_with_markers(
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"plot_s11_{_format_grid_point_key(sim_r_c, sim_w_c)}.png",
+                folder / f"s11_{_format_grid_point_key(sim_r_c, sim_w_c)}.png",
                 title=f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}: S11 magnitude",
                 config=config,
             )
@@ -81,7 +81,7 @@ def plot_s11_with_markers(
     paths["overview"] = _plot_one(
         s_table,
         m_table,
-        folder / "plot_s11_with_markers.png",
+        folder / "s11_with_markers.png",
         title="S11 magnitude with marker points",
         config=config,
     )
@@ -92,7 +92,7 @@ def plot_s11_with_markers(
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"plot_s11_position_{_format_position_key(tune_position)}.png",
+                folder / f"s11_position_{_format_position_key(tune_position)}.png",
                 title=f"Position {_format_position(tune_position)}: S11 magnitude",
                 config=config,
             )

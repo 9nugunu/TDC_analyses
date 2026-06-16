@@ -1,0 +1,82 @@
+{
+  "analysis_modes": [
+    "marker_analysis",
+    "s11",
+    "phase_advance",
+    "polar"
+  ],
+  "detected_modes": {
+    "grid_scan_spacing": {
+      "enabled": false,
+      "reason": "marker_points is missing required columns: ['sim_r_c', 'sim_w_c']"
+    }
+  },
+  "dispersion_path": "data\\sim\\260505_single_cell_dispersion_step1",
+  "marker_role": "exp",
+  "outputs": {
+    "figures": {
+      "phase_advance": {
+        "phase_advance": "fig\\analyses\\260415_fullbrazing\\figures\\phase_advance\\phase_advance_by_marker.png",
+        "phase_advance_cell": "fig\\analyses\\260415_fullbrazing\\figures\\phase_advance\\phase_advance_cell.png",
+        "phase_advance_iris": "fig\\analyses\\260415_fullbrazing\\figures\\phase_advance\\phase_advance_iris.png"
+      },
+      "polar": {
+        "0.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_0p5.png",
+        "1.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_1p0.png",
+        "1.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_1p5.png",
+        "10.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_10p0.png",
+        "10.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_10p5.png",
+        "11.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_11p0.png",
+        "2.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_2p0.png",
+        "2.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_2p5.png",
+        "3.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_3p0.png",
+        "3.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_3p5.png",
+        "4.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_4p0.png",
+        "4.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_4p5.png",
+        "5.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_5p0.png",
+        "5.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_5p5.png",
+        "6.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_6p0.png",
+        "6.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_6p5.png",
+        "7.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_7p0.png",
+        "7.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_7p5.png",
+        "8.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_8p0.png",
+        "8.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_8p5.png",
+        "9.0": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_9p0.png",
+        "9.5": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\position_9p5.png",
+        "overview": "fig\\analyses\\260415_fullbrazing\\figures\\polar\\all_positions.png"
+      },
+      "s11": {
+        "overview": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_with_markers.png",
+        "position_0p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_0p5.png",
+        "position_10p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_10p0.png",
+        "position_10p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_10p5.png",
+        "position_11p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_11p0.png",
+        "position_1p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_1p0.png",
+        "position_1p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_1p5.png",
+        "position_2p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_2p0.png",
+        "position_2p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_2p5.png",
+        "position_3p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_3p0.png",
+        "position_3p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_3p5.png",
+        "position_4p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_4p0.png",
+        "position_4p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_4p5.png",
+        "position_5p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_5p0.png",
+        "position_5p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_5p5.png",
+        "position_6p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_6p0.png",
+        "position_6p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_6p5.png",
+        "position_7p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_7p0.png",
+        "position_7p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_7p5.png",
+        "position_8p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_8p0.png",
+        "position_8p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_8p5.png",
+        "position_9p0": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_9p0.png",
+        "position_9p5": "fig\\analyses\\260415_fullbrazing\\figures\\s11\\s11_position_9p5.png"
+      }
+    },
+    "tables": {
+      "marker_points": "fig\\analyses\\260415_fullbrazing\\tables\\marker_points.csv",
+      "markers": "fig\\analyses\\260415_fullbrazing\\tables\\markers.csv",
+      "phase_advance": "fig\\analyses\\260415_fullbrazing\\tables\\phase_advance.csv",
+      "phase_summary": "fig\\analyses\\260415_fullbrazing\\tables\\phase_summary.csv"
+    }
+  },
+  "sparameter_path": "data\\prepro\\260415_fullbrazing"
+}

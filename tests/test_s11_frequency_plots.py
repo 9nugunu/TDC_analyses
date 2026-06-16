@@ -83,8 +83,8 @@ def test_plot_s11_with_markers_writes_overview_and_individual_pngs(tmp_path: Pat
     assert "overview" in paths
     assert "position_0p5" in paths
     assert "position_1p5" in paths
-    assert paths["overview"].name == "plot_s11_with_markers.png"
-    assert paths["position_0p5"].name == "plot_s11_position_0p5.png"
+    assert paths["overview"].name == "s11_with_markers.png"
+    assert paths["position_0p5"].name == "s11_position_0p5.png"
     for path in paths.values():
         assert path.exists()
         assert path.suffix == ".png"
@@ -129,7 +129,7 @@ def test_plot_s11_with_markers_accepts_grid_scan_without_tune_position(tmp_path:
     paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["grid_r_c_56p59_w_c_19p32"]
-    assert paths["grid_r_c_56p59_w_c_19p32"].name == "plot_s11_r_c_56p59_w_c_19p32.png"
+    assert paths["grid_r_c_56p59_w_c_19p32"].name == "s11_r_c_56p59_w_c_19p32.png"
     assert paths["grid_r_c_56p59_w_c_19p32"].exists()
 
 

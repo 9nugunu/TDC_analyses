@@ -50,7 +50,7 @@ def plot_grid_scan_spacing_error_maps(
         key = column.removesuffix("_deg")
         paths[key] = _plot_error_map(
             spacing_summary,
-            folder / f"plot_grid_scan_{key}.png",
+            folder / f"{key}.png",
             x_column,
             y_column,
             column,

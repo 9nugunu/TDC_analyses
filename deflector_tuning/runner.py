@@ -72,6 +72,8 @@ def run_folder_analysis(
         data_root=data_root,
     )
     output_dir = Path(output_dir)
+    table_dir = output_dir / "tables"
+    figure_root = output_dir / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     loader = loader or DataLoader()
@@ -87,8 +89,8 @@ def run_folder_analysis(
         loader=loader,
     )
     logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
-    logger.info("Saving analysis tables to %s", output_dir)
-    table_paths = AnalysisPaths(save_marker_analysis(tables, output_dir))
+    logger.info("Saving analysis tables to %s", table_dir)
+    table_paths = AnalysisPaths(save_marker_analysis(tables, table_dir))
     logger.info("Saved %d analysis tables", len(table_paths))
     modes = detect_analysis_modes(tables)
     logger.info("Enabled analysis modes: %s", ", ".join(modes))
@@ -96,19 +98,19 @@ def run_folder_analysis(
     figures: FigurePaths = OrderedDict()
     logger.info("Rendering S11 figures")
     figures["s11"] = OrderedDict(
-        plot_s11_with_markers(sparameter_table, tables["marker_points"], output_dir)
+        plot_s11_with_markers(sparameter_table, tables["marker_points"], figure_root / "s11")
     )
     if _has_rows(tables.get("phase_advance")):
         logger.info("Rendering phase advance figures")
         figures["phase_advance"] = OrderedDict(
-            plot_phase_advance(tables["phase_advance"], output_dir, split_by_family=True)
+            plot_phase_advance(tables["phase_advance"], figure_root / "phase_advance", split_by_family=True)
         )
     else:
         logger.info("Skipping phase advance figures because phase_advance is missing or empty")
     if _has_rows(tables.get("marker_points")):
         logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
-            plot_marker_phase_polar_views(tables["marker_points"], output_dir)
+            plot_marker_phase_polar_views(tables["marker_points"], figure_root / "polar")
         )
     else:
         logger.info("Skipping polar phase figures because marker_points is missing or empty")
@@ -118,7 +120,7 @@ def run_folder_analysis(
         logger.info("Rendering grid-scan spacing figures")
         spacing_summary = summarize_marker_spacing_for_grid_scan(tables["marker_points"])
         figures["grid_scan_spacing"] = OrderedDict(
-            plot_grid_scan_spacing_error_maps(spacing_summary, output_dir)
+            plot_grid_scan_spacing_error_maps(spacing_summary, figure_root / "grid_scan_spacing")
         )
     else:
         logger.info("Skipping grid-scan spacing figures: %s", detection["grid_scan_spacing"]["reason"])

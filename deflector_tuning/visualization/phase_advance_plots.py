@@ -41,7 +41,7 @@ def plot_phase_advance(
     split_by_family: bool = False,
     config: PlotConfig | None = None,
 ) -> OrderedDict[str, Path]:
-    """Write phase-advance and phase-error line plots."""
+    """Write phase-advance line plots."""
 
     if phase_advance.empty:
         raise ValueError("phase_advance is empty")
@@ -58,26 +58,6 @@ def plot_phase_advance(
     table = _prepare_table(phase_advance, transition_scope=transition_scope)
 
     paths: OrderedDict[str, Path] = OrderedDict()
-    paths["phase_advance"] = _plot_metric(
-        table,
-        folder / "plot_phase_advance_by_marker.png",
-        value_column="phase_advance_0to360_deg",
-        ylabel="Phase advance [deg]",
-        title="Marker phase advance by transition",
-        reference_value=240.0,
-        reference_label="ideal 240°",
-        config=config,
-    )
-    paths["phase_error"] = _plot_metric(
-        table,
-        folder / "plot_phase_error_by_marker.png",
-        value_column="phase_error_from_240_deg",
-        ylabel="Phase error from 240° [deg]",
-        title="Marker phase error by transition",
-        reference_value=0.0,
-        reference_label="zero error",
-        config=config,
-    )
     if split_by_family and _has_named_position_families(table):
         for family in _position_family_order(table):
             family_table = table[table["position_family"] == family].copy()
@@ -85,23 +65,12 @@ def plot_phase_advance(
                 continue
             paths[f"phase_advance_{family}"] = _plot_metric(
                 family_table,
-                folder / f"plot_phase_advance_{family}.png",
+                folder / f"phase_advance_{family}.png",
                 value_column="phase_advance_0to360_deg",
                 ylabel="Phase advance [deg]",
                 title=f"{family.title()} phase advance by transition",
                 reference_value=240.0,
                 reference_label="ideal 240°",
-                config=config,
-                include_family_in_label=False,
-            )
-            paths[f"phase_error_{family}"] = _plot_metric(
-                family_table,
-                folder / f"plot_phase_error_{family}.png",
-                value_column="phase_error_from_240_deg",
-                ylabel="Phase error from 240° [deg]",
-                title=f"{family.title()} phase error by transition",
-                reference_value=0.0,
-                reference_label="zero error",
                 config=config,
                 include_family_in_label=False,
             )
