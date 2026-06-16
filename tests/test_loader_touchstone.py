@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.data_loading.records import DataKind
 
@@ -75,3 +77,18 @@ def test_raw_loader_reads_touchstone_but_keeps_experiment_kind(tmp_path: Path) -
 
     assert table["data_kind"].unique().tolist() == [DataKind.EXP.value]
     assert table["s_name"].tolist() == ["S11", "S21", "S12", "S22"]
+
+
+def test_raw_loader_reads_db_touchstone_into_common_dataframe(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "raw" / "case_db"
+    folder.mkdir(parents=True)
+    (folder / "trace.s1p").write_text("# Hz S DB R 50\n2756000000 -6 90\n", encoding="utf-8")
+
+    table = DataLoader().load(folder)
+    row = table.iloc[0]
+
+    assert row["freq_ghz"] == pytest.approx(2.756)
+    assert row["s_name"] == "S11"
+    assert row["s_db"] == pytest.approx(-6.0)
+    assert row["s_phase_deg"] == pytest.approx(90.0)
+    assert row["source_format"] == "touchstone_db"

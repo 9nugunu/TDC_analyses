@@ -64,6 +64,7 @@ class FolderLoader:
                 touchstone_data.s_values,
                 strict=True,
             ):
+                freq_ghz = _frequency_to_ghz(freq, touchstone_data.header.frequency_unit)
                 for s_name, s_value in zip(_s_names(len(s_values_at_freq)), s_values_at_freq, strict=True):
                     rows.append(
                         {
@@ -71,13 +72,13 @@ class FolderLoader:
                             "data_kind": data_folder.data_kind.value,
                             "data_layer": data_folder.data_layer.folder_name,
                             "source_file": touchstone_file.name,
-                            "freq_ghz": freq,
+                            "freq_ghz": freq_ghz,
                             "s_name": s_name,
                             "s_real": s_value.real,
                             "s_imag": s_value.imag,
                             "s_db": _safe_db(s_value),
                             "s_phase_deg": float(np.angle(s_value, deg=True)),
-                            "source_format": "touchstone_ri",
+                            "source_format": f"touchstone_{touchstone_data.header.data_format.lower()}",
                             "reference_ohm": touchstone_data.header.reference_ohm,
                             "is_normalized": touchstone_data.header.is_normalized,
                         }
@@ -107,6 +108,18 @@ def _safe_db(s_value: complex) -> float:
     if magnitude == 0.0:
         return float("-inf")
     return float(20.0 * np.log10(magnitude))
+
+
+def _frequency_to_ghz(frequency: float, frequency_unit: str) -> float:
+    factors = {
+        "Hz": 1e-9,
+        "kHz": 1e-6,
+        "MHz": 1e-3,
+        "GHz": 1.0,
+    }
+    if frequency_unit not in factors:
+        raise ValueError(f"Unsupported Touchstone frequency unit: {frequency_unit}")
+    return frequency * factors[frequency_unit]
 
 
 def _s_names(value_count: int) -> list[str]:

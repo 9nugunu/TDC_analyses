@@ -51,9 +51,13 @@ def test_read_s2p_ri_file_groups_four_complex_values_per_frequency(tmp_path: Pat
     assert data.s_values == [[1 + 0j, 2 + 0j, 3 + 0j, 4 + 0j]]
 
 
-def test_read_touchstone_rejects_non_ri_for_now(tmp_path: Path) -> None:
+def test_read_s1p_db_file_converts_db_phase_to_complex_values(tmp_path: Path) -> None:
     path = tmp_path / "case.s1p"
-    path.write_text("# GHz S MA R 50\n2.6 1 0\n", encoding="utf-8")
+    path.write_text("# GHz S DB R 50\n2.6 -6 90\n", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="Only RI Touchstone data is supported"):
-        read_touchstone(path)
+    data = read_touchstone(path)
+
+    assert data.header.data_format == "DB"
+    assert data.frequency == [2.6]
+    assert data.s_values[0][0].real == pytest.approx(0.0)
+    assert data.s_values[0][0].imag == pytest.approx(10 ** (-6 / 20))

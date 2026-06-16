@@ -1,12 +1,14 @@
 """Small Touchstone helpers.
 
 Project default: RI data is the default format when the header omits the format.
-Step 4-B reads full RI Touchstone files into simple Python lists.
+Touchstone rows are normalized into complex S-parameter values for downstream
+loaders.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 
 
@@ -27,11 +29,7 @@ class TouchstoneData:
 
 
 def read_touchstone(path: str | Path) -> TouchstoneData:
-    """Read a simple RI Touchstone file.
-
-    This first full parser intentionally supports RI only. MA/DB conversion can
-    be added later with tests when needed.
-    """
+    """Read a simple RI or DB Touchstone file."""
 
     touchstone_path = Path(path)
     header: TouchstoneHeader | None = None
@@ -45,8 +43,8 @@ def read_touchstone(path: str | Path) -> TouchstoneData:
             continue
         if line.startswith("#"):
             header = parse_touchstone_header(line)
-            if header.data_format != "RI":
-                raise ValueError("Only RI Touchstone data is supported for now")
+            if header.data_format not in {"RI", "DB"}:
+                raise ValueError("Only RI and DB Touchstone data are supported for now")
             continue
         if header is None:
             continue
@@ -57,7 +55,12 @@ def read_touchstone(path: str | Path) -> TouchstoneData:
                 f"Expected {expected_number_count} numeric values in {touchstone_path.name}; got {len(row)}"
             )
         frequency.append(row[0])
-        s_values.append([complex(row[index], row[index + 1]) for index in range(1, len(row), 2)])
+        s_values.append(
+            [
+                _pair_to_complex(row[index], row[index + 1], header.data_format)
+                for index in range(1, len(row), 2)
+            ]
+        )
 
     if header is None:
         raise ValueError(f"Missing Touchstone header in {touchstone_path}")
@@ -103,6 +106,16 @@ def _value_count_from_suffix(path: Path) -> int:
         raise ValueError(f"Expected Touchstone extension like .s1p or .s2p; got {path.name}")
     port_count = int(suffix[2:-1])
     return port_count * port_count
+
+
+def _pair_to_complex(first_value: float, second_value: float, data_format: str) -> complex:
+    if data_format == "RI":
+        return complex(first_value, second_value)
+    if data_format == "DB":
+        magnitude = 10.0 ** (first_value / 20.0)
+        phase_rad = math.radians(second_value)
+        return complex(magnitude * math.cos(phase_rad), magnitude * math.sin(phase_rad))
+    raise ValueError(f"Unsupported Touchstone data format: {data_format}")
 
 
 def _find_data_format(tokens: list[str]) -> str:
