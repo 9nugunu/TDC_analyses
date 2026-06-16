@@ -40,6 +40,7 @@ SERIES_ID_COLUMNS: tuple[str, ...] = (
     "s_name",
 )
 SERIES_LINESTYLES: tuple[str, ...] = ("-", "--", ":", "-.")
+FACET_COLUMNS: tuple[str, ...] = ()
 
 
 def plot_phase_advance(
@@ -64,7 +65,7 @@ def plot_phase_advance(
     apply_plot_style(config)
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
-    table = _prepare_table(phase_advance, transition_scope=transition_scope)
+    table = _prepare_table(_select_s11_rows(phase_advance), transition_scope=transition_scope)
 
     paths: OrderedDict[str, Path] = OrderedDict()
     if split_by_family and _has_named_position_families(table):
@@ -72,17 +73,19 @@ def plot_phase_advance(
             family_table = table[table["position_family"] == family].copy()
             if family_table.empty:
                 continue
-            paths[f"phase_advance_{family}"] = _plot_metric(
-                family_table,
-                folder / f"phase_advance_{family}.png",
-                value_column="phase_advance_0to360_deg",
-                ylabel="Phase advance [deg]",
-                title=f"{family.title()} phase advance by transition",
-                reference_value=240.0,
-                reference_label="ideal 240°",
-                config=config,
-                include_family_in_label=False,
-            )
+            for facet_suffix, facet_title, facet_table in _iter_plot_facets(family_table):
+                key = f"phase_advance_{family}{facet_suffix}"
+                paths[key] = _plot_metric(
+                    facet_table,
+                    folder / f"{key}.png",
+                    value_column="phase_advance_0to360_deg",
+                    ylabel="Phase advance [deg]",
+                    title=f"{family.title()} phase advance by transition{facet_title}",
+                    reference_value=240.0,
+                    reference_label="ideal 240°",
+                    config=config,
+                    include_family_in_label=False,
+                )
     return paths
 
 
@@ -249,3 +252,51 @@ def _has_named_position_families(table: pd.DataFrame) -> bool:
         return False
     families = set(table["position_family"].dropna().astype(str))
     return bool(families.difference({"unknown", "nan", "offset_nan"}))
+
+
+def _select_s11_rows(table: pd.DataFrame) -> pd.DataFrame:
+    if "s_name" not in table:
+        return table.copy()
+    return table[table["s_name"].astype(str).str.upper() == "S11"].copy()
+
+
+def _iter_plot_facets(table: pd.DataFrame):
+    facet_columns = [column for column in FACET_COLUMNS if _needs_faceting(table, column)]
+    if not facet_columns:
+        yield "", "", table
+        return
+
+    sort_columns = [*facet_columns, "_from_sort", "_to_sort", "marker_name"]
+    sorted_table = table.sort_values(sort_columns, kind="mergesort")
+    for facet_values, group in sorted_table.groupby(facet_columns, dropna=False, sort=False):
+        if not isinstance(facet_values, tuple):
+            facet_values = (facet_values,)
+        parts = [
+            (column, value)
+            for column, value in zip(facet_columns, facet_values, strict=True)
+            if not pd.isna(value)
+        ]
+        suffix = "".join(f"_{_safe_label(value)}" for _, value in parts)
+        title = ""
+        if parts:
+            title = " (" + ", ".join(f"{_facet_label(column)}={value}" for column, value in parts) + ")"
+        yield suffix, title, group.copy()
+
+
+def _needs_faceting(table: pd.DataFrame, column: str) -> bool:
+    if column not in table:
+        return False
+    values = table[column].dropna().astype(str)
+    return values.nunique() > 1
+
+
+def _facet_label(column: str) -> str:
+    return {"s_name": "S", "port_side": "port"}.get(column, column)
+
+
+def _safe_label(value: object) -> str:
+    sanitized = str(value).strip().lower().replace(" ", "_").replace(".", "p").replace("-", "m")
+    sanitized = "".join(character if character.isalnum() or character == "_" else "_" for character in sanitized)
+    while "__" in sanitized:
+        sanitized = sanitized.replace("__", "_")
+    return sanitized.strip("_") or "unknown"

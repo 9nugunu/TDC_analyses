@@ -9,6 +9,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
@@ -39,6 +40,19 @@ PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
 }
 DEFAULT_TRACE_STYLE: dict[str, object] = {"color": "#1565c0", "linestyle": "-"}
 MARKER_Y_OFFSETS: dict[str, int] = {"f_2pi3": 20, "f_mean": -34, "f_pi2": 50}
+DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
+    "dataset_id",
+    "data_kind",
+    "data_layer",
+    "tune_position",
+    "port_side",
+    "s_name",
+    "marker_name",
+    "marker_role",
+    "marker_source",
+    "target_freq_ghz",
+    "freq_ghz",
+)
 
 
 def plot_s11_with_markers(
@@ -69,8 +83,10 @@ def plot_s11_with_markers(
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
 
-    s_table = sparameter_table.copy()
-    m_table = marker_points.copy()
+    s_table = _collapse_unlabelled_duplicate_rows(_select_s11_rows(sparameter_table))
+    m_table = _collapse_unlabelled_duplicate_rows(_select_s11_rows(marker_points))
+    if s_table.empty:
+        raise ValueError("sparameter_table has no S11 rows")
     require_finite_plot_columns(s_table, columns=("freq_ghz", "s_db"), context="S11 sparameter_table")
     require_finite_plot_columns(m_table, columns=("freq_ghz", "s_db", "s_phase_deg"), context="S11 marker_points")
     paths: OrderedDict[str, Path] = OrderedDict()
@@ -187,6 +203,52 @@ def _axis_marker_bounds(values: pd.Series) -> tuple[float, float]:
     return low - padding, high + padding
 
 
+def _select_s11_rows(table: pd.DataFrame) -> pd.DataFrame:
+    if "s_name" not in table:
+        return table.copy()
+    return table[table["s_name"].astype(str).str.upper() == "S11"].copy()
+
+
+def _collapse_unlabelled_duplicate_rows(table: pd.DataFrame) -> pd.DataFrame:
+    if table.empty or "source_file" not in table or "tune_position" not in table:
+        return table.copy()
+    if "port_side" in table and table["port_side"].notna().any():
+        return table.copy()
+
+    group_columns = [column for column in DUPLICATE_ID_COLUMNS if column in table]
+    if not group_columns:
+        return table.copy()
+
+    rows: list[dict[str, object]] = []
+    for _, group in table.groupby(group_columns, dropna=False, sort=False):
+        row = group.iloc[0].to_dict()
+        if len(group) > 1:
+            row["source_file"] = _combined_source_label(group)
+            if "s_db" in group:
+                row["s_db"] = float(pd.to_numeric(group["s_db"], errors="coerce").mean())
+            if "s_phase_deg" in group:
+                row["s_phase_deg"] = _circular_mean_deg(group["s_phase_deg"])
+            if "freq_error_ghz" in group:
+                row["freq_error_ghz"] = float(pd.to_numeric(group["freq_error_ghz"], errors="coerce").mean())
+        rows.append(row)
+    return pd.DataFrame(rows, columns=table.columns)
+
+
+def _combined_source_label(group: pd.DataFrame) -> str:
+    positions = group["tune_position"].dropna().unique()
+    if len(positions) == 1:
+        return _format_position(positions[0])
+    return "combined"
+
+
+def _circular_mean_deg(values: pd.Series) -> float:
+    angles = pd.to_numeric(values, errors="coerce").dropna()
+    if angles.empty:
+        return float("nan")
+    vectors = np.exp(1j * np.deg2rad(angles.to_numpy(dtype=float)))
+    return float(np.angle(vectors.mean(), deg=True))
+
+
 def _marker_annotation(point: pd.Series) -> str:
     label = MARKER_LABELS.get(str(point["marker_name"]), str(point["marker_name"]))
     return f"{label}\n{float(point['s_phase_deg']):+.1f}°"
@@ -197,7 +259,15 @@ def _source_label(source_file: object, group: pd.DataFrame) -> str:
         port_sides = group["port_side"].dropna().astype(str).str.lower().unique()
         if len(port_sides) == 1:
             return port_sides[0]
-    return Path(str(source_file)).stem.replace("_processed", "")
+    return _source_file_label(source_file)
+
+
+def _source_file_label(source_file: object) -> str:
+    text = str(source_file)
+    suffix = Path(text).suffix.lower()
+    if suffix in {".csv", ".s1p", ".s2p", ".s3p", ".s4p"}:
+        return Path(text).stem.replace("_processed", "")
+    return text.replace("_processed", "")
 
 
 def _source_style(group: pd.DataFrame) -> dict[str, object]:
