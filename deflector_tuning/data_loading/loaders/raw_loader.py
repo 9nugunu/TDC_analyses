@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import numpy as np
 import pandas as pd
@@ -38,7 +39,7 @@ def _read_raw_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
 
 
 def _has_ri_header(lines: list[str]) -> bool:
-    return any("freq[Hz];re:Trc1_S11;im:Trc1_S11" in line for line in lines[:10])
+    return any(_ri_s11_columns_from_header(line) is not None for line in lines[:10])
 
 
 def _has_formatted_data_header(lines: list[str]) -> bool:
@@ -48,9 +49,13 @@ def _has_formatted_data_header(lines: list[str]) -> bool:
 def _read_ri_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
     table = pd.read_csv(csv_file, sep=";", comment="#")
     table = table.dropna(axis="columns", how="all")
+    column_pair = _find_ri_s11_column_pair(table.columns)
+    if column_pair is None:
+        raise ValueError(f"Unsupported raw RI CSV schema in {csv_file.name}: missing S11 real/imag columns")
+    real_column, imag_column = column_pair
     freq_hz = table["freq[Hz]"]
-    s_real = table["re:Trc1_S11"]
-    s_imag = table["im:Trc1_S11"]
+    s_real = table[real_column]
+    s_imag = table[imag_column]
     s_complex = s_real + 1j * s_imag
     metadata = metadata_from_filename(csv_file, dataset_id)
     return pd.DataFrame(
@@ -106,6 +111,28 @@ def _read_mag_phase_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
 
 def _safe_db(magnitude: pd.Series) -> pd.Series:
     return 20.0 * np.log10(magnitude.replace(0.0, np.nan))
+
+
+def _ri_s11_columns_from_header(line: str) -> tuple[str, str] | None:
+    columns = [column.strip() for column in line.split(";") if column.strip()]
+    return _find_ri_s11_column_pair(columns)
+
+
+def _find_ri_s11_column_pair(columns) -> tuple[str, str] | None:
+    pattern = re.compile(r"^(re|im):Trc(\d+)_S11$")
+    pairs: dict[str, dict[str, str]] = {}
+    for column in columns:
+        match = pattern.match(str(column).strip())
+        if match is None:
+            continue
+        component, trace_id = match.groups()
+        pair = pairs.setdefault(trace_id, {})
+        pair[component] = str(column)
+    for trace_id in sorted(pairs, key=int):
+        pair = pairs[trace_id]
+        if "re" in pair and "im" in pair:
+            return pair["re"], pair["im"]
+    return None
 
 
 _RAW_COLUMNS = [

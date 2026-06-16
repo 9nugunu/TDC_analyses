@@ -15,6 +15,7 @@ from matplotlib.colors import to_hex, to_rgb
 import numpy as np
 import pandas as pd
 
+from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_style, save_figure
 
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
@@ -48,6 +49,7 @@ def plot_marker_phase_polar_views(
 
     config = config or PlotConfig()
     apply_plot_style(config)
+    require_finite_plot_columns(marker_points, columns=("s_phase_deg",), context="polar marker_points")
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     paths: OrderedDict[str, Path] = OrderedDict()

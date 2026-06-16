@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
 from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
@@ -63,3 +64,11 @@ def test_plot_grid_scan_spacing_error_maps_writes_only_requested_2d_error_pngs(t
         assert path.exists()
         assert path.stat().st_size > 0
     assert (tmp_path / "grid_scan_spacing_summary.csv").exists()
+
+
+def test_plot_grid_scan_spacing_error_maps_reports_non_finite_summary_values(tmp_path: Path) -> None:
+    summary = summarize_marker_spacing_for_grid_scan(_marker_points())
+    summary.loc[0, "spacing_equality_error_deg"] = float("inf")
+
+    with pytest.raises(ValueError, match=r"Non-finite plotting values in grid_scan spacing_summary"):
+        plot_grid_scan_spacing_error_maps(summary, tmp_path)

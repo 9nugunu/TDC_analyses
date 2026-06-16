@@ -324,6 +324,14 @@ def test_plot_marker_phase_polar_views_rejects_empty_marker_points(tmp_path: Pat
         plot_marker_phase_polar_views(pd.DataFrame(), tmp_path)
 
 
+def test_plot_marker_phase_polar_views_reports_non_finite_phase_values(tmp_path: Path) -> None:
+    table = _marker_points().copy()
+    table.loc[0, "s_phase_deg"] = float("nan")
+
+    with pytest.raises(ValueError, match=r"Non-finite plotting values in polar marker_points"):
+        plot_marker_phase_polar_views(table, tmp_path)
+
+
 def test_plot_marker_phase_polar_views_skips_family_overlay_when_family_has_single_position(tmp_path: Path) -> None:
     table = _marker_points().iloc[:3].copy()
 

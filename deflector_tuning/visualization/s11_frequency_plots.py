@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
 
 REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db", "s_phase_deg")
@@ -32,6 +33,12 @@ MARKER_COLORS: dict[str, str] = {
     "f_mean": "#ff6f00",
     "f_pi2": "#1565c0",
 }
+PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
+    "in": {"color": "#0d47a1", "linestyle": "-", "marker": "o"},
+    "out": {"color": "#b71c1c", "linestyle": "--", "marker": "D"},
+}
+DEFAULT_TRACE_STYLE: dict[str, object] = {"color": "#1565c0", "linestyle": "-"}
+MARKER_Y_OFFSETS: dict[str, int] = {"f_2pi3": 20, "f_mean": -34, "f_pi2": 50}
 
 
 def plot_s11_with_markers(
@@ -64,6 +71,8 @@ def plot_s11_with_markers(
 
     s_table = sparameter_table.copy()
     m_table = marker_points.copy()
+    require_finite_plot_columns(s_table, columns=("freq_ghz", "s_db"), context="S11 sparameter_table")
+    require_finite_plot_columns(m_table, columns=("freq_ghz", "s_db", "s_phase_deg"), context="S11 marker_points")
     paths: OrderedDict[str, Path] = OrderedDict()
     if _has_grid_point_groups(s_table, m_table):
         for sim_r_c, sim_w_c, group in _iter_grid_point_groups(s_table):
@@ -78,13 +87,14 @@ def plot_s11_with_markers(
             )
         return paths
 
-    paths["overview"] = _plot_one(
-        s_table,
-        m_table,
-        folder / "s11_with_markers.png",
-        title="S11 magnitude with marker points",
-        config=config,
-    )
+    if not _skip_overview_for_port_sides(s_table):
+        paths["overview"] = _plot_one(
+            s_table,
+            m_table,
+            folder / "s11_with_markers.png",
+            title="S11 magnitude with marker points",
+            config=config,
+        )
     if split_by_position and "tune_position" in s_table and "tune_position" in m_table:
         for tune_position, group in s_table.groupby("tune_position", dropna=False, sort=True):
             marker_group = m_table[m_table["tune_position"] == tune_position]
@@ -110,32 +120,44 @@ def _plot_one(
     fig, ax = plt.subplots(figsize=(10.0, 6.2))
     for source_file, group in s_table.groupby("source_file", sort=False):
         group = group.sort_values("freq_ghz")
-        label = _source_label(source_file)
-        ax.plot(group["freq_ghz"], group["s_db"], color="#1565c0", linewidth=2.4, label=label)
+        label = _source_label(source_file, group)
+        style = _source_style(group)
+        ax.plot(
+            group["freq_ghz"],
+            group["s_db"],
+            color=str(style["color"]),
+            linestyle=str(style["linestyle"]),
+            linewidth=2.4,
+            label=label,
+        )
 
     if not marker_points.empty:
         y_min, y_max = _axis_marker_bounds(s_table["s_db"])
         for _, point in marker_points.sort_values(["source_file", "freq_ghz", "marker_name"]).iterrows():
             marker_name = point["marker_name"]
             color = MARKER_COLORS.get(marker_name, "#333333")
+            point_style = _marker_point_style(point)
             ax.axvline(point["freq_ghz"], color=color, linestyle="--", linewidth=1.0, alpha=0.45)
             ax.scatter(
                 [point["freq_ghz"]],
                 [point["s_db"]],
                 s=72,
                 color=color,
+                marker=str(point_style["marker"]),
                 edgecolor="white",
                 linewidth=0.7,
                 zorder=5,
             )
+            offset_x, offset_y, ha = _annotation_offset(point)
             ax.annotate(
                 _marker_annotation(point),
                 xy=(point["freq_ghz"], point["s_db"]),
-                xytext=(8, 16 if marker_name != "f_mean" else -42),
+                xytext=(offset_x, offset_y),
                 textcoords="offset points",
                 color=color,
                 fontsize=config.annotation_size,
                 fontweight="bold",
+                ha=ha,
                 bbox={"boxstyle": "round,pad=0.25", "fc": "white", "ec": color, "alpha": 0.92},
                 arrowprops={"arrowstyle": "-", "color": color, "lw": 0.8, "alpha": 0.9},
             )
@@ -170,8 +192,37 @@ def _marker_annotation(point: pd.Series) -> str:
     return f"{label}\n{float(point['s_phase_deg']):+.1f}°"
 
 
-def _source_label(source_file: object) -> str:
+def _source_label(source_file: object, group: pd.DataFrame) -> str:
+    if "port_side" in group:
+        port_sides = group["port_side"].dropna().astype(str).str.lower().unique()
+        if len(port_sides) == 1:
+            return port_sides[0]
     return Path(str(source_file)).stem.replace("_processed", "")
+
+
+def _source_style(group: pd.DataFrame) -> dict[str, object]:
+    if "port_side" not in group:
+        return DEFAULT_TRACE_STYLE
+    port_sides = group["port_side"].dropna().astype(str).str.lower().unique()
+    if len(port_sides) != 1:
+        return DEFAULT_TRACE_STYLE
+    return PORT_SIDE_STYLES.get(port_sides[0], DEFAULT_TRACE_STYLE)
+
+
+def _marker_point_style(point: pd.Series) -> dict[str, object]:
+    port_side = str(point.get("port_side", "")).lower()
+    return PORT_SIDE_STYLES.get(port_side, {"marker": "o"})
+
+
+def _annotation_offset(point: pd.Series) -> tuple[int, int, str]:
+    marker_name = str(point.get("marker_name", ""))
+    port_side = str(point.get("port_side", "")).lower()
+    base_y = MARKER_Y_OFFSETS.get(marker_name, 20)
+    if port_side == "out":
+        return -52, base_y - 12, "right"
+    if port_side == "in":
+        return 10, base_y, "left"
+    return 10, base_y, "left"
 
 
 def _format_position(position: object) -> str:
@@ -181,6 +232,12 @@ def _format_position(position: object) -> str:
 
 def _format_position_key(position: object) -> str:
     return _format_position(position).replace(".", "p")
+
+
+def _skip_overview_for_port_sides(s_table: pd.DataFrame) -> bool:
+    if "port_side" not in s_table:
+        return False
+    return s_table["port_side"].dropna().nunique() > 0
 
 
 def _has_grid_point_groups(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:

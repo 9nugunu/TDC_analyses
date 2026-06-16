@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
 
 ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
@@ -41,6 +42,12 @@ def plot_grid_scan_spacing_error_maps(
 
     config = config or PlotConfig()
     apply_plot_style(config)
+    require_finite_plot_columns(
+        spacing_summary,
+        columns=("sim_r_c", "sim_w_c", *ERROR_METRICS.keys()),
+        context="grid_scan spacing_summary",
+        id_columns=("dataset_id", "source_file", "run_id", "sim_r_c", "sim_w_c"),
+    )
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     spacing_summary.to_csv(folder / "grid_scan_spacing_summary.csv", index=False)
