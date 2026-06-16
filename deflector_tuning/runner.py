@@ -91,6 +91,7 @@ def run_folder_analysis(
     logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
     logger.info("Saving analysis tables to %s", table_dir)
     table_paths = AnalysisPaths(save_marker_analysis(tables, table_dir))
+    table_paths["sparameter_data"] = save_sparameter_data(sparameter_table, table_dir)
     logger.info("Saved %d analysis tables", len(table_paths))
     modes = detect_analysis_modes(tables)
     logger.info("Enabled analysis modes: %s", ", ".join(modes))
@@ -146,6 +147,16 @@ def run_folder_analysis(
         analysis_modes=modes,
         manifest_path=manifest_path,
     )
+
+
+def save_sparameter_data(table: pd.DataFrame, output_dir: str | Path) -> Path:
+    """Write the loaded S-parameter table as a CSV artifact."""
+
+    folder = Path(output_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "sparameter_data.csv"
+    table.to_csv(path, index=False)
+    return path
 
 
 def resolve_input_paths(
