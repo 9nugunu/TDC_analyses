@@ -13,7 +13,18 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import (
+    BEST_MARKER_COLOR,
+    DEFAULT_DESIGN_POINT_BY_AXIS,
+    DESIGN_REFERENCE_LINEWIDTH,
+    REFERENCE_GUIDE_ALPHA,
+    REFERENCE_GUIDE_COLOR,
+    REFERENCE_GUIDE_LINESTYLE,
+    PlotConfig,
+    apply_axis_text_style,
+    apply_plot_style,
+    save_figure,
+)
 
 ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
     [
@@ -21,13 +32,6 @@ ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
         ("spacing_equality_error_deg", "Spacing equality error [deg]"),
     ]
 )
-BEST_MARKER_COLOR = "#c51b7d"
-DESIGN_CROSSHAIR_COLOR = "0.45"
-DESIGN_CROSSHAIR_LINESTYLE = "--"
-DESIGN_CROSSHAIR_LINEWIDTH = 0.9
-DEFAULT_DESIGN_POINT_BY_AXIS = {"sim_r_c": 56.59, "sim_w_c": 19.3224}
-
-
 def plot_grid_scan_spacing_error_maps(
     spacing_summary: pd.DataFrame,
     output_dir: str | Path,
@@ -132,17 +136,17 @@ def _draw_design_crosshair(ax: plt.Axes, design_point: tuple[float, float]) -> N
     design_x, design_y = design_point
     ax.axvline(
         design_x,
-        color=DESIGN_CROSSHAIR_COLOR,
-        linestyle=DESIGN_CROSSHAIR_LINESTYLE,
-        linewidth=DESIGN_CROSSHAIR_LINEWIDTH,
-        alpha=0.85,
+        color=REFERENCE_GUIDE_COLOR,
+        linestyle=REFERENCE_GUIDE_LINESTYLE,
+        linewidth=DESIGN_REFERENCE_LINEWIDTH,
+        alpha=REFERENCE_GUIDE_ALPHA,
         zorder=5,
     )
     ax.axhline(
         design_y,
-        color=DESIGN_CROSSHAIR_COLOR,
-        linestyle=DESIGN_CROSSHAIR_LINESTYLE,
-        linewidth=DESIGN_CROSSHAIR_LINEWIDTH,
-        alpha=0.85,
+        color=REFERENCE_GUIDE_COLOR,
+        linestyle=REFERENCE_GUIDE_LINESTYLE,
+        linewidth=DESIGN_REFERENCE_LINEWIDTH,
+        alpha=REFERENCE_GUIDE_ALPHA,
         zorder=5,
     )

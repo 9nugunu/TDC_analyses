@@ -8,6 +8,15 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
+BEST_MARKER_COLOR = "#c51b7d"
+DEFAULT_DESIGN_POINT_BY_AXIS = {"sim_r_c": 56.59, "sim_w_c": 19.3224}
+REFERENCE_GUIDE_ALPHA = 0.85
+REFERENCE_GUIDE_COLOR = "0.45"
+REFERENCE_GUIDE_LABEL_COLOR = "0.35"
+REFERENCE_GUIDE_LINESTYLE = "--"
+DESIGN_REFERENCE_LINEWIDTH = 0.9
+IDEAL_PHASE_GUIDE_ANGLES_DEG: tuple[float, ...] = (0.0, 120.0, 240.0)
+
 
 @dataclass(frozen=True)
 class PlotConfig:

@@ -4,11 +4,14 @@ import pandas as pd
 import pytest
 
 from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
-from deflector_tuning.visualization.grid_scan_spacing_maps import (
+from deflector_tuning.visualization.plot_config import (
     BEST_MARKER_COLOR,
-    DESIGN_CROSSHAIR_COLOR,
-    DESIGN_CROSSHAIR_LINESTYLE,
-    DESIGN_CROSSHAIR_LINEWIDTH,
+    DEFAULT_DESIGN_POINT_BY_AXIS,
+    DESIGN_REFERENCE_LINEWIDTH,
+    REFERENCE_GUIDE_COLOR,
+    REFERENCE_GUIDE_LINESTYLE,
+)
+from deflector_tuning.visualization.grid_scan_spacing_maps import (
     _default_design_point,
     plot_grid_scan_spacing_error_maps,
 )
@@ -83,8 +86,9 @@ def test_plot_grid_scan_spacing_error_maps_reports_non_finite_summary_values(tmp
 
 def test_grid_scan_spacing_error_maps_use_requested_visual_reference_points() -> None:
     assert BEST_MARKER_COLOR == "#c51b7d"
-    assert DESIGN_CROSSHAIR_COLOR == "0.45"
-    assert DESIGN_CROSSHAIR_LINESTYLE == "--"
-    assert DESIGN_CROSSHAIR_LINEWIDTH == 0.9
+    assert REFERENCE_GUIDE_COLOR == "0.45"
+    assert REFERENCE_GUIDE_LINESTYLE == "--"
+    assert DESIGN_REFERENCE_LINEWIDTH == 0.9
+    assert DEFAULT_DESIGN_POINT_BY_AXIS == {"sim_r_c": 56.59, "sim_w_c": 19.3224}
     assert _default_design_point("sim_r_c", "sim_w_c") == (56.59, 19.3224)
     assert _default_design_point("custom_x", "sim_w_c") is None

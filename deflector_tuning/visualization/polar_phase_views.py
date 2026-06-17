@@ -16,7 +16,16 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import (
+    IDEAL_PHASE_GUIDE_ANGLES_DEG,
+    REFERENCE_GUIDE_ALPHA,
+    REFERENCE_GUIDE_COLOR,
+    REFERENCE_GUIDE_LABEL_COLOR,
+    REFERENCE_GUIDE_LINESTYLE,
+    PlotConfig,
+    apply_plot_style,
+    save_figure,
+)
 
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
 MARKER_LABELS: dict[str, str] = {
@@ -30,7 +39,6 @@ MARKER_COLORS: dict[str, str] = {
     "f_mean": "#1f77b4",
 }
 REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "s_phase_deg")
-IDEAL_GUIDE_ANGLES_DEG: tuple[float, ...] = (0.0, 120.0, 240.0)
 
 
 def plot_marker_phase_polar_views(
@@ -64,7 +72,7 @@ def plot_marker_phase_polar_views(
                 position_table,
                 f"{position_label}: {title_prefix}",
                 config=config,
-                guide_angles_deg=IDEAL_GUIDE_ANGLES_DEG,
+                guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
             )
             output_stem = _position_output_stem(position_table, position_label, grouping_mode=grouping_mode)
             output_path = folder / f"{output_stem}.png"
@@ -91,7 +99,7 @@ def plot_marker_phase_polar_views(
                 f"{family.title()} {MARKER_LABELS['f_2pi3']} overlay: {title_prefix}",
                 config=config,
                 markers=("f_2pi3",),
-                guide_angles_deg=IDEAL_GUIDE_ANGLES_DEG,
+                guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
             )
             output_path = folder / f"{family}_f_2pi3_overlay.png"
             save_figure(fig, output_path, config)
@@ -209,7 +217,7 @@ def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *,
             f"{position_label}: {title_prefix}",
             compact=False,
             config=config,
-            guide_angles_deg=IDEAL_GUIDE_ANGLES_DEG,
+            guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
         )
     for ax in flat_axes[len(groups) :]:
         ax.set_visible(False)
@@ -381,12 +389,20 @@ def _draw_family_overlay_marker_legend(ax, *, config: PlotConfig, markers: tuple
 def _draw_angle_guides(ax, angles_deg: tuple[float, ...], *, config: PlotConfig) -> None:
     for angle_deg in angles_deg:
         theta = np.deg2rad(angle_deg)
-        ax.plot([theta, theta], [0.0, 1.02], color="0.45", linestyle="--", linewidth=max(config.line_width - 0.2, 0.8), alpha=0.85, zorder=1)
+        ax.plot(
+            [theta, theta],
+            [0.0, 1.02],
+            color=REFERENCE_GUIDE_COLOR,
+            linestyle=REFERENCE_GUIDE_LINESTYLE,
+            linewidth=max(config.line_width - 0.2, 0.8),
+            alpha=REFERENCE_GUIDE_ALPHA,
+            zorder=1,
+        )
         text = ax.text(
             theta,
             1.07,
             f"{angle_deg:.0f}°",
-            color="0.35",
+            color=REFERENCE_GUIDE_LABEL_COLOR,
             fontsize=config.annotation_size,
             fontweight="bold",
             ha="center",
