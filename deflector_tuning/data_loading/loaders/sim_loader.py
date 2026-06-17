@@ -63,7 +63,7 @@ class SimLoader(FolderLoader):
             return _assign_scan_type(table)
         table = table.copy()
         table["run_id"] = table["source_file"].map(_run_id_from_file_name)
-        return _assign_scan_type(_merge_result_navigator(table, navigator))
+        return _assign_scan_type(_assign_num_depth_tune_positions(_merge_result_navigator(table, navigator)))
 
 
 def _merge_result_navigator(table: pd.DataFrame, navigator: pd.DataFrame) -> pd.DataFrame:
@@ -104,6 +104,27 @@ def _read_result_navigator(path: Path) -> pd.DataFrame:
 def _assign_scan_type(table: pd.DataFrame) -> pd.DataFrame:
     output = table.copy()
     output["scan_type"] = _scan_type(output)
+    return output
+
+
+def _assign_num_depth_tune_positions(table: pd.DataFrame) -> pd.DataFrame:
+    """Use CST NumDepth as a cell-like tune axis when filenames lack one."""
+
+    if "sim_NumDepth" not in table:
+        return table
+    if "tune_position" not in table:
+        table = table.copy()
+        table["tune_position"] = pd.NA
+    missing_tune_position = table["tune_position"].isna()
+    if not missing_tune_position.any():
+        return table
+
+    num_depth = pd.to_numeric(table.loc[missing_tune_position, "sim_NumDepth"], errors="coerce")
+    if num_depth.notna().sum() == 0:
+        return table
+
+    output = table.copy()
+    output.loc[missing_tune_position, "tune_position"] = num_depth - 0.5
     return output
 
 

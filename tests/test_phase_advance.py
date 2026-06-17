@@ -264,3 +264,41 @@ def test_compute_phase_advance_keeps_simulation_geometry_points_separate() -> No
         assert row["from_tune_position"] == 0.5
         assert row["to_tune_position"] == 1.5
         assert row["phase_advance_0to360_deg"] == pytest.approx(240.0)
+
+
+def test_compute_phase_advance_treats_num_depth_as_tune_axis_not_geometry() -> None:
+    rows = []
+    for depth_offset, phase_offset in [(-3.0, 0.0), (0.0, 10.0)]:
+        for num_depth, tune_position, phase in [(1, 0.5, 10.0), (2, 1.5, -110.0)]:
+            rows.append(
+                {
+                    "dataset_id": "sim_grid_260526_iris_offset",
+                    "data_kind": "simulation",
+                    "data_layer": "sim",
+                    "source_file": f"depth_{depth_offset}_{num_depth}.s1p",
+                    "tune_position": tune_position,
+                    "port_side": None,
+                    "s_name": "S11",
+                    "marker_name": "f_2pi3",
+                    "marker_role": "sim",
+                    "target_freq_ghz": 2.856,
+                    "freq_ghz": 2.856,
+                    "freq_error_ghz": 0.0,
+                    "s_db": -1.0,
+                    "s_phase_deg": phase + phase_offset,
+                    "source_format": "touchstone_ri",
+                    "sim_DepthPlunger_offset": depth_offset,
+                    "sim_NumDepth": num_depth,
+                }
+            )
+    marker_points = pd.DataFrame(rows)
+
+    result = compute_phase_advance(marker_points)
+
+    assert len(result) == 2
+    assert set(result["sim_DepthPlunger_offset"]) == {-3.0, 0.0}
+    assert "sim_NumDepth" not in result.columns
+    for _, row in result.iterrows():
+        assert row["from_tune_position"] == 0.5
+        assert row["to_tune_position"] == 1.5
+        assert row["phase_advance_0to360_deg"] == pytest.approx(240.0)

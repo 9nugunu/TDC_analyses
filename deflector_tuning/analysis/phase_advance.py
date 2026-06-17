@@ -14,7 +14,7 @@ GROUP_COLUMNS: list[str] = [
     "s_name",
 ]
 GEOMETRY_METADATA_PREFIXES: tuple[str, ...] = ("sim_",)
-TUNE_SWEEP_METADATA_COLUMNS: frozenset[str] = frozenset({"sim_NumTune"})
+TUNE_SWEEP_METADATA_COLUMNS: frozenset[str] = frozenset({"sim_NumTune", "sim_NumDepth"})
 OUTPUT_COLUMNS: list[str] = [
     "dataset_id",
     "data_kind",
