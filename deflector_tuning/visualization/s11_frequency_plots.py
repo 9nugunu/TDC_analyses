@@ -54,6 +54,8 @@ DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
     "tune_position",
     "port_side",
     "s_name",
+    "sim_r_c",
+    "sim_w_c",
     "marker_name",
     "marker_role",
     "marker_source",

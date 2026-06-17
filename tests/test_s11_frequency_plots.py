@@ -484,6 +484,45 @@ def test_plot_s11_with_markers_names_grid_scan_by_cell_or_iris_when_tune_positio
     assert paths["iris_r_c_56p59_w_c_19p32"].name == "s11_iris_r_c_56p59_w_c_19p32.png"
 
 
+def test_plot_s11_with_markers_keeps_same_tune_position_grid_points_separate(tmp_path: Path) -> None:
+    sparameter_rows = []
+    marker_rows = []
+    for source_file, sim_r_c, sim_w_c in [
+        ("run_001.s2p", 56.59, 19.3224),
+        ("run_002.s2p", 56.84, 19.3224),
+    ]:
+        for freq_ghz, s_db, phase in [(2.85, -1.0, 10.0), (2.86, -2.0, 20.0)]:
+            sparameter_rows.append(
+                {
+                    "source_file": source_file,
+                    "tune_position": 0.5,
+                    "freq_ghz": freq_ghz,
+                    "s_db": s_db,
+                    "s_phase_deg": phase,
+                    "sim_r_c": sim_r_c,
+                    "sim_w_c": sim_w_c,
+                }
+            )
+        marker_rows.append(
+            {
+                "source_file": source_file,
+                "tune_position": 0.5,
+                "marker_name": "f_2pi3",
+                "freq_ghz": 2.85,
+                "s_db": -1.0,
+                "s_phase_deg": 10.0,
+                "sim_r_c": sim_r_c,
+                "sim_w_c": sim_w_c,
+            }
+        )
+
+    paths = plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["cell_r_c_56p59_w_c_19p3224", "cell_r_c_56p84_w_c_19p3224"]
+    assert paths["cell_r_c_56p59_w_c_19p3224"].name == "s11_cell_r_c_56p59_w_c_19p3224.png"
+    assert paths["cell_r_c_56p84_w_c_19p3224"].name == "s11_cell_r_c_56p84_w_c_19p3224.png"
+
+
 def test_plot_s11_with_markers_rejects_empty_sparameter_table(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="sparameter_table is empty"):
         plot_s11_with_markers(pd.DataFrame(), _marker_points(), tmp_path)
