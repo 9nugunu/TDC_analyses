@@ -21,6 +21,8 @@ ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
         ("spacing_equality_error_deg", "Spacing equality error [deg]"),
     ]
 )
+BEST_MARKER_COLOR = "#c51b7d"
+DEFAULT_DESIGN_POINT_BY_AXIS = {"sim_r_c": 56.59, "sim_w_c": 19.3224}
 
 
 def plot_grid_scan_spacing_error_maps(
@@ -29,6 +31,7 @@ def plot_grid_scan_spacing_error_maps(
     *,
     x_column: str = "sim_r_c",
     y_column: str = "sim_w_c",
+    design_point: tuple[float, float] | None = None,
     config: PlotConfig | None = None,
 ) -> OrderedDict[str, Path]:
     """Write the two requested r_c x w_c spacing-error maps."""
@@ -63,6 +66,7 @@ def plot_grid_scan_spacing_error_maps(
             column,
             label,
             config,
+            design_point=design_point or _default_design_point(x_column, y_column),
         )
     return paths
 
@@ -75,6 +79,8 @@ def _plot_error_map(
     value_column: str,
     value_label: str,
     config: PlotConfig,
+    *,
+    design_point: tuple[float, float] | None,
 ) -> Path:
     x_values = np.array(sorted(table[x_column].dropna().unique()), dtype=float)
     y_values = np.array(sorted(table[y_column].dropna().unique()), dtype=float)
@@ -91,7 +97,9 @@ def _plot_error_map(
         cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap="RdYlGn_r", s=90, edgecolor="black")
     ax.scatter(table[x_column], table[y_column], c="white", edgecolor="black", s=34, linewidth=0.8, zorder=4)
     best = table.loc[table[value_column].idxmin()]
-    ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c="#ff3b30", edgecolor="black", linewidth=0.8, zorder=6)
+    ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c=BEST_MARKER_COLOR, edgecolor="black", linewidth=0.8, zorder=6)
+    if design_point is not None:
+        _draw_design_crosshair(ax, design_point, config)
     apply_axis_text_style(
         ax,
         xlabel=r"$r_c$ [mm]",
@@ -109,3 +117,15 @@ def _plot_error_map(
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _default_design_point(x_column: str, y_column: str) -> tuple[float, float] | None:
+    if x_column not in DEFAULT_DESIGN_POINT_BY_AXIS or y_column not in DEFAULT_DESIGN_POINT_BY_AXIS:
+        return None
+    return (DEFAULT_DESIGN_POINT_BY_AXIS[x_column], DEFAULT_DESIGN_POINT_BY_AXIS[y_column])
+
+
+def _draw_design_crosshair(ax: plt.Axes, design_point: tuple[float, float], config: PlotConfig) -> None:
+    design_x, design_y = design_point
+    ax.axvline(design_x, color="black", linestyle="--", linewidth=config.line_width, alpha=0.9, zorder=5)
+    ax.axhline(design_y, color="black", linestyle="--", linewidth=config.line_width, alpha=0.9, zorder=5)
