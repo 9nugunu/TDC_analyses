@@ -22,6 +22,9 @@ ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
     ]
 )
 BEST_MARKER_COLOR = "#c51b7d"
+DESIGN_CROSSHAIR_COLOR = "0.45"
+DESIGN_CROSSHAIR_LINESTYLE = "--"
+DESIGN_CROSSHAIR_LINEWIDTH = 0.9
 DEFAULT_DESIGN_POINT_BY_AXIS = {"sim_r_c": 56.59, "sim_w_c": 19.3224}
 
 
@@ -89,17 +92,17 @@ def _plot_error_map(
     Z = pivot.to_numpy(dtype=float)
 
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
-    if len(x_values) >= 2 and len(y_values) >= 2:
+    is_contour_map = len(x_values) >= 2 and len(y_values) >= 2
+    if is_contour_map:
         cf = ax.contourf(X, Y, Z, levels=12, cmap="RdYlGn_r")
         cs = ax.contour(X, Y, Z, levels=8, colors="white", linewidths=0.7, alpha=0.75)
         ax.clabel(cs, inline=True, fontsize=max(7, config.annotation_size - 2), fmt="%.1f")
     else:
         cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap="RdYlGn_r", s=90, edgecolor="black")
-    ax.scatter(table[x_column], table[y_column], c="white", edgecolor="black", s=34, linewidth=0.8, zorder=4)
     best = table.loc[table[value_column].idxmin()]
     ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c=BEST_MARKER_COLOR, edgecolor="black", linewidth=0.8, zorder=6)
     if design_point is not None:
-        _draw_design_crosshair(ax, design_point, config)
+        _draw_design_crosshair(ax, design_point)
     apply_axis_text_style(
         ax,
         xlabel=r"$r_c$ [mm]",
@@ -125,7 +128,21 @@ def _default_design_point(x_column: str, y_column: str) -> tuple[float, float] |
     return (DEFAULT_DESIGN_POINT_BY_AXIS[x_column], DEFAULT_DESIGN_POINT_BY_AXIS[y_column])
 
 
-def _draw_design_crosshair(ax: plt.Axes, design_point: tuple[float, float], config: PlotConfig) -> None:
+def _draw_design_crosshair(ax: plt.Axes, design_point: tuple[float, float]) -> None:
     design_x, design_y = design_point
-    ax.axvline(design_x, color="black", linestyle="--", linewidth=config.line_width, alpha=0.9, zorder=5)
-    ax.axhline(design_y, color="black", linestyle="--", linewidth=config.line_width, alpha=0.9, zorder=5)
+    ax.axvline(
+        design_x,
+        color=DESIGN_CROSSHAIR_COLOR,
+        linestyle=DESIGN_CROSSHAIR_LINESTYLE,
+        linewidth=DESIGN_CROSSHAIR_LINEWIDTH,
+        alpha=0.85,
+        zorder=5,
+    )
+    ax.axhline(
+        design_y,
+        color=DESIGN_CROSSHAIR_COLOR,
+        linestyle=DESIGN_CROSSHAIR_LINESTYLE,
+        linewidth=DESIGN_CROSSHAIR_LINEWIDTH,
+        alpha=0.85,
+        zorder=5,
+    )
