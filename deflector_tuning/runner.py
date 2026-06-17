@@ -14,6 +14,8 @@ import pandas as pd
 from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
 from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, save_marker_analysis
 from deflector_tuning.data_loading.central_loader import DataLoader
+from deflector_tuning.dispersion import load_cst_dispersion_txt, process_cst_dispersion_txt
+from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curves
 from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
@@ -75,6 +77,21 @@ def run_folder_analysis(
     table_dir = output_dir / "tables"
     figure_root = output_dir / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    dispersion_inputs = find_cst_dispersion_inputs(sparameter_path)
+    if dispersion_inputs:
+        logger.info("Detected CST dispersion data; running dispersion-only analysis")
+        result = _run_dispersion_only_analysis(
+            dispersion_inputs,
+            output_dir=output_dir,
+            table_dir=table_dir,
+            figure_root=figure_root,
+            sparameter_path=sparameter_path,
+            dispersion_path=dispersion_path,
+            marker_role=marker_role,
+        )
+        logger.info("Dispersion-only analysis completed successfully")
+        return result
 
     loader = loader or DataLoader()
     logger.info("Resolved input paths: sparameter=%s dispersion=%s", sparameter_path, dispersion_path)
@@ -157,6 +174,96 @@ def save_sparameter_data(table: pd.DataFrame, output_dir: str | Path) -> Path:
     path = folder / "sparameter_data.csv"
     table.to_csv(path, index=False)
     return path
+
+
+def find_cst_dispersion_inputs(path: str | Path) -> tuple[Path, ...]:
+    """Return parseable CST dispersion text exports under ``path``.
+
+    Dispersion exports are frequency-vs-phase eigenmode tables. They should not
+    enter the S-parameter marker workflow, because S11, phase-advance, and polar
+    marker plots do not describe this data shape.
+    """
+
+    input_path = Path(path)
+    candidates: list[Path]
+    if input_path.is_file():
+        candidates = [input_path]
+    elif input_path.is_dir():
+        candidates = sorted(input_path.glob("*.txt"), key=lambda item: item.name.lower())
+    else:
+        return ()
+
+    dispersion_paths: list[Path] = []
+    for candidate in candidates:
+        if candidate.suffix.lower() != ".txt":
+            continue
+        try:
+            load_cst_dispersion_txt(candidate)
+        except (OSError, ValueError):
+            continue
+        dispersion_paths.append(candidate)
+    return tuple(dispersion_paths)
+
+
+def _run_dispersion_only_analysis(
+    dispersion_inputs: tuple[Path, ...],
+    *,
+    output_dir: Path,
+    table_dir: Path,
+    figure_root: Path,
+    sparameter_path: Path,
+    dispersion_path: Path,
+    marker_role: str,
+) -> RunResult:
+    table_paths: AnalysisPaths = AnalysisPaths()
+    figures: FigurePaths = OrderedDict()
+    dispersion_figures: OrderedDict[str, Path] = OrderedDict()
+    csv_dir = table_dir / "dispersion"
+    figure_dir = figure_root / "dispersion"
+
+    for input_path in dispersion_inputs:
+        outputs = process_cst_dispersion_txt(input_path, output_dir=csv_dir)
+        stem = input_path.stem
+        table_paths[f"{stem}_long"] = outputs.long_csv
+        table_paths[f"{stem}_wide"] = outputs.wide_csv
+        table_paths[f"{stem}_summary"] = outputs.summary_csv
+
+        dispersion_table = load_cst_dispersion_txt(input_path)
+        figure_path = plot_dispersion_curves(
+            dispersion_table,
+            figure_dir / f"{stem}_dispersion.png",
+            title=f"{stem} dispersion curves",
+        )
+        dispersion_figures[stem] = figure_path
+
+    figures["dispersion"] = dispersion_figures
+    modes = ("dispersion",)
+    detection = {
+        "grid_scan_spacing": {"enabled": False, "reason": "CST dispersion data bypasses S-parameter marker analysis"},
+        "dispersion": {
+            "enabled": True,
+            "reason": "parseable CST phase-vs-frequency dispersion text export detected",
+            "input_count": len(dispersion_inputs),
+        },
+    }
+    manifest_path = output_dir / "manifest.json"
+    _write_manifest(
+        manifest_path,
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role=marker_role,
+        modes=modes,
+        detection=detection,
+        tables=table_paths,
+        figures=figures,
+    )
+    return RunResult(
+        output_dir=output_dir,
+        tables=table_paths,
+        figures=figures,
+        analysis_modes=modes,
+        manifest_path=manifest_path,
+    )
 
 
 def resolve_input_paths(
