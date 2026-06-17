@@ -33,7 +33,7 @@ def test_missing_reference_defaults_to_50_ohm() -> None:
     assert header.reference_ohm == 50.0
 
 
-def test_header_parser_accepts_lowercase_and_extra_spaces() -> None:
+def test_header_parser_accepts_lowerprepro_260415_sweep_case_and_extra_spaces() -> None:
     header = parse_touchstone_header("  #   mhz   s   ri   r   50  ")
 
     assert header.frequency_unit == "MHz"

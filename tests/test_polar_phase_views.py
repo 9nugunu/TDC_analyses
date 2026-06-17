@@ -132,7 +132,7 @@ def _grid_scan_marker_points() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "grid_scan",
+                    "dataset_id": "sim_260526_grid_scan",
                     "data_kind": "sim",
                     "data_layer": "sim",
                     "source_file": source_file,
@@ -169,7 +169,7 @@ def _grid_scan_marker_points_with_tune_positions() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "grid_scan",
+                    "dataset_id": "sim_260526_grid_scan",
                     "data_kind": "sim",
                     "data_layer": "sim",
                     "source_file": source_file,
@@ -335,7 +335,7 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_per_position_tune_pl
         assert guide_labels == {"0°", "120°", "240°"}
 
 
-def test_plot_marker_phase_polar_views_adds_ideal_guides_to_grid_scan_plots(
+def test_plot_marker_phase_polar_views_adds_ideal_guides_to_sim_260526_grid_scan_plots(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     saved_paths: list[Path] = []

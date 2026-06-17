@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.data_loading.filename_metadata import metadata_from_filename
+from deflector_tuning.data_loading.dataset_naming import validate_dataset_id
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
 from deflector_tuning.data_loading.records import DataFiles, DataFolder, DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
@@ -21,6 +22,7 @@ class FolderLoader:
 
     def load(self, path: str | Path) -> DataFolder:
         data_root = _dataset_root_from_path(Path(path), self.data_layer)
+        validate_dataset_id(data_root.name, self.data_layer)
         return DataFolder(
             dataset_id=data_root.name,
             path=data_root,

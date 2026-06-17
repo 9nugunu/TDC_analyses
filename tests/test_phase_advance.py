@@ -198,7 +198,7 @@ def test_compute_phase_advance_returns_empty_table_when_geometry_scan_has_no_tun
     marker_points = pd.DataFrame(
         [
             {
-                "dataset_id": "grid_scan",
+                "dataset_id": "sim_260526_grid_scan",
                 "data_kind": "simulation",
                 "data_layer": "sim",
                 "source_file": "run_001.s1p",
@@ -232,7 +232,7 @@ def test_compute_phase_advance_keeps_simulation_geometry_points_separate() -> No
         for tune_position, phase in [(0.5, 10.0), (1.5, -110.0)]:
             rows.append(
                 {
-                    "dataset_id": "grid_scan",
+                    "dataset_id": "sim_260526_grid_scan",
                     "data_kind": "simulation",
                     "data_layer": "sim",
                     "source_file": f"cell_{tune_position}_{sim_r_c}_{sim_w_c}.s1p",

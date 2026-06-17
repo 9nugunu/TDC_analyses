@@ -4,7 +4,7 @@ from deflector_tuning.data_loading.central_loader import DataLoader
 
 
 def test_summarize_raw_csv_dataset(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "250609_beforebrazing"
+    folder = tmp_path / "data" / "raw" / "raw_250609_sweep_sparams_beforebrazing"
     folder.mkdir(parents=True)
     (folder / "in_0.5cell.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
@@ -21,7 +21,7 @@ def test_summarize_raw_csv_dataset(tmp_path: Path) -> None:
 
     assert summary.to_dict("records") == [
         {
-            "dataset_id": "250609_beforebrazing",
+            "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
             "data_kind": "experiment",
             "data_layer": "raw",
             "row_count": 3,
@@ -37,7 +37,7 @@ def test_summarize_raw_csv_dataset(tmp_path: Path) -> None:
 
 
 def test_summarize_prepro_dataset_without_port_side(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "prepro" / "260415_fullbrazing"
+    folder = tmp_path / "data" / "prepro" / "prepro_260415_sweep_sparams_fullbrazing"
     folder.mkdir(parents=True)
     (folder / "8_processed.csv").write_text(
         "freq[Hz],Magnitude,Phase_deg\n2756000000.0,-1.2,90\n",
@@ -46,7 +46,7 @@ def test_summarize_prepro_dataset_without_port_side(tmp_path: Path) -> None:
 
     row = DataLoader().summarize(folder).iloc[0]
 
-    assert row["dataset_id"] == "260415_fullbrazing"
+    assert row["dataset_id"] == "prepro_260415_sweep_sparams_fullbrazing"
     assert row["data_layer"] == "prepro"
     assert row["source_formats"] == ["processed_csv_db_phase"]
     assert row["tune_positions"] == [8.0]

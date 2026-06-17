@@ -49,16 +49,16 @@ def test_collect_interactive_args_only_asks_for_input_folder(monkeypatch) -> Non
 
     def fake_input(prompt: str) -> str:
         prompts.append(prompt)
-        return "sim/260527_iris_line_sweep"
+        return "sim/sim_260527_sweep_iris_line"
 
     monkeypatch.setattr("builtins.input", fake_input)
 
     args = module.collect_interactive_args()
 
-    assert prompts == ["Input dataset id or folder, e.g. 260527_iris_line_sweep: "]
-    assert args.input_folder == Path("sim/260527_iris_line_sweep")
-    assert args.sparameter_path == Path("sim/260527_iris_line_sweep")
-    assert args.output_dir == Path("fig/analyses/sim_260527_iris_line_sweep")
+    assert prompts == ["Input dataset id or folder, e.g. sim_260527_sweep_iris_line: "]
+    assert args.input_folder == Path("sim/sim_260527_sweep_iris_line")
+    assert args.sparameter_path == Path("sim/sim_260527_sweep_iris_line")
+    assert args.output_dir == Path("fig/analyses/sim_260527_sweep_iris_line")
     assert args.marker_role == "sim"
     assert args.dispersion_path is None
     assert args.data_root == Path("data")
@@ -67,11 +67,11 @@ def test_collect_interactive_args_only_asks_for_input_folder(monkeypatch) -> Non
 def test_parse_args_infers_defaults_from_positional_input_folder() -> None:
     module = _load_runner_module()
 
-    args = module.parse_args(["prepro/260415_fullbrazing"])
+    args = module.parse_args(["prepro/prepro_260415_sweep_sparams_fullbrazing"])
 
-    assert args.input_folder == Path("prepro/260415_fullbrazing")
-    assert args.sparameter_path == Path("prepro/260415_fullbrazing")
-    assert args.output_dir == Path("fig/analyses/exp_260415_fullbrazing")
+    assert args.input_folder == Path("prepro/prepro_260415_sweep_sparams_fullbrazing")
+    assert args.sparameter_path == Path("prepro/prepro_260415_sweep_sparams_fullbrazing")
+    assert args.output_dir == Path("fig/analyses/prepro_260415_sweep_sparams_fullbrazing")
     assert args.marker_role == "exp"
     assert args.data_root == Path("data")
 
@@ -79,24 +79,24 @@ def test_parse_args_infers_defaults_from_positional_input_folder() -> None:
 def test_parse_args_resolves_dataset_id_by_searching_data_layers(tmp_path: Path) -> None:
     module = _load_runner_module()
     data_root = tmp_path / "data"
-    (data_root / "sim" / "260605_iris2dsweep_solver_export_no_norm").mkdir(parents=True)
+    (data_root / "sim" / "sim_260605_sweep_iris_2d_solver_export_nonorm").mkdir(parents=True)
 
     args = module.parse_args([
-        "260605_iris2dsweep_solver_export_no_norm",
+        "sim_260605_sweep_iris_2d_solver_export_nonorm",
         "--data-root",
         str(data_root),
     ])
 
-    assert args.input_folder == Path("260605_iris2dsweep_solver_export_no_norm")
-    assert args.sparameter_path == Path("sim/260605_iris2dsweep_solver_export_no_norm")
-    assert args.output_dir == Path("fig/analyses/sim_260605_iris2dsweep_solver_export_no_norm")
+    assert args.input_folder == Path("sim_260605_sweep_iris_2d_solver_export_nonorm")
+    assert args.sparameter_path == Path("sim/sim_260605_sweep_iris_2d_solver_export_nonorm")
+    assert args.output_dir == Path("fig/analyses/sim_260605_sweep_iris_2d_solver_export_nonorm")
     assert args.marker_role == "sim"
 
 
 def test_parse_args_prefers_prepro_then_raw_then_sim_for_dataset_id(tmp_path: Path) -> None:
     module = _load_runner_module()
     data_root = tmp_path / "data"
-    dataset_id = "260415_fullbrazing"
+    dataset_id = "prepro_260415_sweep_sparams_fullbrazing"
     for layer in ("sim", "raw", "prepro"):
         (data_root / layer / dataset_id).mkdir(parents=True)
 
@@ -109,7 +109,7 @@ def test_parse_args_prefers_prepro_then_raw_then_sim_for_dataset_id(tmp_path: Pa
 def test_default_output_dir_does_not_duplicate_existing_kind_prefix() -> None:
     module = _load_runner_module()
 
-    assert module.default_output_dir("sim_scan_dataset", marker_role="sim") == Path("fig/analyses/sim_scan_dataset")
+    assert module.default_output_dir("sim_260519_sweep_scan_dataset", marker_role="sim") == Path("fig/analyses/sim_260519_sweep_scan_dataset")
     assert module.default_output_dir("exp_measured_dataset", marker_role="exp") == Path("fig/analyses/exp_measured_dataset")
 
 
@@ -118,7 +118,7 @@ def test_parse_args_keeps_advanced_overrides_when_provided() -> None:
 
     args = module.parse_args(
         [
-            "raw/260604_iris_portE",
+            "raw/raw_260604_sweep_iris_portE",
             "--output-dir",
             "custom/out",
             "--marker-role",
@@ -128,7 +128,7 @@ def test_parse_args_keeps_advanced_overrides_when_provided() -> None:
         ]
     )
 
-    assert args.sparameter_path == Path("raw/260604_iris_portE")
+    assert args.sparameter_path == Path("raw/raw_260604_sweep_iris_portE")
     assert args.output_dir == Path("custom/out")
     assert args.marker_role == "sim"
     assert args.data_root == Path("custom_data")

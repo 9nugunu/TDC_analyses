@@ -5,7 +5,7 @@ from deflector_tuning.data_loading.records import DataFiles
 
 
 def test_loader_lists_touchstone_csv_and_other_files(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "case_a"
+    folder = tmp_path / "data" / "sim" / "prepro_260415_sweep_case_a"
     folder.mkdir(parents=True)
     (folder / "a.s1p").write_text("", encoding="utf-8")
     (folder / "b.S2P").write_text("", encoding="utf-8")
@@ -22,7 +22,7 @@ def test_loader_lists_touchstone_csv_and_other_files(tmp_path: Path) -> None:
 
 
 def test_loader_ignores_subfolders_for_now(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "case_b"
+    folder = tmp_path / "data" / "raw" / "prepro_260415_sweep_case_b"
     nested = folder / "nested"
     nested.mkdir(parents=True)
     (folder / "root.s2p").write_text("", encoding="utf-8")
@@ -34,7 +34,7 @@ def test_loader_ignores_subfolders_for_now(tmp_path: Path) -> None:
 
 
 def test_file_lists_are_sorted_by_name(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "prepro" / "case_c"
+    folder = tmp_path / "data" / "prepro" / "prepro_260415_sweep_case_c"
     folder.mkdir(parents=True)
     (folder / "z.csv").write_text("", encoding="utf-8")
     (folder / "a.csv").write_text("", encoding="utf-8")

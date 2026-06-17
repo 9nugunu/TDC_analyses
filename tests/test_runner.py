@@ -100,7 +100,7 @@ def _tables() -> dict[str, pd.DataFrame]:
     }
 
 
-def test_run_folder_analysis_saves_tables_figures_grid_scan_and_manifest(tmp_path: Path, monkeypatch) -> None:
+def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manifest(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
     sparameter_table = pd.DataFrame(
         [
@@ -161,7 +161,7 @@ def test_run_folder_analysis_saves_tables_figures_grid_scan_and_manifest(tmp_pat
     assert '"enabled": true' in manifest
 
 
-def test_detect_analysis_modes_skips_grid_scan_for_experiment_marker_points() -> None:
+def test_detect_analysis_modes_skips_sim_260526_grid_scan_for_experiment_marker_points() -> None:
     tables = _tables()
     tables["marker_points"] = tables["marker_points"].assign(data_kind="experiment")
 
@@ -173,12 +173,12 @@ def test_detect_analysis_modes_skips_grid_scan_for_experiment_marker_points() ->
 
 def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Path) -> None:
     sparameter_path, dispersion_path = runner.resolve_input_paths(
-        "prepro/sample_prepro",
+        "prepro/prepro_260415_sweep_sample_prepro",
         data_root=tmp_path / "data",
     )
 
-    assert sparameter_path == tmp_path / "data" / "prepro" / "sample_prepro"
-    assert dispersion_path == tmp_path / "data" / "sim" / "260505_single_cell_dispersion_step1"
+    assert sparameter_path == tmp_path / "data" / "prepro" / "prepro_260415_sweep_sample_prepro"
+    assert dispersion_path == tmp_path / "data" / "sim" / "sim_260505_dispersion_single_cell_step1"
 
 
 def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path: Path, monkeypatch) -> None:

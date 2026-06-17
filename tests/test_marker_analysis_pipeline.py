@@ -48,8 +48,8 @@ def _write_grid_sim_dataset(folder: Path) -> None:
 
 
 def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp_path: Path) -> None:
-    sparameter_path = tmp_path / "data" / "prepro" / "sample_prepro"
-    dispersion_path = tmp_path / "data" / "sim" / "260505_single_cell_dispersion_step1"
+    sparameter_path = tmp_path / "data" / "prepro" / "prepro_260415_sweep_sample_prepro"
+    dispersion_path = tmp_path / "data" / "sim" / "sim_260505_dispersion_single_cell_step1"
     _write_prepro_dataset(sparameter_path)
     _write_dispersion_summary(dispersion_path)
 
@@ -72,9 +72,9 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
     assert first_phase["position_family"] == "cell"
 
 
-def test_build_marker_analysis_skips_transition_phase_advance_for_grid_scan(tmp_path: Path) -> None:
-    sparameter_path = tmp_path / "data" / "sim" / "grid_scan"
-    dispersion_path = tmp_path / "data" / "sim" / "260505_single_cell_dispersion_step1"
+def test_build_marker_analysis_skips_transition_phase_advance_for_sim_260526_grid_scan(tmp_path: Path) -> None:
+    sparameter_path = tmp_path / "data" / "sim" / "sim_260526_grid_scan"
+    dispersion_path = tmp_path / "data" / "sim" / "sim_260505_dispersion_single_cell_step1"
     _write_grid_sim_dataset(sparameter_path)
     _write_dispersion_summary(dispersion_path)
 

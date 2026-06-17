@@ -4,7 +4,7 @@ from deflector_tuning.data_loading.central_loader import DataLoader
 
 
 def test_sim_loader_merges_result_navigator_by_run_id(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "case_a"
+    folder = tmp_path / "data" / "sim" / "sim_260605_sweep_case_a"
     folder.mkdir(parents=True)
     (folder / "result_navigator.csv").write_text(
         '" 3D Run ID"\t"NumDepth"\t"r_c"\t"w_c"\n'
@@ -27,7 +27,7 @@ def test_sim_loader_merges_result_navigator_by_run_id(tmp_path: Path) -> None:
 
 
 def test_sim_loader_merges_result_navigator_by_num_tune_for_cell_files(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "tds_body_plunger"
+    folder = tmp_path / "data" / "sim" / "sim_260504_sweep_tds_body_plunger"
     folder.mkdir(parents=True)
     (folder / "result_navigator.csv").write_text(
         '" 3D Run ID"\t"NumTune"\n'
@@ -58,7 +58,7 @@ def test_sim_loader_merges_result_navigator_by_num_tune_for_cell_files(tmp_path:
 
 
 def test_sim_loader_marks_2d_grid_scan_from_result_navigator_geometry(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "grid_scan"
+    folder = tmp_path / "data" / "sim" / "sim_260526_grid_scan"
     folder.mkdir(parents=True)
     (folder / "result_navigator.csv").write_text(
         '" 3D Run ID"\t"r_c"\t"w_c"\n'
@@ -75,7 +75,7 @@ def test_sim_loader_marks_2d_grid_scan_from_result_navigator_geometry(tmp_path: 
 
 
 def test_raw_loader_does_not_expect_result_navigator(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "case_b"
+    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_case_b"
     folder.mkdir(parents=True)
     (folder / "run_7.s1p").write_text(
         "# GHz S RI R 50\n2.6 1 0\n",

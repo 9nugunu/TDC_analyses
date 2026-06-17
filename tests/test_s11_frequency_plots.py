@@ -88,7 +88,7 @@ def _port_side_sparameter_table() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "250609_beforebrazing",
+                    "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
                     "data_layer": "raw",
                     "source_file": source_file,
                     "tune_position": tune_position,
@@ -107,7 +107,7 @@ def _port_side_marker_points() -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "dataset_id": "250609_beforebrazing",
+                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "in_0.5cell.csv",
                 "tune_position": 0.5,
@@ -123,7 +123,7 @@ def _port_side_marker_points() -> pd.DataFrame:
                 "source_format": "raw_csv_ri",
             },
             {
-                "dataset_id": "250609_beforebrazing",
+                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "out_0.5cell.csv",
                 "tune_position": 0.5,
@@ -139,7 +139,7 @@ def _port_side_marker_points() -> pd.DataFrame:
                 "source_format": "raw_csv_ri",
             },
             {
-                "dataset_id": "250609_beforebrazing",
+                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "in_1.5cell.csv",
                 "tune_position": 1.5,
@@ -155,7 +155,7 @@ def _port_side_marker_points() -> pd.DataFrame:
                 "source_format": "raw_csv_ri",
             },
             {
-                "dataset_id": "250609_beforebrazing",
+                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "out_1.5cell.csv",
                 "tune_position": 1.5,
@@ -343,7 +343,7 @@ def test_plot_s11_with_markers_separates_port_side_marker_annotations(
     assert alignments == {"left", "right"}
 
 
-def test_plot_s11_with_markers_accepts_grid_scan_without_tune_position(tmp_path: Path) -> None:
+def test_plot_s11_with_markers_accepts_sim_260526_grid_scan_without_tune_position(tmp_path: Path) -> None:
     sparameter_table = pd.DataFrame(
         [
             {
@@ -445,7 +445,7 @@ def test_plot_s11_with_markers_does_not_write_position_nan_when_positions_are_mi
     assert paths["overview"].name == "s11_with_markers.png"
 
 
-def test_plot_s11_with_markers_names_grid_scan_by_cell_or_iris_when_tune_position_exists(tmp_path: Path) -> None:
+def test_plot_s11_with_markers_names_sim_260526_grid_scan_by_cell_or_iris_when_tune_position_exists(tmp_path: Path) -> None:
     sparameter_rows = []
     marker_rows = []
     for source_file, tune_position, sim_r_c, sim_w_c in [

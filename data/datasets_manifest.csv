@@ -1,0 +1,27 @@
+old_path,new_path,layer,category,notes
+data/raw/250609_beforebrazing,data/raw/raw_250609_sweep_sparams_beforebrazing,raw,sweep,S-parameter sweep before brazing
+data/raw/250609_halfbrazing,data/raw/raw_250609_sweep_sparams_halfbrazing,raw,sweep,S-parameter sweep after half brazing
+data/raw/250729_halfbrazing_input,data/raw/raw_250729_sweep_sparams_halfbrazing_input,raw,sweep,S-parameter sweep at half-brazing input side
+data/raw/250730_halfbrazing_output,data/raw/raw_250730_sweep_sparams_halfbrazing_output,raw,sweep,S-parameter sweep at half-brazing output side
+data/raw/250730_halfbrazing_output_iris,data/raw/raw_250730_sweep_iris_halfbrazing_output,raw,sweep,Iris-focused half-brazing output sweep
+data/raw/250801_halfbrazing_input,data/raw/raw_250801_sweep_sparams_halfbrazing_input,raw,sweep,S-parameter sweep at half-brazing input side
+data/raw/250801_halfbrazing_output,data/raw/raw_250801_sweep_sparams_halfbrazing_output,raw,sweep,S-parameter sweep at half-brazing output side
+data/raw/260401_fullbrazing_sparams,data/raw/raw_260401_sweep_sparams_fullbrazing,raw,sweep,S-parameter sweep after full brazing
+data/raw/260409_fullbrazing_sparams_mis,data/raw/raw_260409_sweep_sparams_fullbrazing_misaligned,raw,sweep,S-parameter sweep after full brazing with misalignment note
+data/raw/260415_fullbrazing_sparams,data/raw/raw_260415_sweep_sparams_fullbrazing,raw,sweep,S-parameter sweep after full brazing
+data/raw/260604_iris_portE,data/raw/raw_260604_sweep_iris_portE,raw,sweep,Iris S-parameter sweep at port E
+data/sim/260504_tds_body_plunger,data/sim/sim_260504_sweep_tds_body_plunger,sim,sweep,TDS body plunger sweep
+data/sim/260505_cst_regular_cell_dispersion,data/sim/sim_260505_dispersion_regular_cell_cst,sim,dispersion,CST regular-cell dispersion
+data/sim/260505_single_cell_dispersion_step1,data/sim/sim_260505_dispersion_single_cell_step1,sim,dispersion,Single-cell dispersion step 1
+data/sim/260506_cst_regular_cell_eyfield_zphase,data/sim/sim_260506_grid_regular_cell_eyfield_zphase,sim,grid,Regular-cell Ey field and z-phase investigation
+data/sim/260514_tds_fullbody_plunger_ideal,data/sim/sim_260514_sweep_tds_fullbody_plunger_ideal,sim,sweep,TDS full-body ideal plunger sweep
+data/sim/260515_hx_data_vac,data/sim/sim_260515_grid_hx_vac,sim,grid,Hx vacuum field data
+data/sim/260516_2dsweep_noplunger,data/sim/sim_260516_sweep_2d_noplunger,sim,sweep,2D sweep without plunger
+data/sim/260519_2dsweep,data/sim/sim_260519_sweep_2d,sim,sweep,2D sweep
+data/sim/260519_2dsweep_1p5cell,data/sim/sim_260519_sweep_2d_1p5cell,sim,sweep,2D sweep for 1.5-cell case
+data/sim/260526_iris_offset,data/sim/sim_260526_grid_iris_offset,sim,grid,Iris offset tuning sensitivity investigation
+data/sim/260527_iris_line_sweep,data/sim/sim_260527_sweep_iris_line,sim,sweep,Iris line sweep
+data/sim/260603_iris2dsweep_sim50norm,data/sim/sim_260603_sweep_iris_2d_sim50norm,sim,sweep,Iris 2D sweep with sim50 normalization
+data/sim/260605_iris2dsweep_solver_export_no_norm,data/sim/sim_260605_sweep_iris_2d_solver_export_nonorm,sim,sweep,Iris 2D sweep solver export without normalization
+data/sim/undated_hx_data,data/sim/sim_undated_grid_hx,sim,grid,Undated Hx field data
+data/sim/undated_s11_coupler_radius_sweep,data/sim/sim_undated_grid_coupler_s11_radius_sweep,sim,grid,Undated coupler S11 radius sweep
