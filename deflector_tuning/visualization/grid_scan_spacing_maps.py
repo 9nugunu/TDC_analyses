@@ -13,7 +13,18 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import (
+    BEST_MARKER_COLOR,
+    DEFAULT_DESIGN_POINT_BY_AXIS,
+    DESIGN_REFERENCE_LINEWIDTH,
+    REFERENCE_GUIDE_ALPHA,
+    REFERENCE_GUIDE_COLOR,
+    REFERENCE_GUIDE_LINESTYLE,
+    PlotConfig,
+    apply_axis_text_style,
+    apply_plot_style,
+    save_figure,
+)
 
 ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
     [
@@ -21,14 +32,13 @@ ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
         ("spacing_equality_error_deg", "Spacing equality error [deg]"),
     ]
 )
-
-
 def plot_grid_scan_spacing_error_maps(
     spacing_summary: pd.DataFrame,
     output_dir: str | Path,
     *,
     x_column: str = "sim_r_c",
     y_column: str = "sim_w_c",
+    design_point: tuple[float, float] | None = None,
     config: PlotConfig | None = None,
 ) -> OrderedDict[str, Path]:
     """Write the two requested r_c x w_c spacing-error maps."""
@@ -63,6 +73,7 @@ def plot_grid_scan_spacing_error_maps(
             column,
             label,
             config,
+            design_point=design_point or _default_design_point(x_column, y_column),
         )
     return paths
 
@@ -75,6 +86,8 @@ def _plot_error_map(
     value_column: str,
     value_label: str,
     config: PlotConfig,
+    *,
+    design_point: tuple[float, float] | None,
 ) -> Path:
     x_values = np.array(sorted(table[x_column].dropna().unique()), dtype=float)
     y_values = np.array(sorted(table[y_column].dropna().unique()), dtype=float)
@@ -83,15 +96,17 @@ def _plot_error_map(
     Z = pivot.to_numpy(dtype=float)
 
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
-    if len(x_values) >= 2 and len(y_values) >= 2:
+    is_contour_map = len(x_values) >= 2 and len(y_values) >= 2
+    if is_contour_map:
         cf = ax.contourf(X, Y, Z, levels=12, cmap="RdYlGn_r")
         cs = ax.contour(X, Y, Z, levels=8, colors="white", linewidths=0.7, alpha=0.75)
         ax.clabel(cs, inline=True, fontsize=max(7, config.annotation_size - 2), fmt="%.1f")
     else:
         cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap="RdYlGn_r", s=90, edgecolor="black")
-    ax.scatter(table[x_column], table[y_column], c="white", edgecolor="black", s=34, linewidth=0.8, zorder=4)
     best = table.loc[table[value_column].idxmin()]
-    ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c="#ff3b30", edgecolor="black", linewidth=0.8, zorder=6)
+    ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c=BEST_MARKER_COLOR, edgecolor="black", linewidth=0.8, zorder=6)
+    if design_point is not None:
+        _draw_design_crosshair(ax, design_point)
     apply_axis_text_style(
         ax,
         xlabel=r"$r_c$ [mm]",
@@ -109,3 +124,29 @@ def _plot_error_map(
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _default_design_point(x_column: str, y_column: str) -> tuple[float, float] | None:
+    if x_column not in DEFAULT_DESIGN_POINT_BY_AXIS or y_column not in DEFAULT_DESIGN_POINT_BY_AXIS:
+        return None
+    return (DEFAULT_DESIGN_POINT_BY_AXIS[x_column], DEFAULT_DESIGN_POINT_BY_AXIS[y_column])
+
+
+def _draw_design_crosshair(ax: plt.Axes, design_point: tuple[float, float]) -> None:
+    design_x, design_y = design_point
+    ax.axvline(
+        design_x,
+        color=REFERENCE_GUIDE_COLOR,
+        linestyle=REFERENCE_GUIDE_LINESTYLE,
+        linewidth=DESIGN_REFERENCE_LINEWIDTH,
+        alpha=REFERENCE_GUIDE_ALPHA,
+        zorder=5,
+    )
+    ax.axhline(
+        design_y,
+        color=REFERENCE_GUIDE_COLOR,
+        linestyle=REFERENCE_GUIDE_LINESTYLE,
+        linewidth=DESIGN_REFERENCE_LINEWIDTH,
+        alpha=REFERENCE_GUIDE_ALPHA,
+        zorder=5,
+    )

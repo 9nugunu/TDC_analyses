@@ -10,6 +10,7 @@ from deflector_tuning.dispersion import (
     to_dispersion_wide_table,
 )
 from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curves
+from deflector_tuning.visualization.plot_config import PlotConfig
 
 
 def _write_cst_export(path: Path) -> None:
@@ -77,6 +78,28 @@ def test_process_cst_dispersion_txt_writes_standard_csvs(tmp_path: Path) -> None
     assert {"mode_index", "freq_90_GHz", "freq_120_GHz"}.issubset(summary.columns)
 
 
+def test_process_cst_dispersion_txt_defaults_to_matching_prepro_dataset(tmp_path: Path) -> None:
+    source = tmp_path / "data" / "sim" / "dispersion_case" / "dispersion.txt"
+    source.parent.mkdir(parents=True)
+    _write_cst_export(source)
+
+    outputs = process_cst_dispersion_txt(source)
+
+    assert outputs.long_csv.parent == tmp_path / "data" / "prepro" / "dispersion_case"
+    assert outputs.summary_csv.exists()
+
+
+def test_process_cst_dispersion_txt_keeps_explicit_output_dir(tmp_path: Path) -> None:
+    source = tmp_path / "data" / "sim" / "dispersion_case" / "dispersion.txt"
+    output_dir = tmp_path / "custom"
+    source.parent.mkdir(parents=True)
+    _write_cst_export(source)
+
+    outputs = process_cst_dispersion_txt(source, output_dir=output_dir)
+
+    assert outputs.long_csv.parent == output_dir
+
+
 def test_plot_dispersion_curves_writes_png(tmp_path: Path) -> None:
     source = tmp_path / "dispersion.txt"
     _write_cst_export(source)
@@ -86,3 +109,27 @@ def test_plot_dispersion_curves_writes_png(tmp_path: Path) -> None:
 
     assert path.exists()
     assert path.stat().st_size > 0
+
+
+def test_plot_dispersion_curves_uses_direct_labels_without_legend(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "dispersion.txt"
+    _write_cst_export(source)
+    table = load_cst_dispersion_txt(source)
+    saved_figures = []
+
+    def _capture_figure(fig, output_path, config=None):
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("figure", encoding="utf-8")
+        return path
+
+    monkeypatch.setattr("deflector_tuning.visualization.dispersion_plots.save_figure", _capture_figure)
+
+    plot_dispersion_curves(table, tmp_path / "dispersion.png", config=PlotConfig(line_width=2.0, marker_size=64))
+
+    ax = saved_figures[0].axes[0]
+    assert ax.get_title() == "CST dispersion: frequency vs phase advance"
+    assert ax.get_legend() is None
+    assert min(line.get_linewidth() for line in ax.lines) >= 3.0
+    assert {text.get_text() for text in ax.texts} == {"Mode 1", "Mode 2"}

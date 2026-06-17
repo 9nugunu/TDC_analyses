@@ -12,6 +12,7 @@ from deflector_tuning.data_loading.filename_metadata import metadata_from_filena
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
 from deflector_tuning.data_loading.records import DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
+from deflector_tuning.progress import progress_iter
 
 
 class RawLoader(FolderLoader):
@@ -21,7 +22,12 @@ class RawLoader(FolderLoader):
     def load_csv(self, path: str | Path) -> pd.DataFrame:
         data_folder = self.load(path)
         rows: list[pd.DataFrame] = []
-        for csv_file in self.list_files(path).csv_files:
+        csv_files = self.list_files(path).csv_files
+        for csv_file in progress_iter(
+            csv_files,
+            desc=f"Loading raw CSV {data_folder.dataset_id}",
+            total=len(csv_files),
+        ):
             if not _is_supported_raw_csv(csv_file):
                 continue
             rows.append(_read_raw_csv(csv_file, data_folder.dataset_id))

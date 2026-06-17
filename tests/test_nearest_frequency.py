@@ -7,7 +7,7 @@ from deflector_tuning.data_loading.central_loader import DataLoader
 
 
 def test_extract_nearest_picks_one_row_per_raw_file_port_and_s_name(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "250609_beforebrazing"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_250609_sparams_beforebrazing"
     folder.mkdir(parents=True)
     (folder / "in_0.5cell.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
@@ -43,7 +43,7 @@ def test_extract_nearest_picks_one_row_per_raw_file_port_and_s_name(tmp_path: Pa
     records = nearest.sort_values(["port_side", "tune_position"]).to_dict("records")
     assert records == [
         {
-            "dataset_id": "250609_beforebrazing",
+            "dataset_id": "raw_sweep_250609_sparams_beforebrazing",
             "data_kind": "experiment",
             "data_layer": "raw",
             "source_file": "in_0.5cell.csv",
@@ -58,7 +58,7 @@ def test_extract_nearest_picks_one_row_per_raw_file_port_and_s_name(tmp_path: Pa
             "source_format": "raw_csv_ri",
         },
         {
-            "dataset_id": "250609_beforebrazing",
+            "dataset_id": "raw_sweep_250609_sparams_beforebrazing",
             "data_kind": "experiment",
             "data_layer": "raw",
             "source_file": "out_1.5cell.csv",
@@ -76,7 +76,7 @@ def test_extract_nearest_picks_one_row_per_raw_file_port_and_s_name(tmp_path: Pa
 
 
 def test_extract_nearest_keeps_missing_port_side_as_na_for_prepro(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "prepro" / "260415_fullbrazing"
+    folder = tmp_path / "data" / "prepro" / "prepro_sweep_260415_sparams_fullbrazing"
     folder.mkdir(parents=True)
     (folder / "8_processed.csv").write_text(
         "freq[Hz],Magnitude,Phase_deg\n"
@@ -99,7 +99,7 @@ def test_extract_nearest_keeps_missing_port_side_as_na_for_prepro(tmp_path: Path
 
 
 def test_extract_nearest_groups_sim_without_tune_position_or_port_side(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "260527_iris_line_sweep"
+    folder = tmp_path / "data" / "sim" / "sim_sweep_260527_iris_line"
     folder.mkdir(parents=True)
     (folder / "run_001.s1p").write_text(
         "# GHz S RI R 0\n"

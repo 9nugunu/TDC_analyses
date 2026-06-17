@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+
+MATPLOTLIB_MATHTEXT_LOGGER = "matplotlib.mathtext"
+
+BEST_MARKER_COLOR = "#c51b7d"
+DEFAULT_DESIGN_POINT_BY_AXIS = {"sim_r_c": 56.59, "sim_w_c": 19.3224}
+REFERENCE_GUIDE_ALPHA = 0.85
+REFERENCE_GUIDE_COLOR = "0.45"
+REFERENCE_GUIDE_LABEL_COLOR = "0.35"
+REFERENCE_GUIDE_LINESTYLE = "--"
+DESIGN_REFERENCE_LINEWIDTH = 0.9
+IDEAL_PHASE_GUIDE_ANGLES_DEG: tuple[float, ...] = (0.0, 120.0, 240.0)
 
 
 @dataclass(frozen=True)
@@ -27,6 +39,7 @@ class PlotConfig:
     label_weight: str = "bold"
     tick_weight: str = "bold"
     title_weight: str = "bold"
+    legend_weight: str = "bold"
     math_bold: bool = True
     line_width: float = 1.8
     marker_size: int = 52
@@ -40,6 +53,7 @@ def apply_plot_style(config: PlotConfig | None = None) -> None:
     """Apply shared Matplotlib rcParams for project figures."""
 
     config = config or PlotConfig()
+    suppress_matplotlib_mathtext_info_logs()
     plt.rcParams.update(
         {
             "font.family": "sans-serif",
@@ -56,6 +70,12 @@ def apply_plot_style(config: PlotConfig | None = None) -> None:
             "savefig.dpi": config.dpi,
         }
     )
+
+
+def suppress_matplotlib_mathtext_info_logs() -> None:
+    """Hide noisy mathtext font-substitution INFO messages during rendering."""
+
+    logging.getLogger(MATPLOTLIB_MATHTEXT_LOGGER).setLevel(logging.WARNING)
 
 
 def math_label(expression: str, *, bold: bool = True) -> str:
@@ -110,6 +130,16 @@ def apply_axis_text_style(
     ax.tick_params(axis="both", labelsize=tick_size)
     for tick in [*ax.get_xticklabels(), *ax.get_yticklabels()]:
         tick.set_fontweight(config.tick_weight)
+
+
+def apply_legend_text_style(legend, config: PlotConfig | None = None) -> None:
+    """Apply shared legend text styling."""
+
+    if legend is None:
+        return
+    config = config or PlotConfig()
+    for text in legend.get_texts():
+        text.set_fontweight(config.legend_weight)
 
 
 def save_figure(fig, output_path: str | Path, config: PlotConfig | None = None) -> Path:

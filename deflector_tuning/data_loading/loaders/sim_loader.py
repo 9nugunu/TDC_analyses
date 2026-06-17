@@ -5,25 +5,65 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
 from deflector_tuning.data_loading.records import DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
+from deflector_tuning.progress import progress_iter
 
 
 class SimLoader(FolderLoader):
     data_layer = DataLayer.SIM
     data_kind = DataKind.SIM
 
-    def load_touchstone(self, path: str | Path) -> pd.DataFrame:
-        table = super().load_touchstone(path)
+    def load_cst_sparameter_txt(self, path: str | Path) -> pd.DataFrame:
+        """Read CST text S-parameter exports into the common long-form table."""
+
+        data_folder = self.load(path)
+        rows: list[dict[str, object]] = []
+        other_files = self.list_files(path).other_files
+        for txt_file in progress_iter(
+            other_files,
+            desc=f"Loading CST text {data_folder.dataset_id}",
+            total=len(other_files),
+        ):
+            if txt_file.suffix.lower() != ".txt":
+                continue
+            parameters = _read_cst_parameter_header(txt_file)
+            for freq_ghz, s_db in _iter_cst_magnitude_rows(txt_file):
+                row = {
+                    "dataset_id": data_folder.dataset_id,
+                    "data_kind": data_folder.data_kind.value,
+                    "data_layer": data_folder.data_layer.folder_name,
+                    "source_file": txt_file.name,
+                    "freq_ghz": freq_ghz,
+                    "s_name": "S11",
+                    "s_real": float(10.0 ** (s_db / 20.0)),
+                    "s_imag": 0.0,
+                    "s_db": s_db,
+                    "s_phase_deg": 0.0,
+                    "source_format": "cst_txt_magnitude",
+                    "reference_ohm": 50.0,
+                    "is_normalized": True,
+                    "tune_position": None,
+                    "port_side": None,
+                }
+                row.update(parameters)
+                rows.append(row)
+        if not rows:
+            raise NotImplementedError(f"No CST S-parameter txt files in {path!s}")
+        return pd.DataFrame(rows)
+
+    def load_touchstone(self, path: str | Path, *, file_workers: int = 1) -> pd.DataFrame:
+        table = super().load_touchstone(path, file_workers=file_workers)
         navigator = _read_result_navigator(Path(path))
         if navigator.empty:
-            return table
+            return _assign_scan_type(table)
         table = table.copy()
         table["run_id"] = table["source_file"].map(_run_id_from_file_name)
-        return _merge_result_navigator(table, navigator)
+        return _assign_scan_type(_merge_result_navigator(table, navigator))
 
 
 def _merge_result_navigator(table: pd.DataFrame, navigator: pd.DataFrame) -> pd.DataFrame:
@@ -61,6 +101,22 @@ def _read_result_navigator(path: Path) -> pd.DataFrame:
     return navigator
 
 
+def _assign_scan_type(table: pd.DataFrame) -> pd.DataFrame:
+    output = table.copy()
+    output["scan_type"] = _scan_type(output)
+    return output
+
+
+def _scan_type(table: pd.DataFrame) -> str:
+    if "tune_position" in table and table["tune_position"].dropna().nunique() > 1:
+        return "tune_position"
+    if "sim_r_c" in table and "sim_w_c" in table:
+        grid_points = table[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
+        if len(grid_points) > 1:
+            return "grid_2d"
+    return "single_point"
+
+
 def _to_number_if_possible(series: pd.Series) -> pd.Series:
     try:
         return pd.to_numeric(series)
@@ -93,3 +149,43 @@ def _num_tune_from_cell_position(tune_position: object) -> int | None:
     if abs(value - round(value)) > 1e-9:
         return None
     return int(round(value))
+
+
+def _read_cst_parameter_header(path: Path) -> dict[str, object]:
+    first_line = path.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+    match = re.search(r"\{(?P<body>.*)\}", first_line)
+    if match is None:
+        return {}
+    parameters: dict[str, object] = {}
+    for item in match.group("body").split(";"):
+        if "=" not in item:
+            continue
+        name, value = [part.strip() for part in item.split("=", maxsplit=1)]
+        if not name:
+            continue
+        parameters[f"sim_{name}"] = _parse_cst_parameter_value(value)
+    return parameters
+
+
+def _parse_cst_parameter_value(value: str) -> object:
+    try:
+        number = float(value)
+    except ValueError:
+        return value
+    if np.isfinite(number) and number.is_integer():
+        return int(number)
+    return number
+
+
+def _iter_cst_magnitude_rows(path: Path):
+    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        try:
+            yield float(parts[0]), float(parts[1])
+        except ValueError:
+            continue

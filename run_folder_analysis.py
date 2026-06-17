@@ -8,6 +8,7 @@ import sys
 from pathlib import Path, PurePath
 
 from deflector_tuning.data_loading.source_layer import DataLayer
+from deflector_tuning.data_loading.dataset_naming import validate_dataset_id
 from deflector_tuning.runner import run_folder_analysis
 
 
@@ -42,13 +43,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--dispersion-path",
         type=Path,
         default=None,
-        help="Advanced override. Defaults to data/sim/260505_single_cell_dispersion_step1.",
+        help="Advanced override. Defaults to data/sim/sim_dispersion_260505_single_cell_step1.",
     )
     parser.add_argument(
         "--data-root",
         type=Path,
         default=DEFAULT_DATA_ROOT,
         help="Project data root used for resolving relative input paths. Default: data.",
+    )
+    parser.add_argument(
+        "--file-workers",
+        type=int,
+        default=1,
+        help="Number of per-dataset Touchstone file loading workers. Default: 1.",
     )
     return parser
 
@@ -57,13 +64,14 @@ def collect_interactive_args() -> argparse.Namespace:
     """Collect the one user-facing runner setting from a simple prompt."""
 
     print(DESCRIPTION)
-    input_folder = _prompt_required_path("Input dataset id or folder, e.g. 260527_iris_line_sweep")
+    input_folder = _prompt_required_path("Input dataset id or folder, e.g. sim_sweep_260527_iris_line")
     args = argparse.Namespace(
         input_folder=input_folder,
         output_dir=None,
         marker_role=None,
         dispersion_path=None,
         data_root=DEFAULT_DATA_ROOT,
+        file_workers=1,
     )
     return apply_inferred_defaults(args)
 
@@ -99,6 +107,7 @@ def apply_inferred_defaults(args: argparse.Namespace) -> argparse.Namespace:
     resolved_input = resolve_input_folder(input_folder, data_root=data_root)
     data_layer = _detect_data_layer_from_input(resolved_input)
     dataset_id = _dataset_id_from_input(resolved_input)
+    validate_dataset_id(dataset_id, data_layer)
 
     args.input_folder = input_folder
     args.sparameter_path = resolved_input
@@ -110,6 +119,7 @@ def apply_inferred_defaults(args: argparse.Namespace) -> argparse.Namespace:
     )
     args.dispersion_path = Path(args.dispersion_path) if args.dispersion_path is not None else None
     args.data_root = data_root
+    args.file_workers = max(int(getattr(args, "file_workers", 1)), 1)
     return args
 
 
@@ -190,7 +200,7 @@ def prefixed_dataset_id(dataset_id: str, *, marker_role: str) -> str:
     """Return the output dataset id with a sim/exp role prefix."""
 
     prefix = f"{marker_role}_"
-    if dataset_id.startswith(("sim_", "exp_")):
+    if dataset_id.startswith(("sim_", "raw_", "prepro_", "exp_")):
         return dataset_id
     return f"{prefix}{dataset_id}"
 
@@ -212,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=args.output_dir,
         marker_role=args.marker_role,
         data_root=args.data_root,
+        file_workers=args.file_workers,
     )
 
     print(f"input_folder: {args.input_folder}")

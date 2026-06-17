@@ -30,15 +30,28 @@ def metadata_from_filename(
 
 
 def _first_number(text: str, *, strict_cell_position: bool = False) -> float | None:
-    cell_match = re.search(r"(?:^|[_-])cell[_-]?(\d+(?:\.\d+)?)", text, flags=re.IGNORECASE)
-    if cell_match is not None:
-        return float(cell_match.group(1))
+    position_match = re.search(
+        r"(?:^|[_-])(?:cell|iris)[_-]?(\d+(?:\.\d+)?)|(?:^|[_-])(\d+(?:\.\d+)?)(?:cell|iris)(?:$|[_-])",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if position_match is not None:
+        return float(next(group for group in position_match.groups() if group is not None))
     if strict_cell_position:
         return None
-    match = re.search(r"\d+(?:\.\d+)?", text)
-    if match is None:
-        return None
-    return float(match.group(0))
+    for match in re.finditer(r"\d+(?:\.\d+)?", text):
+        token = match.group(0)
+        if _looks_like_leading_date_token(text, match):
+            continue
+        return float(token)
+    return None
+
+
+def _looks_like_leading_date_token(text: str, match: re.Match[str]) -> bool:
+    token = match.group(0)
+    if "." in token or len(token) not in {6, 8}:
+        return False
+    return match.start() == 0 and len(text) > match.end() and text[match.end()] in {"_", "-"}
 
 
 def _side_from_stem(stem: str) -> str | None:

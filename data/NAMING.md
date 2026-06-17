@@ -1,0 +1,47 @@
+# Data Dataset Naming
+
+Dataset folders under `data/raw`, `data/sim`, and `data/prepro` must use:
+
+```text
+<layer>_<category>_<date>_<object>_<condition>
+```
+
+Required fields:
+
+```text
+layer: raw | sim | prepro
+category: sweep | grid | dispersion
+date: YYMMDD | undated
+object/condition: ASCII alphanumeric tokens joined by underscores
+```
+
+
+Examples:
+
+```text
+raw_sweep_260604_iris_portE
+sim_grid_260526_iris_offset
+sim_dispersion_260505_single_cell_step1
+sim_sweep_260605_iris_2d_solver_export_nonorm
+prepro_sweep_260415_sparams_fullbrazing
+```
+
+Use `sweep` for tune-position, line, and 2D sweep datasets. The analysis code
+decides later whether each tune-position region follows KYHL-style or nodal
+shift logic.
+
+Use `grid` for tuning sensitivity investigations such as parameter grids,
+offset checks, field maps, or coupler radius sweeps.
+
+Use `dispersion` for CST dispersion / phase advance / mode-frequency exports.
+
+The folder prefix must match its parent layer:
+
+```text
+data/raw/raw_...
+data/sim/sim_...
+data/prepro/prepro_...
+```
+
+Analysis intentionally stops with `ValueError` when a dataset folder does not
+follow this rule. Rename the dataset folder before running analysis.

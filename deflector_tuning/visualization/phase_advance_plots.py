@@ -11,7 +11,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_axis_text_style, apply_plot_style, save_figure
+from deflector_tuning.visualization.plot_config import (
+    PlotConfig,
+    apply_axis_text_style,
+    apply_legend_text_style,
+    apply_plot_style,
+    save_figure,
+)
+from deflector_tuning.progress import progress_iter
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
@@ -31,7 +38,16 @@ MARKER_COLORS: dict[str, str] = {
     "f_mean": "#1f77b4",
     "f_pi2": "#2ca02c",
 }
-FACET_COLUMNS: tuple[str, ...] = ("port_side",)
+SERIES_ID_COLUMNS: tuple[str, ...] = (
+    "dataset_id",
+    "data_kind",
+    "data_layer",
+    "marker_role",
+    "port_side",
+    "s_name",
+)
+SERIES_LINESTYLES: tuple[str, ...] = ("-", "--", ":", "-.")
+FACET_COLUMNS: tuple[str, ...] = ("sim_r_c", "sim_w_c")
 
 
 def plot_phase_advance(
@@ -60,12 +76,13 @@ def plot_phase_advance(
 
     paths: OrderedDict[str, Path] = OrderedDict()
     if split_by_family and _has_named_position_families(table):
-        for family in _position_family_order(table):
+        families = _position_family_order(table)
+        for family in progress_iter(families, desc="Rendering phase advance figures", total=len(families)):
             family_table = table[table["position_family"] == family].copy()
             if family_table.empty:
                 continue
-            for facet_suffix, facet_title, facet_table in _iter_plot_facets(family_table):
-                key = f"phase_advance_{family}{facet_suffix}"
+            for facet_stem, facet_title, facet_table in _iter_plot_facets(family_table):
+                key = _phase_advance_key(family, facet_stem)
                 paths[key] = _plot_metric(
                     facet_table,
                     folder / f"{key}.png",
@@ -129,27 +146,33 @@ def _plot_metric(
     marker_order = [marker for marker in MARKER_ORDER if marker in set(table["marker_name"])]
     marker_order.extend(marker for marker in table["marker_name"].dropna().unique() if marker not in marker_order)
     family_order = _position_family_order(table)
+    series_columns = _series_columns(table)
 
     for marker in marker_order:
         for family in family_order:
             group = table[(table["marker_name"] == marker) & (table["position_family"] == family)].copy()
             if group.empty:
                 continue
-            x_values = [x_by_label[label] for label in group["transition_label"]]
-            ax.plot(
-                x_values,
-                group[value_column],
-                marker="o",
-                linewidth=1.6,
-                markersize=4.5,
-                linestyle="-" if family == "cell" else "--",
-                label=(
-                    f"{MARKER_LABELS.get(marker, marker)} {family}"
-                    if include_family_in_label
-                    else MARKER_LABELS.get(marker, marker)
-                ),
-                color=MARKER_COLORS.get(marker),
-            )
+            series_groups = list(group.groupby(series_columns, dropna=False, sort=False)) if series_columns else [((), group)]
+            for series_index, (series_values, series_group) in enumerate(series_groups):
+                series_group = series_group.sort_values(["_from_sort", "_to_sort"], kind="mergesort")
+                x_values = [x_by_label[label] for label in series_group["transition_label"]]
+                ax.plot(
+                    x_values,
+                    series_group[value_column],
+                    marker="o",
+                    linewidth=1.6,
+                    markersize=4.5,
+                    linestyle=SERIES_LINESTYLES[series_index % len(SERIES_LINESTYLES)],
+                    label=_series_label(
+                        marker,
+                        family,
+                        include_family=include_family_in_label,
+                        columns=series_columns,
+                        values=series_values,
+                    ),
+                    color=MARKER_COLORS.get(marker),
+                )
 
     ax.axhline(reference_value, color="0.25", linestyle="--", linewidth=1.0, label=reference_label)
     apply_axis_text_style(ax, xlabel="Transition", ylabel=ylabel, title=title, config=config)
@@ -157,7 +180,8 @@ def _plot_metric(
     ax.set_xticklabels(labels, rotation=45, ha="right")
     ax.tick_params(axis="x", labelrotation=45)
     ax.grid(True, axis="y", color="0.88", linewidth=0.8)
-    ax.legend(frameon=False, loc="best", fontsize=config.legend_size)
+    legend = ax.legend(frameon=False, loc="best", fontsize=config.legend_size)
+    apply_legend_text_style(legend, config)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)
@@ -172,6 +196,46 @@ def _format_position(position: object) -> str:
     if value.is_integer():
         return f"{value:.1f}"
     return f"{value:g}"
+
+
+def _series_columns(table: pd.DataFrame) -> list[str]:
+    """Return metadata columns that distinguish independent line series."""
+
+    columns: list[str] = []
+    for column in SERIES_ID_COLUMNS:
+        if column not in table:
+            continue
+        values = table[column].fillna("<NA>").astype(str)
+        if values.nunique(dropna=False) > 1:
+            columns.append(column)
+    return columns
+
+
+def _series_label(
+    marker: object,
+    family: object,
+    *,
+    include_family: bool,
+    columns: list[str],
+    values: object,
+) -> str:
+    marker_label = MARKER_LABELS.get(str(marker), str(marker))
+    parts = [marker_label]
+    if include_family:
+        parts.append(str(family))
+
+    if columns:
+        if len(columns) == 1:
+            series_values = values if isinstance(values, tuple) else (values,)
+        else:
+            series_values = tuple(values)
+        suffix = [
+            str(value)
+            for column, value in zip(columns, series_values, strict=True)
+            if not pd.isna(value) and str(value) not in {"", "<NA>", "nan", "None"}
+        ]
+        parts.extend(suffix)
+    return " ".join(parts)
 
 
 def _position_family(tune_position: object) -> str:
@@ -221,11 +285,19 @@ def _iter_plot_facets(table: pd.DataFrame):
             for column, value in zip(facet_columns, facet_values, strict=True)
             if not pd.isna(value)
         ]
-        suffix = "".join(f"_{_safe_label(value)}" for _, value in parts)
+        facet_stem = "_".join(_facet_suffix_part(column, value) for column, value in parts)
         title = ""
         if parts:
             title = " (" + ", ".join(f"{_facet_label(column)}={value}" for column, value in parts) + ")"
-        yield suffix, title, group.copy()
+        yield facet_stem, title, group.copy()
+
+
+def _phase_advance_key(family: str, facet_stem: str) -> str:
+    if not facet_stem:
+        return f"phase_advance_{family}"
+    if "r_c_" in facet_stem or "w_c_" in facet_stem:
+        return f"{family}_{facet_stem}"
+    return f"phase_advance_{family}_{facet_stem}"
 
 
 def _needs_faceting(table: pd.DataFrame, column: str) -> bool:
@@ -236,7 +308,15 @@ def _needs_faceting(table: pd.DataFrame, column: str) -> bool:
 
 
 def _facet_label(column: str) -> str:
-    return {"s_name": "S", "port_side": "port"}.get(column, column)
+    return {"s_name": "S", "port_side": "port", "sim_r_c": "r_c", "sim_w_c": "w_c"}.get(column, column)
+
+
+def _facet_suffix_part(column: str, value: object) -> str:
+    prefix = {"sim_r_c": "r_c", "sim_w_c": "w_c"}.get(column)
+    label = _safe_label(value)
+    if prefix is None:
+        return label
+    return f"{prefix}_{label}"
 
 
 def _safe_label(value: object) -> str:

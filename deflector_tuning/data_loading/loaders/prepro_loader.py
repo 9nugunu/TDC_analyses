@@ -10,6 +10,7 @@ from deflector_tuning.data_loading.filename_metadata import metadata_from_filena
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
 from deflector_tuning.data_loading.records import DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
+from deflector_tuning.progress import progress_iter
 
 
 class PreproLoader(FolderLoader):
@@ -19,7 +20,12 @@ class PreproLoader(FolderLoader):
     def load_csv(self, path: str | Path) -> pd.DataFrame:
         data_folder = self.load(path)
         rows: list[pd.DataFrame] = []
-        for csv_file in self.list_files(path).csv_files:
+        csv_files = self.list_files(path).csv_files
+        for csv_file in progress_iter(
+            csv_files,
+            desc=f"Loading prepro CSV {data_folder.dataset_id}",
+            total=len(csv_files),
+        ):
             csv_table = pd.read_csv(csv_file)
             if "freq[Hz]" not in csv_table.columns or "Magnitude" not in csv_table.columns:
                 raise ValueError(f"Unsupported prepro CSV schema in {csv_file.name}")

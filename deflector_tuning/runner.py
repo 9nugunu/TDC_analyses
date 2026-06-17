@@ -13,10 +13,14 @@ import pandas as pd
 
 from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
 from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, save_marker_analysis
+from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
+from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_path
+from deflector_tuning.data_loading.source_layer import detect_data_layer
 from deflector_tuning.dispersion import load_cst_dispersion_txt, process_cst_dispersion_txt
 from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curves
 from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
+from deflector_tuning.visualization.nodal_shift_plots import plot_nodal_shift
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
@@ -24,9 +28,9 @@ from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_mar
 AnalysisPaths = OrderedDict[str, Path]
 FigurePaths = OrderedDict[str, OrderedDict[str, Path]]
 
-BASE_ANALYSIS_MODES: tuple[str, ...] = ("marker_analysis", "s11", "phase_advance", "polar")
+BASE_ANALYSIS_MODES: tuple[str, ...] = ("marker_analysis", "s11", "phase_advance", "nodal_shift", "polar")
 DEFAULT_DATA_ROOT = Path("data")
-DEFAULT_DISPERSION_SUBPATH = Path("sim") / "260505_single_cell_dispersion_step1"
+DEFAULT_DISPERSION_SUBPATH = Path("sim") / "sim_dispersion_260505_single_cell_step1"
 GRID_SCAN_REQUIRED_COLUMNS: frozenset[str] = frozenset(
     {"data_kind", "sim_r_c", "sim_w_c", "marker_name", "s_phase_deg"}
 )
@@ -52,6 +56,7 @@ def run_folder_analysis(
     output_dir: str | Path,
     marker_role: str,
     data_root: str | Path = DEFAULT_DATA_ROOT,
+    file_workers: int = 1,
     loader: DataLoader | None = None,
 ) -> RunResult:
     """Run the standard one-folder marker workflow and write tables/figures.
@@ -73,12 +78,16 @@ def run_folder_analysis(
         dispersion_path=dispersion_path,
         data_root=data_root,
     )
+    dataset_category = _dataset_category(sparameter_path)
     output_dir = Path(output_dir)
     table_dir = output_dir / "tables"
     figure_root = output_dir / "figures"
+    manifest_path = output_dir / "manifest.json"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dispersion_inputs = find_cst_dispersion_inputs(sparameter_path)
+    dispersion_inputs = find_cst_dispersion_inputs(sparameter_path) if dataset_category in {None, "dispersion"} else ()
+    if dataset_category == "dispersion" and not dispersion_inputs:
+        raise ValueError(f"Dataset category is dispersion, but no parseable CST dispersion txt export was found: {sparameter_path}")
     if dispersion_inputs:
         logger.info("Detected CST dispersion data; running dispersion-only analysis")
         result = _run_dispersion_only_analysis(
@@ -93,11 +102,18 @@ def run_folder_analysis(
         logger.info("Dispersion-only analysis completed successfully")
         return result
 
-    loader = loader or DataLoader()
+    loader = loader or DataLoader(file_workers=file_workers)
     logger.info("Resolved input paths: sparameter=%s dispersion=%s", sparameter_path, dispersion_path)
-    logger.info("Loading S-parameter table from %s", sparameter_path)
-    sparameter_table = loader.load(sparameter_path)
-    logger.info("Loaded S-parameter table with %d rows", len(sparameter_table))
+    cached_s11_figures = (
+        _cached_manifest_figure_group(manifest_path, "s11")
+        if dataset_category == "grid"
+        else OrderedDict()
+    )
+    sparameter_table: pd.DataFrame | None = None
+    if cached_s11_figures:
+        logger.info("Skipping S11 table load because cached grid-scan S11 figures already exist")
+    else:
+        sparameter_table = _load_s11_table_for_figures(loader, sparameter_path)
     logger.info("Building marker analysis tables")
     tables = build_marker_analysis(
         sparameter_path=sparameter_path,
@@ -108,16 +124,21 @@ def run_folder_analysis(
     logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
     logger.info("Saving analysis tables to %s", table_dir)
     table_paths = AnalysisPaths(save_marker_analysis(tables, table_dir))
-    table_paths["sparameter_data"] = save_sparameter_data(sparameter_table, table_dir)
     logger.info("Saved %d analysis tables", len(table_paths))
-    modes = detect_analysis_modes(tables)
+    modes = detect_analysis_modes(tables, dataset_category=dataset_category)
     logger.info("Enabled analysis modes: %s", ", ".join(modes))
 
     figures: FigurePaths = OrderedDict()
-    logger.info("Rendering S11 figures")
-    figures["s11"] = OrderedDict(
-        plot_s11_with_markers(sparameter_table, tables["marker_points"], figure_root / "s11")
-    )
+    if "grid_scan_spacing" in modes and cached_s11_figures:
+        logger.info("Skipping S11 figures because cached grid-scan S11 figures already exist")
+        figures["s11"] = cached_s11_figures
+    else:
+        if sparameter_table is None:
+            sparameter_table = _load_s11_table_for_figures(loader, sparameter_path)
+        logger.info("Rendering S11 figures")
+        figures["s11"] = OrderedDict(
+            plot_s11_with_markers(sparameter_table, tables["marker_points"], figure_root / "s11")
+        )
     if _has_rows(tables.get("phase_advance")):
         logger.info("Rendering phase advance figures")
         figures["phase_advance"] = OrderedDict(
@@ -125,6 +146,13 @@ def run_folder_analysis(
         )
     else:
         logger.info("Skipping phase advance figures because phase_advance is missing or empty")
+    if _has_rows(tables.get("nodal_shift")):
+        logger.info("Rendering nodal-shift figures")
+        figures["nodal_shift"] = OrderedDict(
+            plot_nodal_shift(tables["nodal_shift"], figure_root / "nodal")
+        )
+    else:
+        logger.info("Skipping nodal-shift figures because nodal_shift is missing or empty")
     if _has_rows(tables.get("marker_points")):
         logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
@@ -133,7 +161,7 @@ def run_folder_analysis(
     else:
         logger.info("Skipping polar phase figures because marker_points is missing or empty")
 
-    detection = _detection_report(tables)
+    detection = _detection_report(tables, dataset_category=dataset_category)
     if "grid_scan_spacing" in modes:
         logger.info("Rendering grid-scan spacing figures")
         spacing_summary = summarize_marker_spacing_for_grid_scan(tables["marker_points"])
@@ -143,7 +171,6 @@ def run_folder_analysis(
     else:
         logger.info("Skipping grid-scan spacing figures: %s", detection["grid_scan_spacing"]["reason"])
 
-    manifest_path = output_dir / "manifest.json"
     logger.info("Writing manifest to %s", manifest_path)
     _write_manifest(
         manifest_path,
@@ -164,16 +191,6 @@ def run_folder_analysis(
         analysis_modes=modes,
         manifest_path=manifest_path,
     )
-
-
-def save_sparameter_data(table: pd.DataFrame, output_dir: str | Path) -> Path:
-    """Write the loaded S-parameter table as a CSV artifact."""
-
-    folder = Path(output_dir)
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / "sparameter_data.csv"
-    table.to_csv(path, index=False)
-    return path
 
 
 def find_cst_dispersion_inputs(path: str | Path) -> tuple[Path, ...]:
@@ -232,7 +249,7 @@ def _run_dispersion_only_analysis(
         figure_path = plot_dispersion_curves(
             dispersion_table,
             figure_dir / f"{stem}_dispersion.png",
-            title=f"{stem} dispersion curves",
+            title=_dispersion_plot_title(input_path),
         )
         dispersion_figures[stem] = figure_path
 
@@ -266,6 +283,13 @@ def _run_dispersion_only_analysis(
     )
 
 
+def _dispersion_plot_title(input_path: Path) -> str:
+    label = input_path.stem.replace("_", " ").replace("-", " ")
+    while "  " in label:
+        label = label.replace("  ", " ")
+    return f"CST dispersion: frequency vs phase advance ({label})"
+
+
 def resolve_input_paths(
     sparameter_path: str | Path,
     *,
@@ -290,11 +314,11 @@ def _data_relative_path(path: str | Path, *, data_root: Path) -> Path:
     return data_root / path
 
 
-def detect_analysis_modes(tables: dict[str, pd.DataFrame]) -> tuple[str, ...]:
+def detect_analysis_modes(tables: dict[str, pd.DataFrame], *, dataset_category: str | None = None) -> tuple[str, ...]:
     """Return standard and auto-detected analysis modes for a table bundle."""
 
     modes = list(BASE_ANALYSIS_MODES)
-    report = _detection_report(tables)
+    report = _detection_report(tables, dataset_category=dataset_category)
     if report["grid_scan_spacing"]["enabled"]:
         modes.append("grid_scan_spacing")
     return tuple(modes)
@@ -304,13 +328,34 @@ def _has_rows(table: pd.DataFrame | None) -> bool:
     return table is not None and not table.empty
 
 
-def _detection_report(tables: dict[str, pd.DataFrame]) -> dict[str, dict[str, object]]:
+def _load_s11_table_for_figures(loader: DataLoader, sparameter_path: Path) -> pd.DataFrame:
+    logger.info("Loading S-parameter table from %s", sparameter_path)
+    loaded_sparameter_table = loader.load(sparameter_path)
+    logger.info("Loaded S-parameter table with %d rows", len(loaded_sparameter_table))
+    sparameter_table = select_s11_rows(loaded_sparameter_table)
+    if len(sparameter_table) != len(loaded_sparameter_table):
+        logger.info("Selected %d S11 rows for marker analysis outputs", len(sparameter_table))
+    return sparameter_table
+
+
+def _detection_report(
+    tables: dict[str, pd.DataFrame],
+    *,
+    dataset_category: str | None = None,
+) -> dict[str, dict[str, object]]:
     marker_points = tables.get("marker_points")
-    enabled, reason = _is_simulation_grid_scan(marker_points)
+    enabled, reason = _is_simulation_grid_scan(marker_points, dataset_category=dataset_category)
     return {"grid_scan_spacing": {"enabled": enabled, "reason": reason}}
 
 
-def _is_simulation_grid_scan(marker_points: pd.DataFrame | None) -> tuple[bool, str]:
+def _is_simulation_grid_scan(
+    marker_points: pd.DataFrame | None,
+    *,
+    dataset_category: str | None = None,
+) -> tuple[bool, str]:
+    if dataset_category is not None and dataset_category != "grid":
+        return False, f"dataset category is {dataset_category!r}, not 'grid'"
+
     if marker_points is None or marker_points.empty:
         return False, "marker_points table is missing or empty"
 
@@ -336,6 +381,14 @@ def _is_simulation_grid_scan(marker_points: pd.DataFrame | None) -> tuple[bool, 
         return False, "sim_r_c and sim_w_c do not vary across grid points"
 
     return True, "simulation marker_points include sim_r_c/sim_w_c and complete f_2pi3/f_mean/f_pi2 groups"
+
+
+def _dataset_category(path: Path) -> str | None:
+    try:
+        data_layer = detect_data_layer(path)
+        return dataset_identity_from_path(path, data_layer).category
+    except ValueError:
+        return None
 
 
 def _write_manifest(
@@ -364,3 +417,23 @@ def _write_manifest(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _cached_manifest_figure_group(manifest_path: Path, group: str) -> OrderedDict[str, Path]:
+    if not manifest_path.exists():
+        return OrderedDict()
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return OrderedDict()
+    group_paths = manifest.get("outputs", {}).get("figures", {}).get(group, {})
+    if not isinstance(group_paths, dict) or not group_paths:
+        return OrderedDict()
+
+    cached: OrderedDict[str, Path] = OrderedDict()
+    for name, raw_path in group_paths.items():
+        path = Path(raw_path)
+        if not path.exists():
+            return OrderedDict()
+        cached[str(name)] = path
+    return cached

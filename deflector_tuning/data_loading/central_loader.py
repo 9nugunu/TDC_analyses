@@ -17,6 +17,9 @@ from deflector_tuning.data_loading.source_layer import DataLayer, detect_data_la
 class DataLoader:
     """Route a path by ``data/sim``, ``data/raw``, or ``data/prepro``."""
 
+    def __init__(self, *, file_workers: int = 1) -> None:
+        self.file_workers = max(int(file_workers), 1)
+
     def load(self, path: str | Path) -> pd.DataFrame:
         """Load a folder into the default analysis table.
 
@@ -27,7 +30,9 @@ class DataLoader:
         loader = self.select_loader(path)
         files = loader.list_files(path)
         if files.touchstone_files:
-            return loader.load_touchstone(path)
+            return loader.load_touchstone(path, file_workers=self.file_workers)
+        if files.other_files and isinstance(loader, SimLoader):
+            return loader.load_cst_sparameter_txt(path)
         if files.csv_files and isinstance(loader, PreproLoader):
             return loader.load_csv(path)
         if files.csv_files and isinstance(loader, RawLoader):
