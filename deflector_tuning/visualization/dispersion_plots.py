@@ -37,7 +37,7 @@ def plot_dispersion_curves(
     if missing:
         raise ValueError(f"dispersion_table is missing required columns: {missing}")
 
-    config = config or PlotConfig()
+    config = _dispersion_plot_config(config)
     apply_plot_style(config)
     table = dispersion_table.copy()
     if mode_indices is not None:
@@ -94,4 +94,18 @@ def _label_curve_end(ax, group: pd.DataFrame, label: str, *, color: str, config:
         va="center",
         bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.72},
         clip_on=False,
+    )
+
+
+def _dispersion_plot_config(config: PlotConfig | None) -> PlotConfig:
+    if config is not None:
+        return config
+    return PlotConfig(
+        title_size=22,
+        label_size=18,
+        tick_size=15,
+        annotation_size=14,
+        legend_size=13,
+        line_width=2.2,
+        marker_size=72,
     )

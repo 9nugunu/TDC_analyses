@@ -200,7 +200,7 @@ def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Pat
     assert dispersion_path == tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
 
 
-def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path: Path, monkeypatch) -> None:
+def test_run_folder_analysis_uses_short_dispersion_figure_names(tmp_path: Path, monkeypatch) -> None:
     dispersion_folder = tmp_path / "data" / "sim" / "sim_dispersion_260505_case"
     dispersion_folder.mkdir(parents=True)
     (dispersion_folder / "phase_sweep.txt").write_text(
@@ -244,16 +244,15 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path:
 
     assert result.analysis_modes == ("dispersion",)
     assert "dispersion" in result.figures
-    assert result.figures["dispersion"]["phase_sweep"].exists()
+    assert result.figures["dispersion"]["all_modes"].exists()
     assert set(result.figures["dispersion"]) == {
-        "phase_sweep",
-        "phase_sweep_all_modes",
-        "phase_sweep_mode_01",
-        "phase_sweep_mode_02",
+        "all_modes",
+        "mode_01",
+        "mode_02",
     }
-    assert result.figures["dispersion"]["phase_sweep"].name == "phase_sweep_all_modes_frequency_vs_phase.png"
-    assert result.figures["dispersion"]["phase_sweep_mode_01"].name == "phase_sweep_mode_01_frequency_vs_phase.png"
-    assert result.figures["dispersion"]["phase_sweep_mode_02"].name == "phase_sweep_mode_02_frequency_vs_phase.png"
+    assert result.figures["dispersion"]["all_modes"].name == "all_modes.png"
+    assert result.figures["dispersion"]["mode_01"].name == "mode_01.png"
+    assert result.figures["dispersion"]["mode_02"].name == "mode_02.png"
     assert set(result.tables) == {"phase_sweep_long", "phase_sweep_wide", "phase_sweep_summary"}
     summary = pd.read_csv(result.tables["phase_sweep_summary"])
     assert summary.loc[0, "freq_120_GHz"] == 2.86
@@ -263,7 +262,9 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path:
     assert '"phase_advance"' not in manifest
 
 
-def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path: Path, monkeypatch) -> None:
+def test_run_folder_analysis_uses_dispersion_only_lane_for_single_mode_cst_exports(
+    tmp_path: Path, monkeypatch
+) -> None:
     dispersion_folder = tmp_path / "data" / "sim" / "dispersion_case"
     dispersion_folder.mkdir(parents=True)
     (dispersion_folder / "phase_sweep.txt").write_text(
@@ -299,7 +300,10 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path:
 
     assert result.analysis_modes == ("dispersion",)
     assert "dispersion" in result.figures
-    assert result.figures["dispersion"]["phase_sweep"].exists()
+    assert result.figures["dispersion"]["all_modes"].exists()
+    assert set(result.figures["dispersion"]) == {"all_modes", "mode_01"}
+    assert result.figures["dispersion"]["all_modes"].name == "all_modes.png"
+    assert result.figures["dispersion"]["mode_01"].name == "mode_01.png"
     assert set(result.tables) == {"phase_sweep_long", "phase_sweep_wide", "phase_sweep_summary"}
     summary = pd.read_csv(result.tables["phase_sweep_summary"])
     assert summary.loc[0, "freq_120_GHz"] == 2.86

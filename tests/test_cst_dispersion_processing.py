@@ -135,6 +135,31 @@ def test_plot_dispersion_curves_uses_direct_labels_without_legend(tmp_path: Path
     assert {text.get_text() for text in ax.texts} == {"Mode 1", "Mode 2"}
 
 
+def test_plot_dispersion_curves_uses_large_default_typography(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "dispersion.txt"
+    _write_cst_export(source)
+    table = load_cst_dispersion_txt(source)
+    saved_figures = []
+
+    def _capture_figure(fig, output_path, config=None):
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("figure", encoding="utf-8")
+        return path
+
+    monkeypatch.setattr("deflector_tuning.visualization.dispersion_plots.save_figure", _capture_figure)
+
+    plot_dispersion_curves(table, tmp_path / "dispersion.png")
+
+    ax = saved_figures[0].axes[0]
+    assert ax.title.get_fontsize() >= 22
+    assert ax.xaxis.label.get_fontsize() >= 18
+    assert ax.yaxis.label.get_fontsize() >= 18
+    assert min(tick.get_fontsize() for tick in [*ax.get_xticklabels(), *ax.get_yticklabels()]) >= 15
+    assert min(text.get_fontsize() for text in ax.texts) >= 14
+
+
 def test_plot_dispersion_curves_can_write_one_mode_png(tmp_path: Path, monkeypatch) -> None:
     source = tmp_path / "dispersion.txt"
     _write_cst_export(source)
