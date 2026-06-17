@@ -236,7 +236,7 @@ def _run_dispersion_only_analysis(
         figure_path = plot_dispersion_curves(
             dispersion_table,
             figure_dir / f"{stem}_dispersion.png",
-            title=f"{stem} dispersion curves",
+            title=_dispersion_plot_title(input_path),
         )
         dispersion_figures[stem] = figure_path
 
@@ -268,6 +268,13 @@ def _run_dispersion_only_analysis(
         analysis_modes=modes,
         manifest_path=manifest_path,
     )
+
+
+def _dispersion_plot_title(input_path: Path) -> str:
+    label = input_path.stem.replace("_", " ").replace("-", " ")
+    while "  " in label:
+        label = label.replace("  ", " ")
+    return f"CST dispersion: frequency vs phase advance ({label})"
 
 
 def resolve_input_paths(

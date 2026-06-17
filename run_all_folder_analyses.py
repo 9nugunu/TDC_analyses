@@ -180,7 +180,7 @@ def prepare_batch_dispersion_input(
         if resolved_path.suffix.lower() != ".txt":
             raise ValueError(f"Dispersion input must be a CST .txt export or processed folder: {resolved_path}")
         logger.info("Processing CST dispersion export: %s", resolved_path)
-        process_cst_dispersion_txt(resolved_path)
+        process_cst_dispersion_txt(resolved_path, output_dir=resolved_path.parent / "processed")
         return resolved_path.parent
 
     if not resolved_path.exists():
@@ -191,7 +191,7 @@ def prepare_batch_dispersion_input(
     txt_exports = _dispersion_txt_exports(resolved_path)
     if len(txt_exports) == 1:
         logger.info("Processing CST dispersion export found under %s: %s", resolved_path, txt_exports[0].name)
-        process_cst_dispersion_txt(txt_exports[0])
+        process_cst_dispersion_txt(txt_exports[0], output_dir=resolved_path / "processed")
         return resolved_path
     if not txt_exports:
         raise FileNotFoundError(

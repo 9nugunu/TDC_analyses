@@ -14,7 +14,6 @@ from deflector_tuning.visualization.finite_checks import require_finite_plot_col
 from deflector_tuning.visualization.plot_config import (
     PlotConfig,
     apply_axis_text_style,
-    apply_legend_text_style,
     apply_plot_style,
     save_figure,
 )
@@ -27,7 +26,7 @@ def plot_dispersion_curves(
     output_path: str | Path,
     *,
     mode_indices: tuple[int, ...] | None = None,
-    title: str = "CST dispersion curves",
+    title: str = "CST dispersion: frequency vs phase advance",
     config: PlotConfig | None = None,
 ) -> Path:
     """Write a frequency-vs-phase dispersion curve PNG."""
@@ -47,17 +46,20 @@ def plot_dispersion_curves(
         raise ValueError("No dispersion rows remain after mode filtering")
     require_finite_plot_columns(table, columns=("phase_deg", "freq_GHz"), context="dispersion_table")
 
-    fig, ax = plt.subplots(figsize=(9.6, 6.0))
+    fig, ax = plt.subplots(figsize=(10.8, 6.8))
+    line_width = max(config.line_width * 1.55, 2.6)
+    marker_size = max(config.marker_size**0.5 * 0.95, 6.2)
     for mode_index, group in table.groupby("mode_index", sort=True):
         group = group.sort_values("phase_deg")
-        ax.plot(
+        line = ax.plot(
             group["phase_deg"],
             group["freq_GHz"],
             marker="o",
-            markersize=3.2,
-            linewidth=1.8,
-            label=f"Mode {int(mode_index)}",
-        )
+            markersize=marker_size,
+            linewidth=line_width,
+            label="_nolegend_",
+        )[0]
+        _label_curve_end(ax, group, f"Mode {int(mode_index)}", color=line.get_color(), config=config)
 
     apply_axis_text_style(
         ax,
@@ -66,12 +68,30 @@ def plot_dispersion_curves(
         title=title,
         config=config,
     )
-    ax.grid(True, which="major", color="0.78", linewidth=0.8, alpha=0.7)
-    ax.grid(True, which="minor", color="0.90", linestyle=":", linewidth=0.7, alpha=0.7)
+    ax.grid(True, which="major", color="0.76", linewidth=0.9, alpha=0.7)
+    ax.grid(True, which="minor", color="0.88", linestyle=":", linewidth=0.75, alpha=0.7)
     ax.minorticks_on()
-    legend = ax.legend(frameon=True, loc="best", ncol=2 if table["mode_index"].nunique() > 6 else 1)
-    apply_legend_text_style(legend, config)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _label_curve_end(ax, group: pd.DataFrame, label: str, *, color: str, config: PlotConfig) -> None:
+    """Place compact direct labels at curve endpoints instead of a separate legend."""
+
+    if group.empty:
+        return
+    point = group.sort_values("phase_deg").iloc[-1]
+    ax.annotate(
+        label,
+        xy=(float(point["phase_deg"]), float(point["freq_GHz"])),
+        xytext=(8, 0),
+        textcoords="offset points",
+        color=color,
+        fontsize=config.annotation_size,
+        fontweight=config.legend_weight,
+        va="center",
+        bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.72},
+        clip_on=False,
+    )
