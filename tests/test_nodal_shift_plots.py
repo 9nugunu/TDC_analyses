@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from deflector_tuning.visualization.nodal_shift_plots import plot_nodal_shift
+from deflector_tuning.visualization.nodal_shift_plots import _cumulative_phase_table, plot_nodal_shift
 from deflector_tuning.visualization.plot_config import PlotConfig
 
 
@@ -57,7 +57,7 @@ def _iris_nodal_shift_table() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "raw_260604_sweep_iris_portE",
+                    "dataset_id": "raw_sweep_260604_iris_portE",
                     "marker_name": marker_name,
                     "position_family": "iris",
                     "from_tune_position": from_position,
@@ -80,8 +80,12 @@ def test_plot_nodal_shift_writes_bar_and_grid_objective_pngs(tmp_path: Path) -> 
     assert "combined_abs_error" in paths
     assert "regular_cell_f_2pi3_signed_error" in paths
     assert "regular_cell_f_2pi3_phase_movement" in paths
+    assert "regular_cell_f_2pi3_cumulative_phase" in paths
+    assert "regular_cell_f_2pi3_cumulative_error" in paths
     assert "regular_cell_f_pi2_signed_error" in paths
     assert "regular_cell_f_pi2_phase_movement" in paths
+    assert "regular_cell_f_pi2_cumulative_phase" in paths
+    assert "regular_cell_f_pi2_cumulative_error" in paths
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
@@ -97,13 +101,21 @@ def test_plot_nodal_shift_writes_regular_iris_outputs(tmp_path: Path) -> None:
     assert "nodal_shift_iris_bar" in paths
     assert "regular_iris_f_2pi3_signed_error" in paths
     assert "regular_iris_f_2pi3_phase_movement" in paths
+    assert "regular_iris_f_2pi3_cumulative_phase" in paths
+    assert "regular_iris_f_2pi3_cumulative_error" in paths
     assert "regular_iris_f_pi2_signed_error" in paths
     assert "regular_iris_f_pi2_phase_movement" in paths
+    assert "regular_iris_f_pi2_cumulative_phase" in paths
+    assert "regular_iris_f_pi2_cumulative_error" in paths
     for key in (
         "regular_iris_f_2pi3_signed_error",
         "regular_iris_f_2pi3_phase_movement",
+        "regular_iris_f_2pi3_cumulative_phase",
+        "regular_iris_f_2pi3_cumulative_error",
         "regular_iris_f_pi2_signed_error",
         "regular_iris_f_pi2_phase_movement",
+        "regular_iris_f_pi2_cumulative_phase",
+        "regular_iris_f_pi2_cumulative_error",
     ):
         assert paths[key].exists()
         assert paths[key].stat().st_size > 0
@@ -154,3 +166,21 @@ def test_regular_phase_movement_plots_phase_advance_with_target_lines(tmp_path: 
         "Phase movement [deg]",
         180.0,
     )
+
+
+def test_cumulative_phase_table_accumulates_measured_and_target_phase() -> None:
+    table = pd.DataFrame(
+        {
+            "transition_label": ["1.0->2.0", "2.0->3.0", "3.0->4.0"],
+            "_from_sort": [1.0, 2.0, 3.0],
+            "_to_sort": [2.0, 3.0, 4.0],
+            "phase_advance_0to360_deg": [250.0, 230.0, 245.0],
+            "target_phase_advance_deg": [240.0, 240.0, 240.0],
+        }
+    )
+
+    cumulative = _cumulative_phase_table(table)
+
+    assert cumulative["measured_cumulative_phase_deg"].tolist() == [250.0, 480.0, 725.0]
+    assert cumulative["target_cumulative_phase_deg"].tolist() == [240.0, 480.0, 720.0]
+    assert cumulative["target_minus_measured_cumulative_phase_deg"].tolist() == [-10.0, 0.0, -5.0]

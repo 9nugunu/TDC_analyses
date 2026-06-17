@@ -110,6 +110,20 @@ def plot_nodal_shift(
                 reference_line=_target_phase_advance(marker_table),
                 config=config,
             )
+            paths[f"regular_{regular_family}_{marker}_cumulative_phase"] = _plot_marker_cumulative_phase(
+                marker_table,
+                folder / f"regular_{regular_family}_{marker}_cumulative_phase.png",
+                marker=marker,
+                family=regular_family,
+                config=config,
+            )
+            paths[f"regular_{regular_family}_{marker}_cumulative_error"] = _plot_marker_cumulative_error(
+                marker_table,
+                folder / f"regular_{regular_family}_{marker}_cumulative_error.png",
+                marker=marker,
+                family=regular_family,
+                config=config,
+            )
 
     if {"sim_r_c", "sim_w_c"}.issubset(table.columns):
         grid_table = _grid_objective_table(table)
@@ -271,6 +285,113 @@ def _plot_marker_bar(
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _plot_marker_cumulative_phase(
+    table: pd.DataFrame,
+    output_path: Path,
+    *,
+    marker: str,
+    family: str,
+    config: PlotConfig,
+) -> Path:
+    cumulative = _cumulative_phase_table(table)
+    labels = cumulative["transition_label"].tolist()
+    steps = cumulative["step_index"].to_numpy(dtype=float)
+
+    fig, ax = plt.subplots(figsize=(8.6, 4.8))
+    ax.plot(
+        steps,
+        cumulative["measured_cumulative_phase_deg"],
+        marker="o",
+        linewidth=1.8,
+        color=MARKER_COLORS.get(marker),
+        label="Measured",
+    )
+    if "target_cumulative_phase_deg" in cumulative:
+        ax.plot(
+            steps,
+            cumulative["target_cumulative_phase_deg"],
+            linestyle="--",
+            linewidth=1.4,
+            color="0.25",
+            label="Target",
+        )
+    apply_axis_text_style(
+        ax,
+        xlabel=f"Regular-{family} transition",
+        ylabel="Cumulative phase advance [deg]",
+        title=f"Regular-{family} {MARKER_LABELS.get(marker, marker)} cumulative phase advance",
+        config=config,
+    )
+    ax.set_xticks(steps)
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.grid(True, color="0.88", linewidth=0.8)
+    legend = ax.legend(frameon=True, loc="best", fontsize=config.legend_size, framealpha=0.72)
+    apply_legend_text_style(legend, config)
+    fig.tight_layout()
+    path = save_figure(fig, output_path, config)
+    plt.close(fig)
+    return path
+
+
+def _plot_marker_cumulative_error(
+    table: pd.DataFrame,
+    output_path: Path,
+    *,
+    marker: str,
+    family: str,
+    config: PlotConfig,
+) -> Path:
+    cumulative = _cumulative_phase_table(table)
+    labels = cumulative["transition_label"].tolist()
+    steps = cumulative["step_index"].to_numpy(dtype=float)
+
+    fig, ax = plt.subplots(figsize=(8.6, 4.8))
+    ax.plot(
+        steps,
+        cumulative["target_minus_measured_cumulative_phase_deg"],
+        marker="o",
+        linewidth=1.8,
+        color=MARKER_COLORS.get(marker),
+    )
+    ax.axhline(0.0, color="0.25", linestyle="--", linewidth=1.0)
+    apply_axis_text_style(
+        ax,
+        xlabel=f"Regular-{family} transition",
+        ylabel="Error [deg]",
+        title=f"Regular-{family} {MARKER_LABELS.get(marker, marker)} cumulative phase error",
+        config=config,
+    )
+    ax.set_xticks(steps)
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.grid(True, color="0.88", linewidth=0.8)
+    fig.tight_layout()
+    path = save_figure(fig, output_path, config)
+    plt.close(fig)
+    return path
+
+
+def _cumulative_phase_table(table: pd.DataFrame) -> pd.DataFrame:
+    grouped = (
+        table.groupby("transition_label", sort=False, as_index=False)
+        .agg(
+            phase_advance_0to360_deg=("phase_advance_0to360_deg", "mean"),
+            _from_sort=("_from_sort", "min"),
+            _to_sort=("_to_sort", "min"),
+        )
+        .sort_values(["_from_sort", "_to_sort"], kind="mergesort")
+        .reset_index(drop=True)
+    )
+    grouped["step_index"] = np.arange(1, len(grouped) + 1, dtype=int)
+    grouped["measured_cumulative_phase_deg"] = grouped["phase_advance_0to360_deg"].astype(float).cumsum()
+    target = _target_phase_advance(table)
+    if target is not None:
+        grouped["target_cumulative_phase_deg"] = grouped["step_index"].astype(float) * target
+        grouped["target_minus_measured_cumulative_phase_deg"] = (
+            grouped["target_cumulative_phase_deg"] - grouped["measured_cumulative_phase_deg"]
+        )
+    return grouped
 
 
 def _target_phase_advance(table: pd.DataFrame) -> float | None:
