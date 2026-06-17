@@ -30,6 +30,7 @@ MARKER_COLORS: dict[str, str] = {
     "f_mean": "#1f77b4",
 }
 REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "s_phase_deg")
+IDEAL_GUIDE_ANGLES_DEG: tuple[float, ...] = (0.0, 120.0, 240.0)
 
 
 def plot_marker_phase_polar_views(
@@ -63,7 +64,7 @@ def plot_marker_phase_polar_views(
                 position_table,
                 f"{position_label}: {title_prefix}",
                 config=config,
-                guide_angles_deg=(0.0, 120.0, 240.0) if grouping_mode == "tune_position" else (),
+                guide_angles_deg=IDEAL_GUIDE_ANGLES_DEG,
             )
             output_stem = _position_output_stem(position_table, position_label, grouping_mode=grouping_mode)
             output_path = folder / f"{output_stem}.png"
@@ -90,7 +91,7 @@ def plot_marker_phase_polar_views(
                 f"{family.title()} {MARKER_LABELS['f_2pi3']} overlay: {title_prefix}",
                 config=config,
                 markers=("f_2pi3",),
-                guide_angles_deg=(0.0, 120.0, 240.0),
+                guide_angles_deg=IDEAL_GUIDE_ANGLES_DEG,
             )
             output_path = folder / f"{family}_f_2pi3_overlay.png"
             save_figure(fig, output_path, config)
@@ -202,7 +203,14 @@ def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *,
     )
     flat_axes = axes.ravel()
     for ax, (position_label, position_table) in zip(flat_axes, groups, strict=False):
-        _draw_position(ax, position_table, f"{position_label}: {title_prefix}", compact=False, config=config)
+        _draw_position(
+            ax,
+            position_table,
+            f"{position_label}: {title_prefix}",
+            compact=False,
+            config=config,
+            guide_angles_deg=IDEAL_GUIDE_ANGLES_DEG,
+        )
     for ax in flat_axes[len(groups) :]:
         ax.set_visible(False)
     fig.subplots_adjust(wspace=0.32, hspace=0.44)

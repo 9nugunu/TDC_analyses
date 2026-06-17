@@ -335,6 +335,33 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_per_position_tune_pl
         assert guide_labels == {"0°", "120°", "240°"}
 
 
+def test_plot_marker_phase_polar_views_adds_ideal_guides_to_grid_scan_plots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_paths: list[Path] = []
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_paths.append(path)
+        saved_figures.append(fig)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    guide_targets = {"cell_r_c_54p59_w_c_18p3224.png", "cell_r_c_55p59_w_c_19p3224.png"}
+    matched = [fig for fig, path in zip(saved_figures, saved_paths, strict=True) if path.name in guide_targets]
+    assert len(matched) == 2
+    for fig in matched:
+        ax = next(axis for axis in fig.axes if axis.get_visible())
+        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "120°", "240°"}}
+        assert guide_labels == {"0°", "120°", "240°"}
+
+
 def test_plot_marker_phase_polar_views_splits_by_source_file_when_tune_positions_are_missing(tmp_path: Path) -> None:
     table = _marker_points().assign(tune_position=pd.NA)
 
