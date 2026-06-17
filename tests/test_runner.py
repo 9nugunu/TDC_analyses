@@ -181,6 +181,52 @@ def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Pat
     assert dispersion_path == tmp_path / "data" / "sim" / "260505_single_cell_dispersion_step1"
 
 
+def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path: Path, monkeypatch) -> None:
+    dispersion_folder = tmp_path / "data" / "sim" / "dispersion_case"
+    dispersion_folder.mkdir(parents=True)
+    (dispersion_folder / "phase_sweep.txt").write_text(
+        "\n".join(
+            [
+                "#",
+                '#"phase"\t"Mode 1 [Real / GHz]"',
+                "#-----------------------------",
+                "0\t3.10",
+                "90\t2.90",
+                "120\t2.86",
+                "180\t2.84",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_sparameter_lane(*args, **kwargs):
+        raise AssertionError("dispersion input must not use S-parameter marker analysis")
+
+    monkeypatch.setattr(runner, "build_marker_analysis", fail_sparameter_lane)
+    monkeypatch.setattr(runner.DataLoader, "load", fail_sparameter_lane)
+    monkeypatch.setattr(runner, "plot_s11_with_markers", fail_sparameter_lane)
+    monkeypatch.setattr(runner, "plot_phase_advance", fail_sparameter_lane)
+    monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fail_sparameter_lane)
+
+    result = runner.run_folder_analysis(
+        sparameter_path=dispersion_folder,
+        output_dir=tmp_path / "out",
+        marker_role="sim",
+        data_root=tmp_path / "data",
+    )
+
+    assert result.analysis_modes == ("dispersion",)
+    assert "dispersion" in result.figures
+    assert result.figures["dispersion"]["phase_sweep"].exists()
+    assert set(result.tables) == {"phase_sweep_long", "phase_sweep_wide", "phase_sweep_summary"}
+    summary = pd.read_csv(result.tables["phase_sweep_summary"])
+    assert summary.loc[0, "freq_120_GHz"] == 2.86
+    manifest = result.manifest_path.read_text(encoding="utf-8")
+    assert '"dispersion"' in manifest
+    assert '"s11"' not in manifest
+    assert '"phase_advance"' not in manifest
+
+
 def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
     tables["phase_advance"] = tables["phase_advance"].iloc[0:0]
