@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
@@ -15,6 +16,39 @@ from deflector_tuning.data_loading.source_layer import DataLayer
 class SimLoader(FolderLoader):
     data_layer = DataLayer.SIM
     data_kind = DataKind.SIM
+
+    def load_cst_sparameter_txt(self, path: str | Path) -> pd.DataFrame:
+        """Read CST text S-parameter exports into the common long-form table."""
+
+        data_folder = self.load(path)
+        rows: list[dict[str, object]] = []
+        for txt_file in self.list_files(path).other_files:
+            if txt_file.suffix.lower() != ".txt":
+                continue
+            parameters = _read_cst_parameter_header(txt_file)
+            for freq_ghz, s_db in _iter_cst_magnitude_rows(txt_file):
+                row = {
+                    "dataset_id": data_folder.dataset_id,
+                    "data_kind": data_folder.data_kind.value,
+                    "data_layer": data_folder.data_layer.folder_name,
+                    "source_file": txt_file.name,
+                    "freq_ghz": freq_ghz,
+                    "s_name": "S11",
+                    "s_real": float(10.0 ** (s_db / 20.0)),
+                    "s_imag": 0.0,
+                    "s_db": s_db,
+                    "s_phase_deg": 0.0,
+                    "source_format": "cst_txt_magnitude",
+                    "reference_ohm": 50.0,
+                    "is_normalized": True,
+                    "tune_position": None,
+                    "port_side": None,
+                }
+                row.update(parameters)
+                rows.append(row)
+        if not rows:
+            raise NotImplementedError(f"No CST S-parameter txt files in {path!s}")
+        return pd.DataFrame(rows)
 
     def load_touchstone(self, path: str | Path) -> pd.DataFrame:
         table = super().load_touchstone(path)
@@ -109,3 +143,43 @@ def _num_tune_from_cell_position(tune_position: object) -> int | None:
     if abs(value - round(value)) > 1e-9:
         return None
     return int(round(value))
+
+
+def _read_cst_parameter_header(path: Path) -> dict[str, object]:
+    first_line = path.read_text(encoding="utf-8", errors="replace").splitlines()[0]
+    match = re.search(r"\{(?P<body>.*)\}", first_line)
+    if match is None:
+        return {}
+    parameters: dict[str, object] = {}
+    for item in match.group("body").split(";"):
+        if "=" not in item:
+            continue
+        name, value = [part.strip() for part in item.split("=", maxsplit=1)]
+        if not name:
+            continue
+        parameters[f"sim_{name}"] = _parse_cst_parameter_value(value)
+    return parameters
+
+
+def _parse_cst_parameter_value(value: str) -> object:
+    try:
+        number = float(value)
+    except ValueError:
+        return value
+    if np.isfinite(number) and number.is_integer():
+        return int(number)
+    return number
+
+
+def _iter_cst_magnitude_rows(path: Path):
+    for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        try:
+            yield float(parts[0]), float(parts[1])
+        except ValueError:
+            continue

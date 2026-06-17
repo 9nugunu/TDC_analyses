@@ -77,6 +77,28 @@ def test_process_cst_dispersion_txt_writes_standard_csvs(tmp_path: Path) -> None
     assert {"mode_index", "freq_90_GHz", "freq_120_GHz"}.issubset(summary.columns)
 
 
+def test_process_cst_dispersion_txt_defaults_to_matching_prepro_dataset(tmp_path: Path) -> None:
+    source = tmp_path / "data" / "sim" / "dispersion_case" / "dispersion.txt"
+    source.parent.mkdir(parents=True)
+    _write_cst_export(source)
+
+    outputs = process_cst_dispersion_txt(source)
+
+    assert outputs.long_csv.parent == tmp_path / "data" / "prepro" / "dispersion_case"
+    assert outputs.summary_csv.exists()
+
+
+def test_process_cst_dispersion_txt_keeps_explicit_output_dir(tmp_path: Path) -> None:
+    source = tmp_path / "data" / "sim" / "dispersion_case" / "dispersion.txt"
+    output_dir = tmp_path / "custom"
+    source.parent.mkdir(parents=True)
+    _write_cst_export(source)
+
+    outputs = process_cst_dispersion_txt(source, output_dir=output_dir)
+
+    assert outputs.long_csv.parent == output_dir
+
+
 def test_plot_dispersion_curves_writes_png(tmp_path: Path) -> None:
     source = tmp_path / "dispersion.txt"
     _write_cst_export(source)

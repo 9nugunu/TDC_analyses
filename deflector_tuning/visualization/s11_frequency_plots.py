@@ -46,6 +46,7 @@ PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
 }
 DEFAULT_TRACE_STYLE: dict[str, object] = {"color": "#1565c0", "linestyle": "-"}
 MARKER_Y_OFFSETS: dict[str, int] = {"f_2pi3": 20, "f_mean": -34, "f_pi2": 50}
+MAX_LEGEND_ENTRIES: int = 30
 DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
     "dataset_id",
     "data_kind",
@@ -97,27 +98,35 @@ def plot_s11_with_markers(
     require_finite_plot_columns(m_table, columns=("freq_ghz", "s_db", "s_phase_deg"), context="S11 marker_points")
     paths: OrderedDict[str, Path] = OrderedDict()
     if _has_grid_point_groups(s_table, m_table):
-        for sim_r_c, sim_w_c, group in _iter_grid_point_groups(s_table):
-            marker_group = _select_grid_point_rows(m_table, sim_r_c=sim_r_c, sim_w_c=sim_w_c)
-            key = f"grid_{_format_grid_point_key(sim_r_c, sim_w_c)}"
+        for family, sim_r_c, sim_w_c, group in _iter_grid_point_groups(s_table):
+            marker_group = _select_grid_point_rows(m_table, family=family, sim_r_c=sim_r_c, sim_w_c=sim_w_c)
+            key = _grid_point_output_key(family, sim_r_c, sim_w_c)
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"s11_{_format_grid_point_key(sim_r_c, sim_w_c)}.png",
-                title=f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}: S11 magnitude",
+                folder / f"s11_{_grid_point_file_stem(family, sim_r_c, sim_w_c)}.png",
+                title=f"{_grid_point_title_prefix(family, sim_r_c, sim_w_c)}: S11 magnitude",
                 config=config,
             )
         return paths
 
-    if split_by_position and "tune_position" in s_table and "tune_position" in m_table:
+    if not _skip_overview_for_port_sides(s_table):
+        paths["overview"] = _plot_one(
+            s_table,
+            m_table,
+            folder / "s11_with_markers.png",
+            title="S11 magnitude with marker points",
+            config=config,
+        )
+    if split_by_position and _has_named_tune_positions(s_table, m_table):
         for tune_position, group in s_table.groupby("tune_position", dropna=False, sort=True):
             marker_group = m_table[m_table["tune_position"] == tune_position]
-            key = f"position_{_format_position_key(tune_position)}"
+            key = _tune_position_output_key(tune_position)
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"s11_position_{_format_position_key(tune_position)}.png",
-                title=f"Position {_format_position(tune_position)}: S11 magnitude",
+                folder / f"s11_{key}.png",
+                title=f"{_position_family(tune_position).title()} {_format_position(tune_position)}: S11 magnitude",
                 config=config,
             )
     return paths
@@ -187,12 +196,21 @@ def _plot_one(
     ax.grid(True, which="major", color="0.78", linewidth=0.8, alpha=0.7)
     ax.grid(True, which="minor", color="0.90", linestyle=":", linewidth=0.7, alpha=0.7)
     ax.minorticks_on()
-    legend = ax.legend(frameon=True, loc="best", fontsize=config.legend_size)
-    apply_legend_text_style(legend, config)
+    _add_legend_if_readable(ax, config=config)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _add_legend_if_readable(ax, *, config: PlotConfig) -> None:
+    handles, labels = ax.get_legend_handles_labels()
+    visible = [(handle, label) for handle, label in zip(handles, labels, strict=True) if not str(label).startswith("_")]
+    if not visible or len(visible) > MAX_LEGEND_ENTRIES:
+        return
+    legend_handles, legend_labels = zip(*visible, strict=True)
+    legend = ax.legend(legend_handles, legend_labels, frameon=True, loc="best", fontsize=config.legend_size)
+    apply_legend_text_style(legend, config)
 
 
 def _axis_marker_bounds(values: pd.Series) -> tuple[float, float]:
@@ -200,6 +218,12 @@ def _axis_marker_bounds(values: pd.Series) -> tuple[float, float]:
     high = float(values.max())
     padding = max((high - low) * 0.25, 3.0)
     return low - padding, high + padding
+
+
+def _has_named_tune_positions(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:
+    if "tune_position" not in s_table or "tune_position" not in m_table:
+        return False
+    return s_table["tune_position"].notna().any() and m_table["tune_position"].notna().any()
 
 
 def _select_s11_rows(table: pd.DataFrame) -> pd.DataFrame:
@@ -303,6 +327,20 @@ def _format_position_key(position: object) -> str:
     return _format_position(position).replace(".", "p")
 
 
+def _tune_position_output_key(tune_position: object) -> str:
+    return f"{_position_family(tune_position)}_{_format_position_key(tune_position)}"
+
+
+def _position_family(tune_position: object) -> str:
+    value = float(tune_position)
+    fractional = value % 1.0
+    if abs(fractional) < 1e-9:
+        return "iris"
+    if abs(fractional - 0.5) < 1e-9:
+        return "cell"
+    return f"offset_{str(fractional).replace('.', 'p')}"
+
+
 def _skip_overview_for_port_sides(s_table: pd.DataFrame) -> bool:
     if "port_side" not in s_table:
         return False
@@ -310,10 +348,6 @@ def _skip_overview_for_port_sides(s_table: pd.DataFrame) -> bool:
 
 
 def _has_grid_point_groups(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:
-    if "tune_position" in s_table and s_table["tune_position"].dropna().nunique() > 1:
-        return False
-    if "tune_position" in m_table and m_table["tune_position"].dropna().nunique() > 1:
-        return False
     if "sim_r_c" not in s_table or "sim_w_c" not in s_table:
         return False
     grid_points = s_table[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
@@ -324,19 +358,51 @@ def _iter_grid_point_groups(s_table: pd.DataFrame):
     table = s_table.copy()
     table["_r_sort"] = pd.to_numeric(table["sim_r_c"], errors="coerce")
     table["_w_sort"] = pd.to_numeric(table["sim_w_c"], errors="coerce")
+    if "tune_position" in table and table["tune_position"].dropna().nunique() > 0:
+        table["position_family"] = table["tune_position"].map(lambda value: "unknown" if pd.isna(value) else _position_family(value))
+        table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+        table = table.sort_values(
+            ["position_family", "_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "_position_sort", "source_file", "freq_ghz"],
+            kind="mergesort",
+        )
+        for (family, sim_r_c, sim_w_c), group in table.groupby(["position_family", "sim_r_c", "sim_w_c"], sort=False, dropna=False):
+            yield str(family), sim_r_c, sim_w_c, group
+        return
     table = table.sort_values(
         ["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "freq_ghz"],
         kind="mergesort",
     )
     for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
-        yield sim_r_c, sim_w_c, group
+        yield "grid", sim_r_c, sim_w_c, group
 
 
-def _select_grid_point_rows(table: pd.DataFrame, *, sim_r_c: object, sim_w_c: object) -> pd.DataFrame:
+def _select_grid_point_rows(table: pd.DataFrame, *, family: str, sim_r_c: object, sim_w_c: object) -> pd.DataFrame:
     if "sim_r_c" not in table or "sim_w_c" not in table:
         return table.iloc[0:0].copy()
     mask = (table["sim_r_c"] == sim_r_c) & (table["sim_w_c"] == sim_w_c)
+    if family not in {"grid", "unknown"} and "tune_position" in table:
+        family_values = table["tune_position"].map(lambda value: "unknown" if pd.isna(value) else _position_family(value))
+        mask &= family_values == family
     return table.loc[mask].copy()
+
+
+def _grid_point_output_key(family: str, sim_r_c: object, sim_w_c: object) -> str:
+    prefix = "grid" if family == "unknown" else family
+    return f"{prefix}_{_format_grid_point_key(sim_r_c, sim_w_c)}"
+
+
+def _grid_point_file_stem(family: str, sim_r_c: object, sim_w_c: object) -> str:
+    grid_key = _format_grid_point_key(sim_r_c, sim_w_c)
+    if family in {"grid", "unknown"}:
+        return grid_key
+    return f"{family}_{grid_key}"
+
+
+def _grid_point_title_prefix(family: str, sim_r_c: object, sim_w_c: object) -> str:
+    grid_label = f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+    if family in {"grid", "unknown"}:
+        return grid_label
+    return f"{family} {grid_label}"
 
 
 def _format_grid_point_key(sim_r_c: object, sim_w_c: object) -> str:

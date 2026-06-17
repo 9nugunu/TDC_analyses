@@ -113,7 +113,7 @@ def process_cst_dispersion_txt(path: str | Path, output_dir: str | Path | None =
     """Write long, wide, and summary CSVs for one CST dispersion text export."""
 
     source_path = Path(path)
-    folder = Path(output_dir) if output_dir is not None else source_path.parent / "processed"
+    folder = Path(output_dir) if output_dir is not None else _default_prepro_output_dir(source_path)
     folder.mkdir(parents=True, exist_ok=True)
 
     long_table = load_cst_dispersion_txt(source_path)
@@ -128,6 +128,16 @@ def process_cst_dispersion_txt(path: str | Path, output_dir: str | Path | None =
     wide_table.to_csv(wide_csv, index=False)
     summary_table.to_csv(summary_csv, index=False)
     return DispersionOutputs(long_csv=long_csv, wide_csv=wide_csv, summary_csv=summary_csv)
+
+
+def _default_prepro_output_dir(source_path: Path) -> Path:
+    parts = source_path.parts
+    lower_parts = [part.lower() for part in parts]
+    for index, part in enumerate(lower_parts):
+        if part in {"sim", "raw", "prepro"} and index + 1 < len(parts):
+            prefix = Path(*parts[:index]) if index > 0 else Path()
+            return prefix / "prepro" / parts[index + 1]
+    return source_path.parent / "processed"
 
 
 def _frequency_at_phase(phases: np.ndarray, freqs: np.ndarray, phase_deg: float) -> float:

@@ -101,3 +101,29 @@ def test_raw_loader_reads_db_touchstone_into_common_dataframe(tmp_path: Path) ->
     assert row["s_db"] == pytest.approx(-6.0)
     assert row["s_phase_deg"] == pytest.approx(90.0)
     assert row["source_format"] == "touchstone_db"
+
+
+def test_sim_loader_reads_cst_txt_magnitude_export(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "sim" / "undated_s11_coupler_radius_sweep"
+    folder.mkdir(parents=True)
+    (folder / "s11_rc5209.txt").write_text(
+        "#Parameters = {NumTune=0; r_c=52.09; w_c=19.3224}\n"
+        '#"Frequency / GHz"\t"S1,1 (20) [Magnitude]"\n'
+        "#-----------------------------------------\n"
+        "2.6000000000000\t-0.0089373164991483\n",
+        encoding="utf-8",
+    )
+
+    table = DataLoader().load(folder)
+    row = table.iloc[0]
+
+    assert row["dataset_id"] == "undated_s11_coupler_radius_sweep"
+    assert row["source_file"] == "s11_rc5209.txt"
+    assert row["freq_ghz"] == pytest.approx(2.6)
+    assert row["s_name"] == "S11"
+    assert row["s_db"] == pytest.approx(-0.0089373164991483)
+    assert row["s_phase_deg"] == pytest.approx(0.0)
+    assert row["source_format"] == "cst_txt_magnitude"
+    assert row["sim_NumTune"] == 0
+    assert row["sim_r_c"] == pytest.approx(52.09)
+    assert row["sim_w_c"] == pytest.approx(19.3224)
