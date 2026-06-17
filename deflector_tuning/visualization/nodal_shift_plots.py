@@ -40,6 +40,7 @@ MARKER_COLORS: dict[str, str] = {
     "f_2pi3": "#d62728",
     "f_pi2": "#2ca02c",
 }
+REGULAR_NODAL_FAMILIES: tuple[str, ...] = ("cell", "iris")
 
 
 def plot_nodal_shift(
@@ -74,6 +75,41 @@ def plot_nodal_shift(
             family=family,
             config=config,
         )
+
+    for regular_family in REGULAR_NODAL_FAMILIES:
+        regular_table = _regular_family_table(table, regular_family)
+        if regular_table.empty:
+            continue
+        regular_table.drop(columns=["_from_sort", "_to_sort"], errors="ignore").to_csv(
+            folder / f"regular_{regular_family}_nodal_shift.csv",
+            index=False,
+        )
+        for marker in MARKER_ORDER:
+            marker_table = regular_table[regular_table["marker_name"] == marker].copy()
+            if marker_table.empty:
+                continue
+            paths[f"regular_{regular_family}_{marker}_signed_error"] = _plot_marker_bar(
+                marker_table,
+                folder / f"regular_{regular_family}_{marker}_signed_error.png",
+                marker=marker,
+                family=regular_family,
+                value_column="phase_error_from_target_deg",
+                ylabel="Phase error from target [deg]",
+                title=f"Regular-{regular_family} {MARKER_LABELS.get(marker, marker)} nodal-shift error",
+                reference_line=0.0,
+                config=config,
+            )
+            paths[f"regular_{regular_family}_{marker}_phase_movement"] = _plot_marker_bar(
+                marker_table,
+                folder / f"regular_{regular_family}_{marker}_phase_movement.png",
+                marker=marker,
+                family=regular_family,
+                value_column="phase_advance_0to360_deg",
+                ylabel="Phase movement [deg]",
+                title=f"Regular-{regular_family} {MARKER_LABELS.get(marker, marker)} phase movement",
+                reference_line=_target_phase_advance(marker_table),
+                config=config,
+            )
 
     if {"sim_r_c", "sim_w_c"}.issubset(table.columns):
         grid_table = _grid_objective_table(table)
@@ -157,6 +193,93 @@ def _plot_family_bar(table: pd.DataFrame, output_path: Path, *, family: str, con
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _regular_family_table(table: pd.DataFrame, family: str) -> pd.DataFrame:
+    family_table = table[table["position_family"] == family].copy()
+    if family_table.empty:
+        return family_table
+
+    group_columns = [
+        column
+        for column in (
+            "dataset_id",
+            "data_kind",
+            "data_layer",
+            "marker_role",
+            "port_side",
+            "s_name",
+            "sim_r_c",
+            "sim_w_c",
+        )
+        if column in family_table
+    ]
+    if not group_columns:
+        min_from = family_table["_from_sort"].min()
+        max_to = family_table["_to_sort"].max()
+        return family_table[(family_table["_from_sort"] > min_from) & (family_table["_to_sort"] < max_to)].copy()
+
+    regular_groups = []
+    for _, group in family_table.groupby(group_columns, dropna=False, sort=False):
+        min_from = group["_from_sort"].min()
+        max_to = group["_to_sort"].max()
+        regular = group[(group["_from_sort"] > min_from) & (group["_to_sort"] < max_to)].copy()
+        if not regular.empty:
+            regular_groups.append(regular)
+    if not regular_groups:
+        return family_table.iloc[0:0].copy()
+    return pd.concat(regular_groups, ignore_index=True).sort_values(
+        ["_from_sort", "_to_sort", "marker_name"],
+        kind="mergesort",
+    )
+
+
+def _plot_marker_bar(
+    table: pd.DataFrame,
+    output_path: Path,
+    *,
+    marker: str,
+    family: str,
+    value_column: str,
+    ylabel: str,
+    title: str,
+    reference_line: float | None,
+    config: PlotConfig,
+) -> Path:
+    labels = list(dict.fromkeys(table["transition_label"].tolist()))
+    x = np.arange(len(labels), dtype=float)
+    grouped = table.groupby("transition_label", sort=False, as_index=False)[value_column].mean()
+    values_by_label = dict(zip(grouped["transition_label"], grouped[value_column], strict=True))
+    values = [float(values_by_label[label]) if label in values_by_label else np.nan for label in labels]
+
+    fig, ax = plt.subplots(figsize=(8.2, 4.6))
+    ax.bar(
+        x,
+        values,
+        width=0.58,
+        color=MARKER_COLORS.get(marker),
+        edgecolor="black",
+        linewidth=0.6,
+    )
+    if reference_line is not None:
+        ax.axhline(reference_line, color="0.25", linestyle="--", linewidth=1.0)
+    apply_axis_text_style(ax, xlabel=f"Regular-{family} transition", ylabel=ylabel, title=title, config=config)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.grid(True, axis="y", color="0.88", linewidth=0.8)
+    fig.tight_layout()
+    path = save_figure(fig, output_path, config)
+    plt.close(fig)
+    return path
+
+
+def _target_phase_advance(table: pd.DataFrame) -> float | None:
+    if "target_phase_advance_deg" not in table:
+        return None
+    targets = pd.to_numeric(table["target_phase_advance_deg"], errors="coerce").dropna().unique()
+    if len(targets) == 0:
+        return None
+    return float(targets[0])
 
 
 def _grid_objective_table(table: pd.DataFrame) -> pd.DataFrame:

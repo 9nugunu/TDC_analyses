@@ -1,9 +1,13 @@
+import logging
+
 import matplotlib.pyplot as plt
 
 from deflector_tuning.visualization.plot_config import (
+    MATPLOTLIB_MATHTEXT_LOGGER,
     PlotConfig,
     apply_axis_text_style,
     apply_legend_text_style,
+    apply_plot_style,
     bold_math,
     math_label,
 )
@@ -25,6 +29,19 @@ def test_bold_math_wraps_math_expressions_for_bold_labels() -> None:
     assert bold_math(r"$S_{11}$") == r"$\mathbf{S}_{\mathbf{11}}$"
     assert bold_math(r"$f_{2\pi/3}$") == r"$\mathbf{f}_{\mathbf{2}\mathbf{\pi}/\mathbf{3}}$"
     assert math_label(r"S_{11}", bold=True) == r"$\mathbf{S}_{\mathbf{11}}$"
+
+
+def test_apply_plot_style_suppresses_mathtext_font_substitution_info_logs() -> None:
+    logger = logging.getLogger(MATPLOTLIB_MATHTEXT_LOGGER)
+    original_level = logger.level
+    logger.setLevel(logging.INFO)
+
+    try:
+        apply_plot_style(PlotConfig())
+
+        assert logger.level == logging.WARNING
+    finally:
+        logger.setLevel(original_level)
 
 
 def test_apply_axis_text_style_bolds_axis_labels_and_ticks() -> None:

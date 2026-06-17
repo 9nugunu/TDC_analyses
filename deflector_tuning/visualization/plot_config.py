@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+
+MATPLOTLIB_MATHTEXT_LOGGER = "matplotlib.mathtext"
 
 BEST_MARKER_COLOR = "#c51b7d"
 DEFAULT_DESIGN_POINT_BY_AXIS = {"sim_r_c": 56.59, "sim_w_c": 19.3224}
@@ -50,6 +53,7 @@ def apply_plot_style(config: PlotConfig | None = None) -> None:
     """Apply shared Matplotlib rcParams for project figures."""
 
     config = config or PlotConfig()
+    suppress_matplotlib_mathtext_info_logs()
     plt.rcParams.update(
         {
             "font.family": "sans-serif",
@@ -66,6 +70,12 @@ def apply_plot_style(config: PlotConfig | None = None) -> None:
             "savefig.dpi": config.dpi,
         }
     )
+
+
+def suppress_matplotlib_mathtext_info_logs() -> None:
+    """Hide noisy mathtext font-substitution INFO messages during rendering."""
+
+    logging.getLogger(MATPLOTLIB_MATHTEXT_LOGGER).setLevel(logging.WARNING)
 
 
 def math_label(expression: str, *, bold: bool = True) -> str:
