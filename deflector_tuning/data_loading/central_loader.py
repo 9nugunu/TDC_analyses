@@ -28,6 +28,8 @@ class DataLoader:
         files = loader.list_files(path)
         if files.touchstone_files:
             return loader.load_touchstone(path)
+        if files.other_files and isinstance(loader, SimLoader):
+            return loader.load_cst_sparameter_txt(path)
         if files.csv_files and isinstance(loader, PreproLoader):
             return loader.load_csv(path)
         if files.csv_files and isinstance(loader, RawLoader):
