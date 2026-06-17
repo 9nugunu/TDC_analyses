@@ -133,3 +133,27 @@ def test_plot_dispersion_curves_uses_direct_labels_without_legend(tmp_path: Path
     assert ax.get_legend() is None
     assert min(line.get_linewidth() for line in ax.lines) >= 3.0
     assert {text.get_text() for text in ax.texts} == {"Mode 1", "Mode 2"}
+
+
+def test_plot_dispersion_curves_can_write_one_mode_png(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "dispersion.txt"
+    _write_cst_export(source)
+    table = load_cst_dispersion_txt(source)
+    saved_figures = []
+
+    def _capture_figure(fig, output_path, config=None):
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("figure", encoding="utf-8")
+        return path
+
+    monkeypatch.setattr("deflector_tuning.visualization.dispersion_plots.save_figure", _capture_figure)
+
+    path = plot_dispersion_curves(table, tmp_path / "mode_02.png", mode_indices=(2,), title="Mode 02")
+
+    ax = saved_figures[0].axes[0]
+    assert path.name == "mode_02.png"
+    assert ax.get_title() == "Mode 02"
+    assert len(ax.lines) == 1
+    assert {text.get_text() for text in ax.texts} == {"Mode 2"}

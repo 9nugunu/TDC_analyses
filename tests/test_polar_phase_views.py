@@ -454,6 +454,29 @@ def test_plot_marker_phase_polar_views_uses_result_navigator_sweep_columns(tmp_p
         assert path.stat().st_size > 0
 
 
+def test_plot_marker_phase_polar_views_includes_num_depth_in_sweep_filenames(tmp_path: Path) -> None:
+    depth_1 = _plunger_offset_marker_points()
+    depth_1["tune_position"] = 0.5
+    depth_2 = depth_1.copy()
+    depth_2["sim_NumDepth"] = 2
+    depth_2["tune_position"] = 1.5
+    depth_2["source_file"] = depth_2["source_file"].str.replace("_1.s1p", "_10.s1p").str.replace("_4.s1p", "_13.s1p")
+    table = pd.concat([depth_1, depth_2], ignore_index=True)
+
+    paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == [
+        "plunger_offset=-3_depth=01",
+        "plunger_offset=-3_depth=02",
+        "plunger_offset=0_depth=01",
+        "plunger_offset=0_depth=02",
+    ]
+    assert paths["plunger_offset=-3_depth=01"].name == "polar_iris_plunger_offset_m3_depth_01.png"
+    assert paths["plunger_offset=-3_depth=02"].name == "polar_iris_plunger_offset_m3_depth_02.png"
+    assert paths["plunger_offset=0_depth=01"].name == "polar_iris_plunger_offset_0_depth_01.png"
+    assert paths["plunger_offset=0_depth=02"].name == "polar_iris_plunger_offset_0_depth_02.png"
+
+
 def test_plot_marker_phase_polar_views_splits_duplicate_positions_by_source_file(tmp_path: Path) -> None:
     table = pd.concat(
         [

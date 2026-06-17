@@ -246,12 +246,21 @@ def _run_dispersion_only_analysis(
         table_paths[f"{stem}_summary"] = outputs.summary_csv
 
         dispersion_table = load_cst_dispersion_txt(input_path)
-        figure_path = plot_dispersion_curves(
+        overview_path = plot_dispersion_curves(
             dispersion_table,
-            figure_dir / f"{stem}_dispersion.png",
+            figure_dir / f"{stem}_all_modes_frequency_vs_phase.png",
             title=_dispersion_plot_title(input_path),
         )
-        dispersion_figures[stem] = figure_path
+        dispersion_figures[stem] = overview_path
+        dispersion_figures[f"{stem}_all_modes"] = overview_path
+        for mode_index in _dispersion_mode_indices(dispersion_table):
+            mode_key = f"{stem}_mode_{mode_index:02d}"
+            dispersion_figures[mode_key] = plot_dispersion_curves(
+                dispersion_table,
+                figure_dir / f"{mode_key}_frequency_vs_phase.png",
+                mode_indices=(mode_index,),
+                title=_dispersion_mode_plot_title(input_path, mode_index),
+            )
 
     figures["dispersion"] = dispersion_figures
     modes = ("dispersion",)
@@ -288,6 +297,18 @@ def _dispersion_plot_title(input_path: Path) -> str:
     while "  " in label:
         label = label.replace("  ", " ")
     return f"CST dispersion: frequency vs phase advance ({label})"
+
+
+def _dispersion_mode_plot_title(input_path: Path, mode_index: int) -> str:
+    label = input_path.stem.replace("_", " ").replace("-", " ")
+    while "  " in label:
+        label = label.replace("  ", " ")
+    return f"CST dispersion mode {mode_index:02d}: frequency vs phase advance ({label})"
+
+
+def _dispersion_mode_indices(dispersion_table: pd.DataFrame) -> tuple[int, ...]:
+    modes = pd.to_numeric(dispersion_table["mode_index"], errors="coerce").dropna().unique()
+    return tuple(sorted(int(mode) for mode in modes))
 
 
 def resolve_input_paths(

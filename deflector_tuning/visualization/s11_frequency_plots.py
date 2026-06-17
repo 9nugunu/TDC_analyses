@@ -135,12 +135,12 @@ def plot_s11_with_markers(
             total=len(position_groups),
         ):
             marker_group = m_table[m_table["tune_position"] == tune_position]
-            key = _tune_position_output_key(tune_position)
+            key = _tune_position_output_key(tune_position, group=group)
             paths[key] = _plot_one(
                 group,
                 marker_group,
                 folder / f"s11_{key}.png",
-                title=f"{_position_family(tune_position).title()} {_format_position(tune_position)}: S11 magnitude",
+                title=f"{_tune_position_title_label(tune_position, group=group)}: S11 magnitude",
                 config=config,
             )
     return paths
@@ -355,8 +355,30 @@ def _format_position_key(position: object) -> str:
     return _format_position(position).replace(".", "p")
 
 
-def _tune_position_output_key(tune_position: object) -> str:
+def _tune_position_output_key(tune_position: object, *, group: pd.DataFrame | None = None) -> str:
+    depth_label = _num_depth_output_label(group)
+    if depth_label is not None:
+        return depth_label
     return f"{_position_family(tune_position)}_{_format_position_key(tune_position)}"
+
+
+def _tune_position_title_label(tune_position: object, *, group: pd.DataFrame | None = None) -> str:
+    depth_label = _num_depth_output_label(group)
+    if depth_label is not None:
+        return f"Depth {depth_label.removeprefix('depth_')} (tune {_format_position(tune_position)})"
+    return f"{_position_family(tune_position).title()} {_format_position(tune_position)}"
+
+
+def _num_depth_output_label(group: pd.DataFrame | None) -> str | None:
+    if group is None or "sim_NumDepth" not in group:
+        return None
+    values = pd.to_numeric(group["sim_NumDepth"], errors="coerce").dropna().unique()
+    if len(values) != 1:
+        return None
+    value = float(values[0])
+    if abs(value - round(value)) < 1e-9:
+        return f"depth_{int(round(value)):02d}"
+    return f"depth_{_format_position_key(value)}"
 
 
 def _position_family(tune_position: object) -> str:

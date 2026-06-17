@@ -147,14 +147,15 @@ def _iter_position_groups(marker_points: pd.DataFrame):
         return
     if grouping_mode == "sim_sweep":
         sweep_columns = _varying_sim_sweep_columns(table)
-        sort_columns = [f"_{column}_sort" for column in sweep_columns]
-        for column, sort_column in zip(sweep_columns, sort_columns, strict=True):
+        group_columns = _sim_sweep_group_columns(table, sweep_columns)
+        sort_columns = [f"_{column}_sort" for column in group_columns]
+        for column, sort_column in zip(group_columns, sort_columns, strict=True):
             table[sort_column] = pd.to_numeric(table[column], errors="coerce")
-        table = table.sort_values([*sort_columns, *sweep_columns, "source_file", "marker_name"], kind="mergesort")
-        for values, group in table.groupby(sweep_columns, sort=False, dropna=False):
-            if len(sweep_columns) == 1 and not isinstance(values, tuple):
+        table = table.sort_values([*sort_columns, *group_columns, "source_file", "marker_name"], kind="mergesort")
+        for values, group in table.groupby(group_columns, sort=False, dropna=False):
+            if len(group_columns) == 1 and not isinstance(values, tuple):
                 values = (values,)
-            yield _format_sim_sweep_label(sweep_columns, values), group
+            yield _format_sim_sweep_label(group_columns, values), group
         return
     if grouping_mode == "source_file":
         group_columns = _position_group_columns(table, base_columns=("source_file",))
@@ -636,8 +637,20 @@ def _simulation_family_label(position_table: pd.DataFrame) -> str:
 def _format_sim_sweep_label(sweep_columns: list[str], values: tuple[object, ...]) -> str:
     parts = []
     for column, value in zip(sweep_columns, values, strict=True):
-        parts.append(f"{_sim_sweep_column_label(column)}={_format_grid_value(value)}")
+        if column == "sim_NumDepth":
+            parts.append(f"depth={_format_num_depth(value)}")
+        else:
+            parts.append(f"{_sim_sweep_column_label(column)}={_format_grid_value(value)}")
     return "_".join(parts)
+
+
+def _sim_sweep_group_columns(table: pd.DataFrame, sweep_columns: list[str]) -> list[str]:
+    group_columns = list(sweep_columns)
+    if "sim_NumDepth" in table and table["sim_NumDepth"].dropna().nunique() > 1:
+        group_columns.append("sim_NumDepth")
+    elif "tune_position" in table and table["tune_position"].dropna().nunique() > 1:
+        group_columns.append("tune_position")
+    return group_columns
 
 
 def _varying_sim_sweep_columns(marker_points: pd.DataFrame) -> list[str]:
@@ -654,10 +667,19 @@ def _varying_sim_sweep_columns(marker_points: pd.DataFrame) -> list[str]:
 
 
 def _sim_sweep_column_label(column: str) -> str:
+    if column == "tune_position":
+        return "tune_position"
     label = column.removeprefix("sim_")
     if label.startswith("Depth") and len(label) > len("Depth"):
         label = label[len("Depth") :]
     return _camel_to_snake(label)
+
+
+def _format_num_depth(value: object) -> str:
+    numeric = float(value)
+    if numeric.is_integer():
+        return f"{int(numeric):02d}"
+    return _format_grid_value(value)
 
 
 def _camel_to_snake(label: str) -> str:

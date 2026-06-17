@@ -194,6 +194,21 @@ def test_plot_s11_with_markers_writes_individual_position_pngs_without_overview(
         assert path.stat().st_size > 0
 
 
+def test_plot_s11_with_markers_names_num_depth_positions_by_depth(tmp_path: Path) -> None:
+    sparameter_table = _sparameter_table().copy()
+    marker_points = _marker_points().copy()
+    sparameter_table["sim_NumDepth"] = sparameter_table["tune_position"].map({0.5: 1, 1.5: 2})
+    marker_points["sim_NumDepth"] = marker_points["tune_position"].map({0.5: 1, 1.5: 2})
+
+    paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
+
+    assert "overview" in paths
+    assert "depth_01" in paths
+    assert "depth_02" in paths
+    assert paths["depth_01"].name == "s11_depth_01.png"
+    assert paths["depth_02"].name == "s11_depth_02.png"
+
+
 def test_plot_s11_with_markers_skips_overview_when_port_sides_exist(tmp_path: Path) -> None:
     paths = plot_s11_with_markers(
         _port_side_sparameter_table(),

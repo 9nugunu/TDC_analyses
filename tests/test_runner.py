@@ -213,6 +213,13 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path:
                 "90\t2.90",
                 "120\t2.86",
                 "180\t2.84",
+                "#",
+                '#"phase"\t"Mode 2 [Real / GHz]"',
+                "#-----------------------------",
+                "0\t3.30",
+                "90\t3.10",
+                "120\t3.05",
+                "180\t3.00",
             ]
         ),
         encoding="utf-8",
@@ -238,6 +245,15 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path:
     assert result.analysis_modes == ("dispersion",)
     assert "dispersion" in result.figures
     assert result.figures["dispersion"]["phase_sweep"].exists()
+    assert set(result.figures["dispersion"]) == {
+        "phase_sweep",
+        "phase_sweep_all_modes",
+        "phase_sweep_mode_01",
+        "phase_sweep_mode_02",
+    }
+    assert result.figures["dispersion"]["phase_sweep"].name == "phase_sweep_all_modes_frequency_vs_phase.png"
+    assert result.figures["dispersion"]["phase_sweep_mode_01"].name == "phase_sweep_mode_01_frequency_vs_phase.png"
+    assert result.figures["dispersion"]["phase_sweep_mode_02"].name == "phase_sweep_mode_02_frequency_vs_phase.png"
     assert set(result.tables) == {"phase_sweep_long", "phase_sweep_wide", "phase_sweep_summary"}
     summary = pd.read_csv(result.tables["phase_sweep_summary"])
     assert summary.loc[0, "freq_120_GHz"] == 2.86
