@@ -68,6 +68,8 @@ def plot_marker_phase_polar_views(
             output_stem = (
                 _tune_position_filename_label(position_table) if grouping_mode == "tune_position" else f"position_{_safe_label(position_label)}"
             )
+            if grouping_mode == "grid_point":
+                output_stem = _grid_point_filename_label(position_table, position_label)
             output_path = folder / f"{output_stem}.png"
             save_figure(fig, output_path, config)
             plt.close(fig)
@@ -113,10 +115,17 @@ def _iter_position_groups(marker_points: pd.DataFrame):
     if grouping_mode == "grid_point":
         table["_r_sort"] = pd.to_numeric(table["sim_r_c"], errors="coerce")
         table["_w_sort"] = pd.to_numeric(table["sim_w_c"], errors="coerce")
-        table = table.sort_values(
-            ["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "marker_name"],
-            kind="mergesort",
-        )
+        if "tune_position" in table and table["tune_position"].dropna().nunique() > 0:
+            table["position_family"] = table["tune_position"].map(lambda value: "unknown" if pd.isna(value) else _position_family(value))
+            table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+            table = table.sort_values(
+                ["position_family", "_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "_position_sort", "source_file", "marker_name"],
+                kind="mergesort",
+            )
+            for (family, sim_r_c, sim_w_c), group in table.groupby(["position_family", "sim_r_c", "sim_w_c"], sort=False, dropna=False):
+                yield _format_grid_family_label(str(family), sim_r_c, sim_w_c), group
+            return
+        table = table.sort_values(["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "marker_name"], kind="mergesort")
         for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
             yield _format_grid_label(sim_r_c, sim_w_c), group
         return
@@ -124,10 +133,10 @@ def _iter_position_groups(marker_points: pd.DataFrame):
 
 
 def _grouping_mode(marker_points: pd.DataFrame) -> str:
-    if _has_multiple_tune_positions(marker_points):
-        return "tune_position"
     if _has_multiple_grid_points(marker_points):
         return "grid_point"
+    if _has_multiple_tune_positions(marker_points):
+        return "tune_position"
     return "all"
 
 
@@ -436,6 +445,18 @@ def _snap_tune_position(value: float) -> float:
 
 def _format_grid_label(sim_r_c: object, sim_w_c: object) -> str:
     return f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+
+
+def _format_grid_family_label(family: str, sim_r_c: object, sim_w_c: object) -> str:
+    return f"{family} {_format_grid_label(sim_r_c, sim_w_c)}"
+
+
+def _grid_point_filename_label(position_table: pd.DataFrame, position_label: str) -> str:
+    if "position_family" in position_table:
+        families = [str(family) for family in position_table["position_family"].dropna().unique()]
+        if len(families) == 1 and families[0] != "unknown":
+            return f"{families[0]}_{_safe_label(_format_grid_label(position_table['sim_r_c'].iloc[0], position_table['sim_w_c'].iloc[0]))}"
+    return f"grid_{_safe_label(position_label)}"
 
 
 def _format_grid_value(value: object) -> str:

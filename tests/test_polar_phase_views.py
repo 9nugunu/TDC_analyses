@@ -154,6 +154,43 @@ def _grid_scan_marker_points() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _grid_scan_marker_points_with_tune_positions() -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for source_file, tune_position, sim_r_c, sim_w_c, phases in [
+        ("run03_cell.s2p", 0.5, 54.59, 18.3224, (10.0, -110.0, 130.0)),
+        ("run03_iris.s2p", 1.0, 54.59, 18.3224, (20.0, -100.0, 140.0)),
+        ("run10_cell.s2p", 0.5, 55.59, 19.3224, (25.0, -95.0, 145.0)),
+        ("run10_iris.s2p", 1.0, 55.59, 19.3224, (35.0, -85.0, 155.0)),
+    ]:
+        for marker_name, target_freq_ghz, s_db, phase_deg in [
+            ("f_2pi3", 2.856, -1.0, phases[0]),
+            ("f_mean", 2.866, -2.0, phases[1]),
+            ("f_pi2", 2.876, -3.0, phases[2]),
+        ]:
+            rows.append(
+                {
+                    "dataset_id": "grid_scan",
+                    "data_kind": "sim",
+                    "data_layer": "sim",
+                    "source_file": source_file,
+                    "tune_position": tune_position,
+                    "sim_r_c": sim_r_c,
+                    "sim_w_c": sim_w_c,
+                    "port_side": None,
+                    "s_name": "S11",
+                    "marker_name": marker_name,
+                    "marker_role": "sim",
+                    "target_freq_ghz": target_freq_ghz,
+                    "freq_ghz": target_freq_ghz,
+                    "freq_error_ghz": 0.0,
+                    "s_db": s_db,
+                    "s_phase_deg": phase_deg,
+                    "source_format": "touchstone_ri",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp_path: Path) -> None:
     paths = plot_marker_phase_polar_views(_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
@@ -311,12 +348,27 @@ def test_plot_marker_phase_polar_views_uses_overview_only_when_tune_positions_ar
 def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_not_vary(tmp_path: Path) -> None:
     paths = plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["r_c=54.59, w_c=18.3224", "r_c=55.59, w_c=19.3224"]
-    assert paths["r_c=54.59, w_c=18.3224"].name == "position_r_c_54p59_w_c_18p3224.png"
-    assert paths["r_c=55.59, w_c=19.3224"].name == "position_r_c_55p59_w_c_19p3224.png"
+    assert list(paths) == ["cell r_c=54.59, w_c=18.3224", "cell r_c=55.59, w_c=19.3224"]
+    assert paths["cell r_c=54.59, w_c=18.3224"].name == "cell_r_c_54p59_w_c_18p3224.png"
+    assert paths["cell r_c=55.59, w_c=19.3224"].name == "cell_r_c_55p59_w_c_19p3224.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
+
+
+def test_plot_marker_phase_polar_views_uses_grid_points_before_tune_positions(tmp_path: Path) -> None:
+    paths = plot_marker_phase_polar_views(_grid_scan_marker_points_with_tune_positions(), tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == [
+        "cell r_c=54.59, w_c=18.3224",
+        "cell r_c=55.59, w_c=19.3224",
+        "iris r_c=54.59, w_c=18.3224",
+        "iris r_c=55.59, w_c=19.3224",
+    ]
+    assert paths["cell r_c=54.59, w_c=18.3224"].name == "cell_r_c_54p59_w_c_18p3224.png"
+    assert paths["cell r_c=55.59, w_c=19.3224"].name == "cell_r_c_55p59_w_c_19p3224.png"
+    assert paths["iris r_c=54.59, w_c=18.3224"].name == "iris_r_c_54p59_w_c_18p3224.png"
+    assert paths["iris r_c=55.59, w_c=19.3224"].name == "iris_r_c_55p59_w_c_19p3224.png"
 
 
 def test_plot_marker_phase_polar_views_rejects_empty_marker_points(tmp_path: Path) -> None:

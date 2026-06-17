@@ -17,7 +17,12 @@ from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curv
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input_txt", type=Path, help="CST dispersion text export.")
-    parser.add_argument("--output-dir", type=Path, default=None, help="CSV output directory. Defaults to input/processed.")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="CSV output directory. Defaults to data/prepro/<dataset> for data-layer inputs.",
+    )
     parser.add_argument("--figure-path", type=Path, default=None, help="Optional PNG output path.")
     return parser.parse_args()
 
