@@ -3,7 +3,7 @@ name = "python-deflector-tuning"
 version = "0.1.0"
 description = "Stepwise, readable deflector tuning analysis tools."
 requires-python = ">=3.11"
-dependencies = ["numpy", "pandas"]
+dependencies = ["matplotlib", "numpy", "pandas"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -9,3 +9,4 @@ data/
 *.omx
 # Generated analysis figures and tables.
 fig/
+*.zip
