@@ -15,6 +15,8 @@ from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing
 from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, save_marker_analysis
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
+from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_path
+from deflector_tuning.data_loading.source_layer import detect_data_layer
 from deflector_tuning.dispersion import load_cst_dispersion_txt, process_cst_dispersion_txt
 from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curves
 from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
@@ -74,12 +76,15 @@ def run_folder_analysis(
         dispersion_path=dispersion_path,
         data_root=data_root,
     )
+    dataset_category = _dataset_category(sparameter_path)
     output_dir = Path(output_dir)
     table_dir = output_dir / "tables"
     figure_root = output_dir / "figures"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dispersion_inputs = find_cst_dispersion_inputs(sparameter_path)
+    dispersion_inputs = find_cst_dispersion_inputs(sparameter_path) if dataset_category in {None, "dispersion"} else ()
+    if dataset_category == "dispersion" and not dispersion_inputs:
+        raise ValueError(f"Dataset category is dispersion, but no parseable CST dispersion txt export was found: {sparameter_path}")
     if dispersion_inputs:
         logger.info("Detected CST dispersion data; running dispersion-only analysis")
         result = _run_dispersion_only_analysis(
@@ -114,7 +119,7 @@ def run_folder_analysis(
     table_paths = AnalysisPaths(save_marker_analysis(tables, table_dir))
     table_paths["sparameter_data"] = save_sparameter_data(sparameter_table, table_dir)
     logger.info("Saved %d analysis tables", len(table_paths))
-    modes = detect_analysis_modes(tables)
+    modes = detect_analysis_modes(tables, dataset_category=dataset_category)
     logger.info("Enabled analysis modes: %s", ", ".join(modes))
 
     figures: FigurePaths = OrderedDict()
@@ -137,7 +142,7 @@ def run_folder_analysis(
     else:
         logger.info("Skipping polar phase figures because marker_points is missing or empty")
 
-    detection = _detection_report(tables)
+    detection = _detection_report(tables, dataset_category=dataset_category)
     if "grid_scan_spacing" in modes:
         logger.info("Rendering grid-scan spacing figures")
         spacing_summary = summarize_marker_spacing_for_grid_scan(tables["marker_points"])
@@ -301,11 +306,11 @@ def _data_relative_path(path: str | Path, *, data_root: Path) -> Path:
     return data_root / path
 
 
-def detect_analysis_modes(tables: dict[str, pd.DataFrame]) -> tuple[str, ...]:
+def detect_analysis_modes(tables: dict[str, pd.DataFrame], *, dataset_category: str | None = None) -> tuple[str, ...]:
     """Return standard and auto-detected analysis modes for a table bundle."""
 
     modes = list(BASE_ANALYSIS_MODES)
-    report = _detection_report(tables)
+    report = _detection_report(tables, dataset_category=dataset_category)
     if report["grid_scan_spacing"]["enabled"]:
         modes.append("grid_scan_spacing")
     return tuple(modes)
@@ -315,13 +320,24 @@ def _has_rows(table: pd.DataFrame | None) -> bool:
     return table is not None and not table.empty
 
 
-def _detection_report(tables: dict[str, pd.DataFrame]) -> dict[str, dict[str, object]]:
+def _detection_report(
+    tables: dict[str, pd.DataFrame],
+    *,
+    dataset_category: str | None = None,
+) -> dict[str, dict[str, object]]:
     marker_points = tables.get("marker_points")
-    enabled, reason = _is_simulation_grid_scan(marker_points)
+    enabled, reason = _is_simulation_grid_scan(marker_points, dataset_category=dataset_category)
     return {"grid_scan_spacing": {"enabled": enabled, "reason": reason}}
 
 
-def _is_simulation_grid_scan(marker_points: pd.DataFrame | None) -> tuple[bool, str]:
+def _is_simulation_grid_scan(
+    marker_points: pd.DataFrame | None,
+    *,
+    dataset_category: str | None = None,
+) -> tuple[bool, str]:
+    if dataset_category is not None and dataset_category != "grid":
+        return False, f"dataset category is {dataset_category!r}, not 'grid'"
+
     if marker_points is None or marker_points.empty:
         return False, "marker_points table is missing or empty"
 
@@ -347,6 +363,14 @@ def _is_simulation_grid_scan(marker_points: pd.DataFrame | None) -> tuple[bool, 
         return False, "sim_r_c and sim_w_c do not vary across grid points"
 
     return True, "simulation marker_points include sim_r_c/sim_w_c and complete f_2pi3/f_mean/f_pi2 groups"
+
+
+def _dataset_category(path: Path) -> str | None:
+    try:
+        data_layer = detect_data_layer(path)
+    except ValueError:
+        return None
+    return dataset_identity_from_path(path, data_layer).category
 
 
 def _write_manifest(

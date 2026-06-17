@@ -9,7 +9,7 @@ def _tables() -> dict[str, pd.DataFrame]:
     marker_points = pd.DataFrame(
         [
             {
-                "dataset_id": "scan",
+                "dataset_id": "sim_260526_grid_scan",
                 "data_kind": "sim",
                 "source_file": "run1.s2p",
                 "marker_name": "f_2pi3",
@@ -21,7 +21,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.0,
             },
             {
-                "dataset_id": "scan",
+                "dataset_id": "sim_260526_grid_scan",
                 "data_kind": "sim",
                 "source_file": "run1.s2p",
                 "marker_name": "f_mean",
@@ -33,7 +33,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.0,
             },
             {
-                "dataset_id": "scan",
+                "dataset_id": "sim_260526_grid_scan",
                 "data_kind": "sim",
                 "source_file": "run1.s2p",
                 "marker_name": "f_pi2",
@@ -45,7 +45,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.0,
             },
             {
-                "dataset_id": "scan",
+                "dataset_id": "sim_260526_grid_scan",
                 "data_kind": "sim",
                 "source_file": "run2.s2p",
                 "marker_name": "f_2pi3",
@@ -57,7 +57,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.5,
             },
             {
-                "dataset_id": "scan",
+                "dataset_id": "sim_260526_grid_scan",
                 "data_kind": "sim",
                 "source_file": "run2.s2p",
                 "marker_name": "f_mean",
@@ -69,7 +69,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.5,
             },
             {
-                "dataset_id": "scan",
+                "dataset_id": "sim_260526_grid_scan",
                 "data_kind": "sim",
                 "source_file": "run2.s2p",
                 "marker_name": "f_pi2",
@@ -139,8 +139,8 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
     result = runner.run_folder_analysis(
-        sparameter_path=tmp_path / "data" / "sim" / "scan",
-        dispersion_path=tmp_path / "data" / "sim" / "dispersion",
+        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
         output_dir=output_dir,
         marker_role="sim",
     )
@@ -171,6 +171,11 @@ def test_detect_analysis_modes_skips_sim_260526_grid_scan_for_experiment_marker_
     assert "grid_scan_spacing" not in detected
 
 
+def test_detect_analysis_modes_uses_dataset_category_as_grid_gate() -> None:
+    assert "grid_scan_spacing" in runner.detect_analysis_modes(_tables(), dataset_category="grid")
+    assert "grid_scan_spacing" not in runner.detect_analysis_modes(_tables(), dataset_category="sweep")
+
+
 def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Path) -> None:
     sparameter_path, dispersion_path = runner.resolve_input_paths(
         "prepro/prepro_260415_sweep_sample_prepro",
@@ -182,7 +187,7 @@ def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Pat
 
 
 def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path: Path, monkeypatch) -> None:
-    dispersion_folder = tmp_path / "data" / "sim" / "dispersion_case"
+    dispersion_folder = tmp_path / "data" / "sim" / "sim_260505_dispersion_case"
     dispersion_folder.mkdir(parents=True)
     (dispersion_folder / "phase_sweep.txt").write_text(
         "\n".join(
@@ -270,8 +275,8 @@ def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
     result = runner.run_folder_analysis(
-        sparameter_path=tmp_path / "data" / "sim" / "scan",
-        dispersion_path=tmp_path / "data" / "sim" / "dispersion",
+        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
         output_dir=output_dir,
         marker_role="sim",
     )
@@ -321,8 +326,8 @@ def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, ca
 
     with caplog.at_level("INFO", logger="deflector_tuning.runner"):
         runner.run_folder_analysis(
-            sparameter_path=tmp_path / "data" / "sim" / "scan",
-            dispersion_path=tmp_path / "data" / "sim" / "dispersion",
+            sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
+            dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
             output_dir=output_dir,
             marker_role="sim",
         )
@@ -384,8 +389,8 @@ def test_run_folder_analysis_saves_s11_only_sparameter_data(tmp_path: Path, monk
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
     result = runner.run_folder_analysis(
-        sparameter_path=tmp_path / "data" / "sim" / "scan",
-        dispersion_path=tmp_path / "data" / "sim" / "dispersion",
+        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
         output_dir=output_dir,
         marker_role="sim",
     )

@@ -100,12 +100,12 @@ def test_build_batch_tasks_infers_output_and_marker_role(tmp_path: Path) -> None
 
 def test_prepare_batch_dispersion_input_processes_explicit_txt(tmp_path: Path) -> None:
     module = _load_runner_module()
-    source = tmp_path / "data" / "sim" / "dispersion" / "dispersion.txt"
+    source = tmp_path / "data" / "sim" / "sim_260505_dispersion_case" / "dispersion.txt"
     source.parent.mkdir(parents=True)
     _write_cst_export(source)
 
     prepared = module.prepare_batch_dispersion_input(
-        Path("sim") / "dispersion" / "dispersion.txt",
+        Path("sim") / "sim_260505_dispersion_case" / "dispersion.txt",
         data_root=tmp_path / "data",
     )
 
@@ -115,13 +115,13 @@ def test_prepare_batch_dispersion_input_processes_explicit_txt(tmp_path: Path) -
 
 def test_prepare_batch_dispersion_input_processes_single_txt_in_folder(tmp_path: Path) -> None:
     module = _load_runner_module()
-    folder = tmp_path / "data" / "sim" / "dispersion"
+    folder = tmp_path / "data" / "sim" / "sim_260505_dispersion_case"
     folder.mkdir(parents=True)
     source = folder / "dispersion.txt"
     _write_cst_export(source)
 
     prepared = module.prepare_batch_dispersion_input(
-        Path("sim") / "dispersion",
+        Path("sim") / "sim_260505_dispersion_case",
         data_root=tmp_path / "data",
     )
 
@@ -131,7 +131,7 @@ def test_prepare_batch_dispersion_input_processes_single_txt_in_folder(tmp_path:
 
 def test_prepare_batch_dispersion_input_discovers_dispersion_named_folder(tmp_path: Path) -> None:
     module = _load_runner_module()
-    folder = tmp_path / "data" / "sim" / "my_new_dispersion_export"
+    folder = tmp_path / "data" / "sim" / "sim_260505_dispersion_my_new_export"
     folder.mkdir(parents=True)
     source = folder / "cst_dispersion_export.txt"
     _write_cst_export(source)
@@ -144,13 +144,13 @@ def test_prepare_batch_dispersion_input_discovers_dispersion_named_folder(tmp_pa
 
 def test_prepare_batch_dispersion_input_rejects_ambiguous_txt_exports(tmp_path: Path) -> None:
     module = _load_runner_module()
-    folder = tmp_path / "data" / "sim" / "dispersion"
+    folder = tmp_path / "data" / "sim" / "sim_260505_dispersion_case"
     folder.mkdir(parents=True)
     _write_cst_export(folder / "a_dispersion.txt")
     _write_cst_export(folder / "b_dispersion.txt")
 
     try:
-        module.prepare_batch_dispersion_input(Path("sim") / "dispersion", data_root=tmp_path / "data")
+        module.prepare_batch_dispersion_input(Path("sim") / "sim_260505_dispersion_case", data_root=tmp_path / "data")
     except ValueError as exc:
         assert "Multiple CST txt exports" in str(exc)
     else:

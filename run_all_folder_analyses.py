@@ -16,6 +16,7 @@ from run_folder_analysis import (
     prefixed_dataset_id,
     run_folder_analysis,
 )
+from deflector_tuning.data_loading.dataset_naming import parse_dataset_id
 from deflector_tuning.dispersion import process_cst_dispersion_txt
 
 
@@ -240,7 +241,7 @@ def _discover_dispersion_candidates(data_root: Path) -> list[Path]:
         return []
     candidates: list[Path] = []
     for child in sorted(sim_root.iterdir(), key=lambda path: path.name.lower()):
-        if "dispersion" not in child.name.lower():
+        if not _is_dispersion_dataset(child):
             continue
         if child.is_file() and child.suffix.lower() == ".txt":
             candidates.append(child)
@@ -249,8 +250,15 @@ def _discover_dispersion_candidates(data_root: Path) -> list[Path]:
     return candidates
 
 
+def _is_dispersion_dataset(path: Path) -> bool:
+    try:
+        return parse_dataset_id(path.stem if path.is_file() else path.name).category == "dispersion"
+    except ValueError:
+        return False
+
+
 def _dispersion_txt_exports(folder: Path) -> list[Path]:
-    return sorted(path for path in folder.glob("*.txt") if "dispersion" in path.name.lower())
+    return sorted(path for path in folder.glob("*.txt"))
 
 
 def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
