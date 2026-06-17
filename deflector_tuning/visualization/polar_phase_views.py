@@ -134,16 +134,22 @@ def _iter_position_groups(marker_points: pd.DataFrame):
         if "tune_position" in table and table["tune_position"].dropna().nunique() > 0:
             table["position_family"] = table["tune_position"].map(lambda value: "unknown" if pd.isna(value) else _position_family(value))
             table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+            group_columns = ["position_family", *_grid_point_depth_group_columns(table), "sim_r_c", "sim_w_c"]
             table = table.sort_values(
-                ["position_family", "_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "_position_sort", "source_file", "marker_name"],
+                [*group_columns, "_r_sort", "_w_sort", "_position_sort", "source_file", "marker_name"],
                 kind="mergesort",
             )
-            for (family, sim_r_c, sim_w_c), group in table.groupby(["position_family", "sim_r_c", "sim_w_c"], sort=False, dropna=False):
-                yield _format_grid_family_label(str(family), sim_r_c, sim_w_c), group
+            for group_key, group in table.groupby(group_columns, sort=False, dropna=False):
+                values = group_key if isinstance(group_key, tuple) else (group_key,)
+                depth_label = _num_depth_label(group) if "sim_NumDepth" in group_columns else None
+                yield _format_grid_family_label(str(values[0]), values[-2], values[-1], depth_label=depth_label), group
             return
-        table = table.sort_values(["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "marker_name"], kind="mergesort")
-        for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
-            yield _format_grid_label(sim_r_c, sim_w_c), group
+        group_columns = [*_grid_point_depth_group_columns(table), "sim_r_c", "sim_w_c"]
+        table = table.sort_values([*group_columns, "_r_sort", "_w_sort", "source_file", "marker_name"], kind="mergesort")
+        for group_key, group in table.groupby(group_columns, sort=False, dropna=False):
+            values = group_key if isinstance(group_key, tuple) else (group_key,)
+            depth_label = _num_depth_label(group) if "sim_NumDepth" in group_columns else None
+            yield _format_grid_label(values[-2], values[-1], depth_label=depth_label), group
         return
     if grouping_mode == "sim_sweep":
         sweep_columns = _varying_sim_sweep_columns(table)
@@ -554,7 +560,11 @@ def _position_plot_title(position_label: str, position_table: pd.DataFrame, *, g
     if grouping_mode == "grid_point":
         family = _grid_point_family(position_table)
         if family is not None:
-            grid_label = _format_grid_label(position_table["sim_r_c"].iloc[0], position_table["sim_w_c"].iloc[0])
+            grid_label = _format_grid_label(
+                position_table["sim_r_c"].iloc[0],
+                position_table["sim_w_c"].iloc[0],
+                depth_label=_num_depth_label(position_table),
+            )
             return f"{family.title()} polar: {grid_label}"
         return f"Grid polar: {position_label}"
     if grouping_mode == "sim_sweep":
@@ -588,18 +598,25 @@ def _snap_tune_position(value: float) -> float:
     return value
 
 
-def _format_grid_label(sim_r_c: object, sim_w_c: object) -> str:
-    return f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+def _format_grid_label(sim_r_c: object, sim_w_c: object, *, depth_label: str | None = None) -> str:
+    grid_label = f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+    if depth_label is None:
+        return grid_label
+    return f"depth={depth_label.removeprefix('depth_')} {grid_label}"
 
 
-def _format_grid_family_label(family: str, sim_r_c: object, sim_w_c: object) -> str:
-    return f"{family} {_format_grid_label(sim_r_c, sim_w_c)}"
+def _format_grid_family_label(family: str, sim_r_c: object, sim_w_c: object, *, depth_label: str | None = None) -> str:
+    return f"{family} {_format_grid_label(sim_r_c, sim_w_c, depth_label=depth_label)}"
 
 
 def _grid_point_filename_label(position_table: pd.DataFrame, position_label: str) -> str:
     family = _grid_point_family(position_table)
+    depth_suffix = _grid_point_depth_filename_suffix(position_table)
     if family is not None:
-        return f"polar_{family}_{_safe_label(_format_grid_label(position_table['sim_r_c'].iloc[0], position_table['sim_w_c'].iloc[0]))}"
+        return (
+            f"polar_{family}{depth_suffix}_"
+            f"{_safe_label(_format_grid_label(position_table['sim_r_c'].iloc[0], position_table['sim_w_c'].iloc[0]))}"
+        )
     return f"polar_grid_{_safe_label(position_label)}"
 
 
@@ -610,6 +627,28 @@ def _grid_point_family(position_table: pd.DataFrame) -> str | None:
     if len(families) == 1 and families[0] != "unknown":
         return families[0]
     return None
+
+
+def _grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
+    if "sim_NumDepth" in table and pd.to_numeric(table["sim_NumDepth"], errors="coerce").dropna().nunique() > 1:
+        return ["sim_NumDepth"]
+    return []
+
+
+def _grid_point_depth_filename_suffix(position_table: pd.DataFrame) -> str:
+    depth_label = _num_depth_label(position_table)
+    if depth_label is None:
+        return ""
+    return f"_{depth_label}"
+
+
+def _num_depth_label(table: pd.DataFrame) -> str | None:
+    if "sim_NumDepth" not in table:
+        return None
+    values = pd.to_numeric(table["sim_NumDepth"], errors="coerce").dropna().unique()
+    if len(values) != 1:
+        return None
+    return f"depth_{_format_num_depth(values[0])}"
 
 
 def _simulation_family_label(position_table: pd.DataFrame) -> str:
@@ -645,10 +684,11 @@ def _format_sim_sweep_label(sweep_columns: list[str], values: tuple[object, ...]
 
 
 def _sim_sweep_group_columns(table: pd.DataFrame, sweep_columns: list[str]) -> list[str]:
-    group_columns = list(sweep_columns)
+    group_columns = []
     if "sim_NumDepth" in table and table["sim_NumDepth"].dropna().nunique() > 1:
         group_columns.append("sim_NumDepth")
-    elif "tune_position" in table and table["tune_position"].dropna().nunique() > 1:
+    group_columns.extend(column for column in sweep_columns if column not in group_columns)
+    if "sim_NumDepth" not in group_columns and "tune_position" in table and table["tune_position"].dropna().nunique() > 1:
         group_columns.append("tune_position")
     return group_columns
 

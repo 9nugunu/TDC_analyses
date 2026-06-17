@@ -23,6 +23,7 @@ from deflector_tuning.visualization.plot_config import (
     PlotConfig,
     apply_axis_text_style,
     apply_plot_style,
+    contour_contrast_color,
     save_figure,
 )
 
@@ -32,6 +33,20 @@ ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
         ("spacing_equality_error_deg", "Spacing equality error [deg]"),
     ]
 )
+SENSITIVITY_METRICS: OrderedDict[str, tuple[str, str]] = OrderedDict(
+    [
+        ("dphase_d_sim_r_c_deg_per_mm", (r"$\partial\phi/\partial r_c$ [deg/mm]", "contour_signed_cmap")),
+        ("dphase_d_sim_w_c_deg_per_mm", (r"$\partial\phi/\partial w_c$ [deg/mm]", "contour_signed_cmap")),
+        ("gradient_magnitude_deg_per_mm", (r"$|\nabla\phi|$ [deg/mm]", "contour_magnitude_cmap")),
+    ]
+)
+MARKER_LABELS: dict[str, str] = {
+    "f_2pi3": r"$f_{2\pi/3}$",
+    "f_mean": r"$f_{mean}$",
+    "f_pi2": r"$f_{\pi/2}$",
+}
+
+
 def plot_grid_scan_spacing_error_maps(
     spacing_summary: pd.DataFrame,
     output_dir: str | Path,
@@ -78,6 +93,62 @@ def plot_grid_scan_spacing_error_maps(
     return paths
 
 
+def plot_grid_scan_phase_sensitivity_maps(
+    sensitivity_summary: pd.DataFrame,
+    output_dir: str | Path,
+    *,
+    x_column: str = "sim_r_c",
+    y_column: str = "sim_w_c",
+    design_point: tuple[float, float] | None = None,
+    config: PlotConfig | None = None,
+) -> OrderedDict[str, Path]:
+    """Write phase sensitivity maps for each marker and geometry parameter."""
+
+    if sensitivity_summary.empty:
+        raise ValueError("sensitivity_summary is empty")
+    required = [x_column, y_column, "marker_name", *SENSITIVITY_METRICS.keys()]
+    missing = [column for column in required if column not in sensitivity_summary]
+    if missing:
+        raise ValueError(f"sensitivity_summary is missing required columns: {missing}")
+
+    config = config or PlotConfig()
+    apply_plot_style(config)
+    require_finite_plot_columns(
+        sensitivity_summary,
+        columns=(x_column, y_column),
+        context="grid_scan sensitivity_summary coordinates",
+        id_columns=("dataset_id", "source_file", "run_id", "marker_name", x_column, y_column),
+    )
+    folder = Path(output_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    sensitivity_summary.to_csv(folder / "grid_scan_phase_sensitivity_summary.csv", index=False)
+
+    paths: OrderedDict[str, Path] = OrderedDict()
+    for marker_name, marker_table in sensitivity_summary.groupby("marker_name", sort=False, dropna=False):
+        marker_key = _safe_key(marker_name)
+        for column, (label, cmap_attribute) in SENSITIVITY_METRICS.items():
+            finite_table = marker_table.dropna(subset=[column])
+            if finite_table.empty:
+                continue
+            cmap = str(getattr(config, cmap_attribute))
+            key = f"{marker_key}_{column.removesuffix('_deg_per_mm')}"
+            paths[key] = _plot_grid_value_map(
+                finite_table,
+                folder / f"{key}.png",
+                x_column,
+                y_column,
+                column,
+                f"{_marker_label(marker_name)} {label}",
+                config,
+                design_point=design_point or _default_design_point(x_column, y_column),
+                cmap=cmap,
+                draw_best=False,
+            )
+    if not paths:
+        raise ValueError("no finite grid-scan phase sensitivity values to plot")
+    return paths
+
+
 def _plot_error_map(
     table: pd.DataFrame,
     output_path: Path,
@@ -89,6 +160,33 @@ def _plot_error_map(
     *,
     design_point: tuple[float, float] | None,
 ) -> Path:
+    return _plot_grid_value_map(
+        table,
+        output_path,
+        x_column,
+        y_column,
+        value_column,
+        value_label,
+        config,
+        design_point=design_point,
+        cmap=config.contour_error_cmap,
+        draw_best=True,
+    )
+
+
+def _plot_grid_value_map(
+    table: pd.DataFrame,
+    output_path: Path,
+    x_column: str,
+    y_column: str,
+    value_column: str,
+    value_label: str,
+    config: PlotConfig,
+    *,
+    design_point: tuple[float, float] | None,
+    cmap: str,
+    draw_best: bool,
+) -> Path:
     x_values = np.array(sorted(table[x_column].dropna().unique()), dtype=float)
     y_values = np.array(sorted(table[y_column].dropna().unique()), dtype=float)
     pivot = table.pivot_table(index=y_column, columns=x_column, values=value_column, aggfunc="mean").reindex(index=y_values, columns=x_values)
@@ -98,13 +196,25 @@ def _plot_error_map(
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
     is_contour_map = len(x_values) >= 2 and len(y_values) >= 2
     if is_contour_map:
-        cf = ax.contourf(X, Y, Z, levels=12, cmap="RdYlGn_r")
-        cs = ax.contour(X, Y, Z, levels=8, colors="white", linewidths=0.7, alpha=0.75)
-        ax.clabel(cs, inline=True, fontsize=max(7, config.annotation_size - 2), fmt="%.1f")
+        contour_color = contour_contrast_color(cmap, config)
+        cf = ax.contourf(X, Y, Z, levels=12, cmap=cmap)
+        cs = ax.contour(
+            X,
+            Y,
+            Z,
+            levels=8,
+            colors=contour_color,
+            linewidths=config.contour_line_width,
+            alpha=config.contour_line_alpha,
+        )
+        contour_labels = ax.clabel(cs, inline=True, fontsize=config.contour_label_size, fmt="%.1f", colors=contour_color)
+        for label in contour_labels:
+            label.set_fontweight(config.contour_label_weight)
     else:
-        cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap="RdYlGn_r", s=90, edgecolor="black")
-    best = table.loc[table[value_column].idxmin()]
-    ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c=BEST_MARKER_COLOR, edgecolor="black", linewidth=0.8, zorder=6)
+        cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap=cmap, s=90, edgecolor="black")
+    if draw_best:
+        best = table.loc[table[value_column].idxmin()]
+        ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c=BEST_MARKER_COLOR, edgecolor="black", linewidth=0.8, zorder=6)
     if design_point is not None:
         _draw_design_crosshair(ax, design_point)
     apply_axis_text_style(
@@ -124,6 +234,14 @@ def _plot_error_map(
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _safe_key(value: object) -> str:
+    return str(value).replace("/", "_").replace("\\", "_").replace(" ", "_")
+
+
+def _marker_label(value: object) -> str:
+    return MARKER_LABELS.get(str(value), str(value).replace("_", r"\_"))
 
 
 def _default_design_point(x_column: str, y_column: str) -> tuple[float, float] | None:

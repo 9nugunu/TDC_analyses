@@ -151,6 +151,7 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
+    monkeypatch.setattr(runner, "plot_grid_scan_phase_sensitivity_maps", fake_plot("grid_scan_sensitivity"))
 
     result = runner.run_folder_analysis(
         sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
@@ -169,6 +170,7 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     assert result.figures["nodal_shift"]["overview"].exists()
     assert result.figures["polar"]["overview"].exists()
     assert result.figures["grid_scan_spacing"]["overview"].exists()
+    assert result.figures["grid_scan_sensitivity"]["overview"].exists()
     manifest = result.manifest_path.read_text(encoding="utf-8")
     assert '"grid_scan_spacing"' in manifest
     assert '"sparameter_data"' not in manifest
@@ -356,6 +358,7 @@ def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path
     monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
+    monkeypatch.setattr(runner, "plot_grid_scan_phase_sensitivity_maps", fake_plot("grid_scan_sensitivity"))
 
     result = runner.run_folder_analysis(
         sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
@@ -422,6 +425,7 @@ def test_run_folder_analysis_reuses_existing_grid_s11_figures_from_manifest(tmp_
     monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
+    monkeypatch.setattr(runner, "plot_grid_scan_phase_sensitivity_maps", fake_plot("grid_scan_sensitivity"))
 
     result = runner.run_folder_analysis(
         sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
@@ -471,6 +475,7 @@ def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, ca
     monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
+    monkeypatch.setattr(runner, "plot_grid_scan_phase_sensitivity_maps", fake_plot("grid_scan_sensitivity"))
 
     with caplog.at_level("INFO", logger="deflector_tuning.runner"):
         runner.run_folder_analysis(
@@ -536,6 +541,7 @@ def test_run_folder_analysis_does_not_save_sparameter_data_csv(tmp_path: Path, m
     monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
+    monkeypatch.setattr(runner, "plot_grid_scan_phase_sensitivity_maps", fake_plot("grid_scan_sensitivity"))
 
     result = runner.run_folder_analysis(
         sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",

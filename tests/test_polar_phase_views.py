@@ -443,6 +443,35 @@ def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_
         assert path.stat().st_size > 0
 
 
+def test_plot_marker_phase_polar_views_keeps_same_grid_point_num_depths_separate(tmp_path: Path) -> None:
+    depth_1 = _grid_scan_marker_points().copy()
+    depth_1["source_file"] = depth_1["source_file"].str.replace("run03", "run001").str.replace("run10", "run003")
+    depth_1["sim_NumDepth"] = 1
+    depth_1["tune_position"] = 0.5
+    depth_2 = depth_1.copy()
+    depth_2["source_file"] = depth_2["source_file"].str.replace("run001", "run002").str.replace("run003", "run004")
+    depth_2["sim_NumDepth"] = 2
+    depth_2["tune_position"] = 1.5
+    table = pd.concat([depth_1, depth_2], ignore_index=True)
+
+    paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == [
+        "cell depth=01 r_c=54.59, w_c=18.3224",
+        "cell depth=01 r_c=55.59, w_c=19.3224",
+        "cell depth=02 r_c=54.59, w_c=18.3224",
+        "cell depth=02 r_c=55.59, w_c=19.3224",
+    ]
+    assert (
+        paths["cell depth=01 r_c=54.59, w_c=18.3224"].name
+        == "polar_cell_depth_01_r_c_54p59_w_c_18p3224.png"
+    )
+    assert (
+        paths["cell depth=02 r_c=54.59, w_c=18.3224"].name
+        == "polar_cell_depth_02_r_c_54p59_w_c_18p3224.png"
+    )
+
+
 def test_plot_marker_phase_polar_views_uses_result_navigator_sweep_columns(tmp_path: Path) -> None:
     paths = plot_marker_phase_polar_views(_plunger_offset_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
@@ -466,15 +495,15 @@ def test_plot_marker_phase_polar_views_includes_num_depth_in_sweep_filenames(tmp
     paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == [
-        "plunger_offset=-3_depth=01",
-        "plunger_offset=-3_depth=02",
-        "plunger_offset=0_depth=01",
-        "plunger_offset=0_depth=02",
+        "depth=01_plunger_offset=-3",
+        "depth=01_plunger_offset=0",
+        "depth=02_plunger_offset=-3",
+        "depth=02_plunger_offset=0",
     ]
-    assert paths["plunger_offset=-3_depth=01"].name == "polar_iris_plunger_offset_m3_depth_01.png"
-    assert paths["plunger_offset=-3_depth=02"].name == "polar_iris_plunger_offset_m3_depth_02.png"
-    assert paths["plunger_offset=0_depth=01"].name == "polar_iris_plunger_offset_0_depth_01.png"
-    assert paths["plunger_offset=0_depth=02"].name == "polar_iris_plunger_offset_0_depth_02.png"
+    assert paths["depth=01_plunger_offset=-3"].name == "polar_iris_depth_01_plunger_offset_m3.png"
+    assert paths["depth=01_plunger_offset=0"].name == "polar_iris_depth_01_plunger_offset_0.png"
+    assert paths["depth=02_plunger_offset=-3"].name == "polar_iris_depth_02_plunger_offset_m3.png"
+    assert paths["depth=02_plunger_offset=0"].name == "polar_iris_depth_02_plunger_offset_0.png"
 
 
 def test_plot_marker_phase_polar_views_splits_duplicate_positions_by_source_file(tmp_path: Path) -> None:

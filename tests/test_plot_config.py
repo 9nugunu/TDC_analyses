@@ -9,6 +9,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_legend_text_style,
     apply_plot_style,
     bold_math,
+    contour_contrast_color,
     math_label,
 )
 
@@ -20,6 +21,12 @@ def test_plot_config_defaults_use_larger_readable_typography() -> None:
     assert config.label_size >= 15
     assert config.tick_size >= 12
     assert config.annotation_size >= 11
+    assert config.contour_line_width >= 1.2
+    assert config.contour_label_size >= 11
+    assert config.contour_label_weight == "bold"
+    assert config.contour_error_cmap == "RdYlGn_r"
+    assert config.contour_signed_cmap == "coolwarm"
+    assert config.contour_magnitude_cmap == "viridis"
     assert config.label_weight == "bold"
     assert config.legend_weight == "bold"
     assert config.math_bold is True
@@ -28,6 +35,11 @@ def test_plot_config_defaults_use_larger_readable_typography() -> None:
 def test_bold_math_wraps_math_expressions_for_bold_labels() -> None:
     assert bold_math(r"$S_{11}$") == r"$\mathbf{S}_{\mathbf{11}}$"
     assert bold_math(r"$f_{2\pi/3}$") == r"$\mathbf{f}_{\mathbf{2}\mathbf{\pi}/\mathbf{3}}$"
+    assert bold_math(r"$\partial\phi/\partial r_c$") == (
+        r"$\mathbf{\partial}\mathbf{\phi}/\mathbf{\partial} "
+        r"\mathbf{r}_\mathbf{c}$"
+    )
+    assert bold_math(r"$|\nabla\phi|$") == r"$|\mathbf{\nabla}\mathbf{\phi}|$"
     assert math_label(r"S_{11}", bold=True) == r"$\mathbf{S}_{\mathbf{11}}$"
 
 
@@ -65,3 +77,12 @@ def test_apply_legend_text_style_bolds_legend_labels() -> None:
 
     assert legend.get_texts()[0].get_fontweight() == "bold"
     plt.close(fig)
+
+
+def test_contour_contrast_color_uses_configured_threshold_and_colors() -> None:
+    assert contour_contrast_color("viridis", PlotConfig(contour_luminance_threshold=0.0)) == "black"
+    assert contour_contrast_color("viridis", PlotConfig(contour_luminance_threshold=1.0)) == "white"
+    assert contour_contrast_color(
+        "viridis",
+        PlotConfig(contour_luminance_threshold=0.0, contour_dark_line_color="0.1"),
+    ) == "0.1"

@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+from matplotlib import colormaps
 import matplotlib.pyplot as plt
 
 MATPLOTLIB_MATHTEXT_LOGGER = "matplotlib.mathtext"
@@ -36,6 +38,16 @@ class PlotConfig:
     compact_annotation_size: int = 9
     legend_size: int = 11
     compact_legend_size: int = 10
+    contour_line_width: float = 1.2
+    contour_label_size: int = 11
+    contour_label_weight: str = "bold"
+    contour_line_alpha: float = 0.85
+    contour_error_cmap: str = "RdYlGn_r"
+    contour_signed_cmap: str = "coolwarm"
+    contour_magnitude_cmap: str = "viridis"
+    contour_light_line_color: str = "white"
+    contour_dark_line_color: str = "black"
+    contour_luminance_threshold: float = 0.54
     label_weight: str = "bold"
     tick_weight: str = "bold"
     title_weight: str = "bold"
@@ -99,10 +111,20 @@ def bold_math(label: str) -> str:
     if not (label.startswith("$") and label.endswith("$")):
         return label
     body = label[1:-1]
-    body = body.replace(r"\pi", "§§")
+    protected_commands = {
+        r"\partial": "§∂§",
+        r"\nabla": "§∇§",
+        r"\phi": "§φ§",
+        r"\pi": "§π§",
+    }
+    for command, token in protected_commands.items():
+        body = body.replace(command, token)
     body = re.sub(r"([A-Za-z])", r"\\mathbf{\1}", body)
     body = re.sub(r"(\d+)", r"\\mathbf{\1}", body)
-    body = body.replace("§§", r"\mathbf{\pi}")
+    body = body.replace("§∂§", r"\mathbf{\partial}")
+    body = body.replace("§∇§", r"\mathbf{\nabla}")
+    body = body.replace("§φ§", r"\mathbf{\phi}")
+    body = body.replace("§π§", r"\mathbf{\pi}")
     return f"${body}$"
 
 
@@ -140,6 +162,17 @@ def apply_legend_text_style(legend, config: PlotConfig | None = None) -> None:
     config = config or PlotConfig()
     for text in legend.get_texts():
         text.set_fontweight(config.legend_weight)
+
+
+def contour_contrast_color(cmap: str, config: PlotConfig | None = None) -> str:
+    """Return a readable contour color for the average brightness of a colormap."""
+
+    config = config or PlotConfig()
+    colors = colormaps[cmap](np.linspace(0.08, 0.92, 17))[:, :3]
+    luminance = colors @ np.array([0.2126, 0.7152, 0.0722])
+    if float(luminance.mean()) >= config.contour_luminance_threshold:
+        return config.contour_dark_line_color
+    return config.contour_light_line_color
 
 
 def save_figure(fig, output_path: str | Path, config: PlotConfig | None = None) -> Path:

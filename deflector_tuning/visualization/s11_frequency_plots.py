@@ -49,6 +49,7 @@ PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
 DEFAULT_TRACE_STYLE: dict[str, object] = {"color": "#1565c0", "linestyle": "-"}
 MARKER_Y_OFFSETS: dict[str, int] = {"f_2pi3": 20, "f_mean": -34, "f_pi2": 50}
 MAX_LEGEND_ENTRIES: int = 30
+MAX_TRACE_POINTS_PER_SOURCE: int = 5000
 DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
     "dataset_id",
     "data_kind",
@@ -103,18 +104,24 @@ def plot_s11_with_markers(
     paths: OrderedDict[str, Path] = OrderedDict()
     if _has_grid_point_groups(s_table, m_table):
         groups = list(_iter_grid_point_groups(s_table))
-        for family, sim_r_c, sim_w_c, group in progress_iter(
+        for family, depth_label, sim_r_c, sim_w_c, group in progress_iter(
             groups,
             desc="Rendering S11 grid figures",
             total=len(groups),
         ):
-            marker_group = _select_grid_point_rows(m_table, family=family, sim_r_c=sim_r_c, sim_w_c=sim_w_c)
-            key = _grid_point_output_key(family, sim_r_c, sim_w_c)
+            marker_group = _select_grid_point_rows(
+                m_table,
+                family=family,
+                depth_label=depth_label,
+                sim_r_c=sim_r_c,
+                sim_w_c=sim_w_c,
+            )
+            key = _grid_point_output_key(family, depth_label, sim_r_c, sim_w_c)
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"s11_{_grid_point_file_stem(family, sim_r_c, sim_w_c)}.png",
-                title=f"{_grid_point_title_prefix(family, sim_r_c, sim_w_c)}: S11 magnitude",
+                folder / f"s11_{_grid_point_file_stem(family, depth_label, sim_r_c, sim_w_c)}.png",
+                title=f"{_grid_point_title_prefix(family, depth_label, sim_r_c, sim_w_c)}: S11 magnitude",
                 config=config,
             )
         return paths
@@ -157,11 +164,12 @@ def _plot_one(
     fig, ax = plt.subplots(figsize=(10.0, 6.2))
     for source_file, group in s_table.groupby("source_file", sort=False):
         group = group.sort_values("freq_ghz")
+        plot_group = _thin_trace_for_plot(group)
         label = _source_label(source_file, group)
         style = _source_style(group)
         ax.plot(
-            group["freq_ghz"],
-            group["s_db"],
+            plot_group["freq_ghz"],
+            plot_group["s_db"],
             color=str(style["color"]),
             linestyle=str(style["linestyle"]),
             linewidth=2.4,
@@ -215,6 +223,13 @@ def _plot_one(
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _thin_trace_for_plot(group: pd.DataFrame, *, max_points: int = MAX_TRACE_POINTS_PER_SOURCE) -> pd.DataFrame:
+    if len(group) <= max_points:
+        return group
+    indices = np.linspace(0, len(group) - 1, num=max_points, dtype=int)
+    return group.iloc[np.unique(indices)]
 
 
 def _add_legend_if_readable(ax, *, config: PlotConfig) -> None:
@@ -375,10 +390,19 @@ def _num_depth_output_label(group: pd.DataFrame | None) -> str | None:
     values = pd.to_numeric(group["sim_NumDepth"], errors="coerce").dropna().unique()
     if len(values) != 1:
         return None
-    value = float(values[0])
-    if abs(value - round(value)) < 1e-9:
-        return f"depth_{int(round(value)):02d}"
-    return f"depth_{_format_position_key(value)}"
+    return _num_depth_output_label_from_value(values[0])
+
+
+def _num_depth_output_label_from_value(value: object) -> str | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not np.isfinite(numeric):
+        return None
+    if abs(numeric - round(numeric)) < 1e-9:
+        return f"depth_{int(round(numeric)):02d}"
+    return f"depth_{_format_position_key(numeric)}"
 
 
 def _position_family(tune_position: object) -> str:
@@ -411,48 +435,78 @@ def _iter_grid_point_groups(s_table: pd.DataFrame):
     if "tune_position" in table and table["tune_position"].dropna().nunique() > 0:
         table["position_family"] = table["tune_position"].map(lambda value: "unknown" if pd.isna(value) else _position_family(value))
         table["_position_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+        group_columns = ["position_family", *_grid_point_depth_group_columns(table), "sim_r_c", "sim_w_c"]
         table = table.sort_values(
-            ["position_family", "_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "_position_sort", "source_file", "freq_ghz"],
+            [*group_columns, "_r_sort", "_w_sort", "_position_sort", "source_file", "freq_ghz"],
             kind="mergesort",
         )
-        for (family, sim_r_c, sim_w_c), group in table.groupby(["position_family", "sim_r_c", "sim_w_c"], sort=False, dropna=False):
-            yield str(family), sim_r_c, sim_w_c, group
+        for group_key, group in table.groupby(group_columns, sort=False, dropna=False):
+            values = group_key if isinstance(group_key, tuple) else (group_key,)
+            family = str(values[0])
+            depth_label = _num_depth_output_label(group) if "sim_NumDepth" in group_columns else None
+            sim_r_c = values[-2]
+            sim_w_c = values[-1]
+            yield family, depth_label, sim_r_c, sim_w_c, group
         return
+    group_columns = [*_grid_point_depth_group_columns(table), "sim_r_c", "sim_w_c"]
     table = table.sort_values(
-        ["_r_sort", "_w_sort", "sim_r_c", "sim_w_c", "source_file", "freq_ghz"],
+        [*group_columns, "_r_sort", "_w_sort", "source_file", "freq_ghz"],
         kind="mergesort",
     )
-    for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
-        yield "grid", sim_r_c, sim_w_c, group
+    for group_key, group in table.groupby(group_columns, sort=False, dropna=False):
+        values = group_key if isinstance(group_key, tuple) else (group_key,)
+        depth_label = _num_depth_output_label(group) if "sim_NumDepth" in group_columns else None
+        sim_r_c = values[-2]
+        sim_w_c = values[-1]
+        yield "grid", depth_label, sim_r_c, sim_w_c, group
 
 
-def _select_grid_point_rows(table: pd.DataFrame, *, family: str, sim_r_c: object, sim_w_c: object) -> pd.DataFrame:
+def _select_grid_point_rows(
+    table: pd.DataFrame,
+    *,
+    family: str,
+    depth_label: str | None,
+    sim_r_c: object,
+    sim_w_c: object,
+) -> pd.DataFrame:
     if "sim_r_c" not in table or "sim_w_c" not in table:
         return table.iloc[0:0].copy()
     mask = (table["sim_r_c"] == sim_r_c) & (table["sim_w_c"] == sim_w_c)
     if family not in {"grid", "unknown"} and "tune_position" in table:
         family_values = table["tune_position"].map(lambda value: "unknown" if pd.isna(value) else _position_family(value))
         mask &= family_values == family
+    if depth_label is not None and "sim_NumDepth" in table:
+        mask &= table["sim_NumDepth"].map(_num_depth_output_label_from_value) == depth_label
     return table.loc[mask].copy()
 
 
-def _grid_point_output_key(family: str, sim_r_c: object, sim_w_c: object) -> str:
+def _grid_point_output_key(family: str, depth_label: str | None, sim_r_c: object, sim_w_c: object) -> str:
+    depth_prefix = f"_{depth_label}" if depth_label is not None else ""
     prefix = "grid" if family == "unknown" else family
-    return f"{prefix}_{_format_grid_point_key(sim_r_c, sim_w_c)}"
+    return f"{prefix}{depth_prefix}_{_format_grid_point_key(sim_r_c, sim_w_c)}"
 
 
-def _grid_point_file_stem(family: str, sim_r_c: object, sim_w_c: object) -> str:
+def _grid_point_file_stem(family: str, depth_label: str | None, sim_r_c: object, sim_w_c: object) -> str:
     grid_key = _format_grid_point_key(sim_r_c, sim_w_c)
+    depth_prefix = f"{depth_label}_" if depth_label is not None else ""
     if family in {"grid", "unknown"}:
-        return grid_key
-    return f"{family}_{grid_key}"
+        return f"{depth_prefix}{grid_key}"
+    return f"{family}_{depth_prefix}{grid_key}"
 
 
-def _grid_point_title_prefix(family: str, sim_r_c: object, sim_w_c: object) -> str:
+def _grid_point_title_prefix(family: str, depth_label: str | None, sim_r_c: object, sim_w_c: object) -> str:
     grid_label = f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+    if depth_label is not None:
+        grid_label = f"{depth_label.replace('_', ' ')} {grid_label}"
     if family in {"grid", "unknown"}:
         return grid_label
     return f"{family} {grid_label}"
+
+
+def _grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
+    if "sim_NumDepth" in table and pd.to_numeric(table["sim_NumDepth"], errors="coerce").dropna().nunique() > 1:
+        return ["sim_NumDepth"]
+    return []
 
 
 def _format_grid_point_key(sim_r_c: object, sim_w_c: object) -> str:

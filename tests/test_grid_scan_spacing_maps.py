@@ -3,7 +3,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
+from deflector_tuning.analysis.grid_scan_spacing import (
+    summarize_marker_phase_sensitivity_for_grid_scan,
+    summarize_marker_spacing_for_grid_scan,
+)
 from deflector_tuning.visualization.plot_config import (
     BEST_MARKER_COLOR,
     DEFAULT_DESIGN_POINT_BY_AXIS,
@@ -13,6 +16,7 @@ from deflector_tuning.visualization.plot_config import (
 )
 from deflector_tuning.visualization.grid_scan_spacing_maps import (
     _default_design_point,
+    plot_grid_scan_phase_sensitivity_maps,
     plot_grid_scan_spacing_error_maps,
 )
 
@@ -62,6 +66,26 @@ def test_summarize_marker_spacing_for_grid_scan_computes_two_requested_errors() 
     assert set(summary["sim_w_c"]) == {18.5, 18.75}
 
 
+def test_summarize_marker_phase_sensitivity_for_grid_scan_computes_wrapped_finite_differences() -> None:
+    marker_points = _marker_points()
+    marker_points.loc[
+        (marker_points["run_id"] == 1) & (marker_points["marker_name"] == "f_2pi3"),
+        "s_phase_deg",
+    ] = 170.0
+    marker_points.loc[
+        (marker_points["run_id"] == 3) & (marker_points["marker_name"] == "f_2pi3"),
+        "s_phase_deg",
+    ] = -170.0
+
+    summary = summarize_marker_phase_sensitivity_for_grid_scan(marker_points)
+
+    row = summary[(summary["run_id"] == 1) & (summary["marker_name"] == "f_2pi3")].iloc[0]
+    assert row["phase_deg"] == 170.0
+    assert row["dphase_d_sim_r_c_deg_per_mm"] == pytest.approx(80.0)
+    assert row["dphase_d_sim_w_c_deg_per_mm"] == pytest.approx(-680.0)
+    assert row["gradient_magnitude_deg_per_mm"] == pytest.approx((80.0**2 + 680.0**2) ** 0.5)
+
+
 def test_plot_grid_scan_spacing_error_maps_writes_only_requested_2d_error_pngs(tmp_path: Path) -> None:
     summary = summarize_marker_spacing_for_grid_scan(_marker_points())
 
@@ -74,6 +98,20 @@ def test_plot_grid_scan_spacing_error_maps_writes_only_requested_2d_error_pngs(t
         assert path.exists()
         assert path.stat().st_size > 0
     assert (tmp_path / "grid_scan_spacing_summary.csv").exists()
+
+
+def test_plot_grid_scan_phase_sensitivity_maps_writes_marker_derivative_pngs(tmp_path: Path) -> None:
+    summary = summarize_marker_phase_sensitivity_for_grid_scan(_marker_points())
+
+    paths = plot_grid_scan_phase_sensitivity_maps(summary, tmp_path)
+
+    assert "f_2pi3_dphase_d_sim_r_c" in paths
+    assert "f_mean_dphase_d_sim_w_c" in paths
+    assert "f_pi2_gradient_magnitude" in paths
+    for path in paths.values():
+        assert path.exists()
+        assert path.stat().st_size > 0
+    assert (tmp_path / "grid_scan_phase_sensitivity_summary.csv").exists()
 
 
 def test_plot_grid_scan_spacing_error_maps_reports_non_finite_summary_values(tmp_path: Path) -> None:

@@ -21,6 +21,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_axis_text_style,
     apply_legend_text_style,
     apply_plot_style,
+    contour_contrast_color,
     save_figure,
 )
 from deflector_tuning.progress import progress_iter
@@ -455,11 +456,23 @@ def _plot_grid_map(
 
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
     if len(x_values) >= 2 and len(y_values) >= 2:
-        cf = ax.contourf(X, Y, Z, levels=12, cmap="RdYlGn_r")
-        cs = ax.contour(X, Y, Z, levels=8, colors="white", linewidths=0.7, alpha=0.75)
-        ax.clabel(cs, inline=True, fontsize=max(7, config.annotation_size - 2), fmt="%.1f")
+        cmap = config.contour_error_cmap
+        contour_color = contour_contrast_color(cmap, config)
+        cf = ax.contourf(X, Y, Z, levels=12, cmap=cmap)
+        cs = ax.contour(
+            X,
+            Y,
+            Z,
+            levels=8,
+            colors=contour_color,
+            linewidths=config.contour_line_width,
+            alpha=config.contour_line_alpha,
+        )
+        contour_labels = ax.clabel(cs, inline=True, fontsize=config.contour_label_size, fmt="%.1f", colors=contour_color)
+        for label in contour_labels:
+            label.set_fontweight(config.contour_label_weight)
     else:
-        cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap="RdYlGn_r", s=90, edgecolor="black")
+        cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap=config.contour_error_cmap, s=90, edgecolor="black")
     best = table.loc[table[value_column].idxmin()]
     ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c=BEST_MARKER_COLOR, edgecolor="black", linewidth=0.8, zorder=6)
     design_point = _default_design_point(x_column, y_column)

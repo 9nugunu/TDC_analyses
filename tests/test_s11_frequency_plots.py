@@ -73,6 +73,16 @@ def _marker_points() -> pd.DataFrame:
     )
 
 
+def test_thin_trace_for_plot_limits_dense_frequency_traces() -> None:
+    table = pd.DataFrame({"freq_ghz": range(100_011), "s_db": range(100_011)})
+
+    result = s11_frequency_plots._thin_trace_for_plot(table)
+
+    assert len(result) == s11_frequency_plots.MAX_TRACE_POINTS_PER_SOURCE
+    assert result.iloc[0]["freq_ghz"] == 0
+    assert result.iloc[-1]["freq_ghz"] == 100_010
+
+
 def _port_side_sparameter_table() -> pd.DataFrame:
     rows = []
     for source_file, port_side, tune_position, phase_offset in [
@@ -582,6 +592,47 @@ def test_plot_s11_with_markers_keeps_same_tune_position_grid_points_separate(tmp
     assert list(paths) == ["cell_r_c_56p59_w_c_19p3224", "cell_r_c_56p84_w_c_19p3224"]
     assert paths["cell_r_c_56p59_w_c_19p3224"].name == "s11_cell_r_c_56p59_w_c_19p3224.png"
     assert paths["cell_r_c_56p84_w_c_19p3224"].name == "s11_cell_r_c_56p84_w_c_19p3224.png"
+
+
+def test_plot_s11_with_markers_keeps_same_grid_point_num_depths_separate(tmp_path: Path) -> None:
+    sparameter_rows = []
+    marker_rows = []
+    for source_file, num_depth, tune_position in [
+        ("run_001.s2p", 1, 0.5),
+        ("run_002.s2p", 2, 1.5),
+    ]:
+        for freq_ghz, s_db, phase in [(2.85, -1.0, 10.0), (2.86, -2.0, 20.0)]:
+            sparameter_rows.append(
+                {
+                    "source_file": source_file,
+                    "tune_position": tune_position,
+                    "sim_NumDepth": num_depth,
+                    "freq_ghz": freq_ghz,
+                    "s_db": s_db,
+                    "s_phase_deg": phase,
+                    "sim_r_c": 56.59,
+                    "sim_w_c": 19.3224,
+                }
+            )
+        marker_rows.append(
+            {
+                "source_file": source_file,
+                "tune_position": tune_position,
+                "sim_NumDepth": num_depth,
+                "marker_name": "f_2pi3",
+                "freq_ghz": 2.85,
+                "s_db": -1.0,
+                "s_phase_deg": 10.0,
+                "sim_r_c": 56.59,
+                "sim_w_c": 19.3224,
+            }
+        )
+
+    paths = plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["cell_depth_01_r_c_56p59_w_c_19p3224", "cell_depth_02_r_c_56p59_w_c_19p3224"]
+    assert paths["cell_depth_01_r_c_56p59_w_c_19p3224"].name == "s11_cell_depth_01_r_c_56p59_w_c_19p3224.png"
+    assert paths["cell_depth_02_r_c_56p59_w_c_19p3224"].name == "s11_cell_depth_02_r_c_56p59_w_c_19p3224.png"
 
 
 def test_plot_s11_with_markers_rejects_empty_sparameter_table(tmp_path: Path) -> None:

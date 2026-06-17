@@ -11,7 +11,10 @@ from typing import Any
 
 import pandas as pd
 
-from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
+from deflector_tuning.analysis.grid_scan_spacing import (
+    summarize_marker_phase_sensitivity_for_grid_scan,
+    summarize_marker_spacing_for_grid_scan,
+)
 from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, save_marker_analysis
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
@@ -19,7 +22,10 @@ from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_p
 from deflector_tuning.data_loading.source_layer import detect_data_layer
 from deflector_tuning.dispersion import load_cst_dispersion_txt, process_cst_dispersion_txt
 from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curves
-from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
+from deflector_tuning.visualization.grid_scan_spacing_maps import (
+    plot_grid_scan_phase_sensitivity_maps,
+    plot_grid_scan_spacing_error_maps,
+)
 from deflector_tuning.visualization.nodal_shift_plots import plot_nodal_shift
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
@@ -167,6 +173,11 @@ def run_folder_analysis(
         spacing_summary = summarize_marker_spacing_for_grid_scan(tables["marker_points"])
         figures["grid_scan_spacing"] = OrderedDict(
             plot_grid_scan_spacing_error_maps(spacing_summary, figure_root / "grid_scan_spacing")
+        )
+        logger.info("Rendering grid-scan phase sensitivity figures")
+        sensitivity_summary = summarize_marker_phase_sensitivity_for_grid_scan(tables["marker_points"])
+        figures["grid_scan_sensitivity"] = OrderedDict(
+            plot_grid_scan_phase_sensitivity_maps(sensitivity_summary, figure_root / "grid_scan_sensitivity")
         )
     else:
         logger.info("Skipping grid-scan spacing figures: %s", detection["grid_scan_spacing"]["reason"])
