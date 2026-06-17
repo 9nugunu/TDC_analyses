@@ -435,6 +435,52 @@ def test_plot_s11_with_markers_omits_unreadable_large_legends(tmp_path: Path, mo
     assert saved_figures[0].axes[0].get_legend() is None
 
 
+def test_plot_s11_with_markers_labels_source_traces_by_run_number(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    sparameter_rows: list[dict[str, object]] = []
+    marker_rows: list[dict[str, object]] = []
+    for source_file, offset in [
+        ("run_001.s2p", 0.0),
+        ("06_3-5_TDS-Half-Plunger-Iris2Dsweep-260527_99.s1p", -1.0),
+    ]:
+        for freq_ghz, s_db in [(2.85, -1.0 + offset), (2.86, -2.0 + offset)]:
+            sparameter_rows.append(
+                {
+                    "source_file": source_file,
+                    "freq_ghz": freq_ghz,
+                    "s_name": "S11",
+                    "s_db": s_db,
+                    "s_phase_deg": 10.0,
+                }
+            )
+        marker_rows.append(
+            {
+                "source_file": source_file,
+                "marker_name": "f_mean",
+                "freq_ghz": 2.855,
+                "s_name": "S11",
+                "s_db": -1.5 + offset,
+                "s_phase_deg": 10.0,
+            }
+        )
+
+    monkeypatch.setattr(s11_frequency_plots, "save_figure", _capture_figure)
+
+    plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
+
+    legend = saved_figures[0].axes[0].get_legend()
+    assert legend is not None
+    assert [text.get_text() for text in legend.get_texts()] == ["RUN 001", "RUN 99"]
+
+
 def test_plot_s11_with_markers_does_not_write_position_nan_when_positions_are_missing(tmp_path: Path) -> None:
     sparameter_table = _sparameter_table().assign(tune_position=pd.NA)
     marker_points = _marker_points().assign(tune_position=pd.NA)

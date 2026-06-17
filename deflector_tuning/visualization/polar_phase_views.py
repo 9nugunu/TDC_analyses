@@ -45,7 +45,7 @@ def plot_marker_phase_polar_views(
     marker_points: pd.DataFrame,
     output_dir: str | Path,
     *,
-    title_prefix: str = "marker-frequency polar phase view",
+    title_prefix: str = "Polar phase",
     config: PlotConfig | None = None,
 ) -> OrderedDict[str, Path]:
     """Write one unit-circle polar phase view per sweep position plus an overview."""
@@ -70,7 +70,7 @@ def plot_marker_phase_polar_views(
             _draw_position(
                 ax,
                 position_table,
-                f"{position_label}: {title_prefix}",
+                _position_plot_title(position_label, position_table, grouping_mode=grouping_mode, title_prefix=title_prefix),
                 config=config,
                 guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
             )
@@ -82,7 +82,7 @@ def plot_marker_phase_polar_views(
 
     if grouping_mode != "grid_point":
         overview_path = folder / "all_positions.png"
-        _save_overview(groups, overview_path, title_prefix=title_prefix, config=config)
+        _save_overview(groups, overview_path, grouping_mode=grouping_mode, title_prefix=title_prefix, config=config)
         paths["overview"] = overview_path
     if grouping_mode == "tune_position":
         for family, family_table in _iter_family_overlay_groups(marker_points):
@@ -199,7 +199,14 @@ def _has_duplicate_markers(table: pd.DataFrame, group_columns: list[str]) -> boo
     return bool(table.duplicated(required_columns, keep=False).any())
 
 
-def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *, title_prefix: str, config: PlotConfig) -> None:
+def _save_overview(
+    groups: list[tuple[str, pd.DataFrame]],
+    output_path: Path,
+    *,
+    grouping_mode: str,
+    title_prefix: str,
+    config: PlotConfig,
+) -> None:
     column_count = 2 if len(groups) > 1 else 1
     row_count = ceil(len(groups) / column_count)
     fig, axes = plt.subplots(
@@ -214,7 +221,7 @@ def _save_overview(groups: list[tuple[str, pd.DataFrame]], output_path: Path, *,
         _draw_position(
             ax,
             position_table,
-            f"{position_label}: {title_prefix}",
+            _position_plot_title(position_label, position_table, grouping_mode=grouping_mode, title_prefix=title_prefix),
             compact=False,
             config=config,
             guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
@@ -509,6 +516,16 @@ def _position_output_stem(position_table: pd.DataFrame, position_label: str, *, 
     return f"position_{_safe_label(position_label)}"
 
 
+def _position_plot_title(position_label: str, position_table: pd.DataFrame, *, grouping_mode: str, title_prefix: str) -> str:
+    if grouping_mode == "grid_point":
+        family = _grid_point_family(position_table)
+        if family is not None:
+            grid_label = _format_grid_label(position_table["sim_r_c"].iloc[0], position_table["sim_w_c"].iloc[0])
+            return f"{family.title()} polar: {grid_label}"
+        return f"Grid polar: {position_label}"
+    return f"{position_label}: {title_prefix}"
+
+
 def _tune_position_filename_label(position_table: pd.DataFrame) -> str:
     tune_positions = position_table["tune_position"].dropna().unique()
     if len(tune_positions) != 1:
@@ -544,11 +561,19 @@ def _format_grid_family_label(family: str, sim_r_c: object, sim_w_c: object) -> 
 
 
 def _grid_point_filename_label(position_table: pd.DataFrame, position_label: str) -> str:
-    if "position_family" in position_table:
-        families = [str(family) for family in position_table["position_family"].dropna().unique()]
-        if len(families) == 1 and families[0] != "unknown":
-            return f"{families[0]}_{_safe_label(_format_grid_label(position_table['sim_r_c'].iloc[0], position_table['sim_w_c'].iloc[0]))}"
-    return f"grid_{_safe_label(position_label)}"
+    family = _grid_point_family(position_table)
+    if family is not None:
+        return f"polar_{family}_{_safe_label(_format_grid_label(position_table['sim_r_c'].iloc[0], position_table['sim_w_c'].iloc[0]))}"
+    return f"polar_grid_{_safe_label(position_label)}"
+
+
+def _grid_point_family(position_table: pd.DataFrame) -> str | None:
+    if "position_family" not in position_table:
+        return None
+    families = [str(family) for family in position_table["position_family"].dropna().unique()]
+    if len(families) == 1 and families[0] != "unknown":
+        return families[0]
+    return None
 
 
 def _format_grid_value(value: object) -> str:

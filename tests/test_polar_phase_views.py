@@ -251,6 +251,27 @@ def test_plot_marker_phase_polar_views_uses_full_typography_for_per_position_and
                     assert {text.get_fontsize() for text in legend_labels} == {float(config.label_size)}
 
 
+def test_plot_marker_phase_polar_views_uses_concise_sweep_titles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    titles = [ax.get_title() for fig in saved_figures for ax in fig.axes if ax.get_visible()]
+    assert "0.5: Polar phase" in titles
+    assert "1.0: Polar phase" in titles
+    assert "Cell overlay: Polar phase" in titles
+    assert "Cell $f_{2\\pi/3}$ overlay: Polar phase" in titles
+
+
 def test_plot_marker_phase_polar_views_uses_marker_specific_colors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     saved_figures: list[matplotlib.figure.Figure] = []
 
@@ -353,7 +374,7 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_sim_260526_grid_scan
 
     plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
-    guide_targets = {"cell_r_c_54p59_w_c_18p3224.png", "cell_r_c_55p59_w_c_19p3224.png"}
+    guide_targets = {"polar_cell_r_c_54p59_w_c_18p3224.png", "polar_cell_r_c_55p59_w_c_19p3224.png"}
     matched = [fig for fig, path in zip(saved_figures, saved_paths, strict=True) if path.name in guide_targets]
     assert len(matched) == 2
     for fig in matched:
@@ -380,8 +401,8 @@ def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_
     paths = plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["cell r_c=54.59, w_c=18.3224", "cell r_c=55.59, w_c=19.3224"]
-    assert paths["cell r_c=54.59, w_c=18.3224"].name == "cell_r_c_54p59_w_c_18p3224.png"
-    assert paths["cell r_c=55.59, w_c=19.3224"].name == "cell_r_c_55p59_w_c_19p3224.png"
+    assert paths["cell r_c=54.59, w_c=18.3224"].name == "polar_cell_r_c_54p59_w_c_18p3224.png"
+    assert paths["cell r_c=55.59, w_c=19.3224"].name == "polar_cell_r_c_55p59_w_c_19p3224.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
@@ -418,10 +439,31 @@ def test_plot_marker_phase_polar_views_uses_grid_points_before_tune_positions(tm
         "iris r_c=54.59, w_c=18.3224",
         "iris r_c=55.59, w_c=19.3224",
     ]
-    assert paths["cell r_c=54.59, w_c=18.3224"].name == "cell_r_c_54p59_w_c_18p3224.png"
-    assert paths["cell r_c=55.59, w_c=19.3224"].name == "cell_r_c_55p59_w_c_19p3224.png"
-    assert paths["iris r_c=54.59, w_c=18.3224"].name == "iris_r_c_54p59_w_c_18p3224.png"
-    assert paths["iris r_c=55.59, w_c=19.3224"].name == "iris_r_c_55p59_w_c_19p3224.png"
+    assert paths["cell r_c=54.59, w_c=18.3224"].name == "polar_cell_r_c_54p59_w_c_18p3224.png"
+    assert paths["cell r_c=55.59, w_c=19.3224"].name == "polar_cell_r_c_55p59_w_c_19p3224.png"
+    assert paths["iris r_c=54.59, w_c=18.3224"].name == "polar_iris_r_c_54p59_w_c_18p3224.png"
+    assert paths["iris r_c=55.59, w_c=19.3224"].name == "polar_iris_r_c_55p59_w_c_19p3224.png"
+
+
+def test_plot_marker_phase_polar_views_uses_concise_grid_titles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    titles = [ax.get_title() for fig in saved_figures for ax in fig.axes if ax.get_visible()]
+    assert titles == [
+        "Cell polar: r_c=54.59, w_c=18.3224",
+        "Cell polar: r_c=55.59, w_c=19.3224",
+    ]
 
 
 def test_plot_marker_phase_polar_views_rejects_empty_marker_points(tmp_path: Path) -> None:

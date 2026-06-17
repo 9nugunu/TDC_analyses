@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from pathlib import Path
+import re
 
 import matplotlib
 
@@ -289,10 +290,24 @@ def _source_label(source_file: object, group: pd.DataFrame) -> str:
 
 def _source_file_label(source_file: object) -> str:
     text = str(source_file)
+    run_label = _run_label_from_source_file(text)
+    if run_label is not None:
+        return run_label
     suffix = Path(text).suffix.lower()
     if suffix in {".csv", ".s1p", ".s2p", ".s3p", ".s4p"}:
         return Path(text).stem.replace("_processed", "")
     return text.replace("_processed", "")
+
+
+def _run_label_from_source_file(source_file: str) -> str | None:
+    stem = Path(source_file).stem
+    match = re.search(r"(?:^run|[_\-\s](?:run)?)(\d+)$", stem, flags=re.IGNORECASE)
+    if match is None:
+        return None
+    digits = match.group(1)
+    number = int(digits)
+    width = max(2, len(digits))
+    return f"RUN {number:0{width}d}"
 
 
 def _source_style(group: pd.DataFrame) -> dict[str, object]:

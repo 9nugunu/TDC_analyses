@@ -148,16 +148,15 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     assert result.output_dir == output_dir
     assert "grid_scan_spacing" in result.analysis_modes
     assert result.manifest_path.exists()
-    assert result.tables["sparameter_data"] == output_dir / "tables" / "sparameter_data.csv"
-    saved_sparameter_table = pd.read_csv(result.tables["sparameter_data"])
-    assert saved_sparameter_table.iloc[0]["source_file"] == "run1.s2p"
+    assert "sparameter_data" not in result.tables
+    assert not (output_dir / "tables" / "sparameter_data.csv").exists()
     assert result.figures["s11"]["overview"].exists()
     assert result.figures["phase_advance"]["overview"].exists()
     assert result.figures["polar"]["overview"].exists()
     assert result.figures["grid_scan_spacing"]["overview"].exists()
     manifest = result.manifest_path.read_text(encoding="utf-8")
     assert '"grid_scan_spacing"' in manifest
-    assert '"sparameter_data"' in manifest
+    assert '"sparameter_data"' not in manifest
     assert '"enabled": true' in manifest
 
 
@@ -341,7 +340,7 @@ def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, ca
     assert any("Folder analysis completed successfully" in message for message in messages)
 
 
-def test_run_folder_analysis_saves_s11_only_sparameter_data(tmp_path: Path, monkeypatch) -> None:
+def test_run_folder_analysis_does_not_save_sparameter_data_csv(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
     sparameter_table = pd.DataFrame(
         [
@@ -395,5 +394,5 @@ def test_run_folder_analysis_saves_s11_only_sparameter_data(tmp_path: Path, monk
         marker_role="sim",
     )
 
-    saved_sparameter_table = pd.read_csv(result.tables["sparameter_data"])
-    assert saved_sparameter_table["s_name"].tolist() == ["S11"]
+    assert "sparameter_data" not in result.tables
+    assert not (output_dir / "tables" / "sparameter_data.csv").exists()
