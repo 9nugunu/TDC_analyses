@@ -40,6 +40,7 @@ PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
 }
 DEFAULT_TRACE_STYLE: dict[str, object] = {"color": "#1565c0", "linestyle": "-"}
 MARKER_Y_OFFSETS: dict[str, int] = {"f_2pi3": 20, "f_mean": -34, "f_pi2": 50}
+MAX_LEGEND_ENTRIES: int = 30
 DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
     "dataset_id",
     "data_kind",
@@ -111,7 +112,7 @@ def plot_s11_with_markers(
             title="S11 magnitude with marker points",
             config=config,
         )
-    if split_by_position and "tune_position" in s_table and "tune_position" in m_table:
+    if split_by_position and _has_named_tune_positions(s_table, m_table):
         for tune_position, group in s_table.groupby("tune_position", dropna=False, sort=True):
             marker_group = m_table[m_table["tune_position"] == tune_position]
             key = f"position_{_format_position_key(tune_position)}"
@@ -189,11 +190,20 @@ def _plot_one(
     ax.grid(True, which="major", color="0.78", linewidth=0.8, alpha=0.7)
     ax.grid(True, which="minor", color="0.90", linestyle=":", linewidth=0.7, alpha=0.7)
     ax.minorticks_on()
-    ax.legend(frameon=True, loc="best", fontsize=config.legend_size)
+    _add_legend_if_readable(ax, config=config)
     fig.tight_layout()
     path = save_figure(fig, output_path, config)
     plt.close(fig)
     return path
+
+
+def _add_legend_if_readable(ax, *, config: PlotConfig) -> None:
+    handles, labels = ax.get_legend_handles_labels()
+    visible = [(handle, label) for handle, label in zip(handles, labels, strict=True) if not str(label).startswith("_")]
+    if not visible or len(visible) > MAX_LEGEND_ENTRIES:
+        return
+    legend_handles, legend_labels = zip(*visible, strict=True)
+    ax.legend(legend_handles, legend_labels, frameon=True, loc="best", fontsize=config.legend_size)
 
 
 def _axis_marker_bounds(values: pd.Series) -> tuple[float, float]:
@@ -201,6 +211,12 @@ def _axis_marker_bounds(values: pd.Series) -> tuple[float, float]:
     high = float(values.max())
     padding = max((high - low) * 0.25, 3.0)
     return low - padding, high + padding
+
+
+def _has_named_tune_positions(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:
+    if "tune_position" not in s_table or "tune_position" not in m_table:
+        return False
+    return s_table["tune_position"].notna().any() and m_table["tune_position"].notna().any()
 
 
 def _select_s11_rows(table: pd.DataFrame) -> pd.DataFrame:

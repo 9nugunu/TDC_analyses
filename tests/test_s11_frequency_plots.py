@@ -385,6 +385,66 @@ def test_plot_s11_with_markers_accepts_grid_scan_without_tune_position(tmp_path:
     assert paths["grid_r_c_56p59_w_c_19p32"].exists()
 
 
+def test_plot_s11_with_markers_omits_unreadable_large_legends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        saved_figures.append(fig)
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    rows: list[dict[str, object]] = []
+    marker_rows: list[dict[str, object]] = []
+    for index in range(s11_frequency_plots.MAX_LEGEND_ENTRIES + 1):
+        source_file = f"run_{index:03d}.s2p"
+        rows.extend(
+            [
+                {
+                    "source_file": source_file,
+                    "freq_ghz": 2.60,
+                    "s_name": "S11",
+                    "s_db": -10.0 - index * 0.01,
+                    "s_phase_deg": 0.0,
+                },
+                {
+                    "source_file": source_file,
+                    "freq_ghz": 2.70,
+                    "s_name": "S11",
+                    "s_db": -8.0 - index * 0.01,
+                    "s_phase_deg": 10.0,
+                },
+            ]
+        )
+        marker_rows.append(
+            {
+                "source_file": source_file,
+                "marker_name": "f_mean",
+                "freq_ghz": 2.65,
+                "s_name": "S11",
+                "s_db": -9.0,
+                "s_phase_deg": 5.0,
+            }
+        )
+    monkeypatch.setattr(s11_frequency_plots, "save_figure", _capture_figure)
+
+    plot_s11_with_markers(pd.DataFrame(rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
+
+    assert saved_figures
+    assert saved_figures[0].axes[0].get_legend() is None
+
+
+def test_plot_s11_with_markers_does_not_write_position_nan_when_positions_are_missing(tmp_path: Path) -> None:
+    sparameter_table = _sparameter_table().assign(tune_position=pd.NA)
+    marker_points = _marker_points().assign(tune_position=pd.NA)
+
+    paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["overview"]
+    assert paths["overview"].name == "s11_with_markers.png"
+
+
 def test_plot_s11_with_markers_rejects_empty_sparameter_table(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="sparameter_table is empty"):
         plot_s11_with_markers(pd.DataFrame(), _marker_points(), tmp_path)
