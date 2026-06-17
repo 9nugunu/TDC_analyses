@@ -28,7 +28,7 @@ def test_sim_loader_merges_result_navigator_by_run_id(tmp_path: Path) -> None:
 
 
 def test_sim_loader_uses_num_depth_as_cell_like_tune_axis(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "sim_grid_260526_iris_offset"
+    folder = tmp_path / "data" / "sim" / "sim_sweep_260526_iris_plunger_offset"
     folder.mkdir(parents=True)
     (folder / "result_navigator.csv").write_text(
         '" 3D Run ID"\t"DepthPlunger_offset"\t"NumDepth"\n'

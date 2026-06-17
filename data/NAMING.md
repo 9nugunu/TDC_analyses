@@ -20,7 +20,7 @@ Examples:
 
 ```text
 raw_sweep_260604_iris_portE
-sim_grid_260526_iris_offset
+sim_sweep_260526_iris_plunger_offset
 sim_dispersion_260505_single_cell_step1
 sim_sweep_260605_iris_2d_solver_export_nonorm
 prepro_sweep_260415_sparams_fullbrazing

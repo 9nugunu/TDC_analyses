@@ -272,7 +272,7 @@ def test_compute_phase_advance_treats_num_depth_as_tune_axis_not_geometry() -> N
         for num_depth, tune_position, phase in [(1, 0.5, 10.0), (2, 1.5, -110.0)]:
             rows.append(
                 {
-                    "dataset_id": "sim_grid_260526_iris_offset",
+                    "dataset_id": "sim_sweep_260526_iris_plunger_offset",
                     "data_kind": "simulation",
                     "data_layer": "sim",
                     "source_file": f"depth_{depth_offset}_{num_depth}.s1p",

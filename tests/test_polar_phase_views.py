@@ -204,7 +204,7 @@ def _plunger_offset_marker_points() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "sim_grid_260526_iris_offset",
+                    "dataset_id": "sim_sweep_260526_iris_plunger_offset",
                     "data_kind": "sim",
                     "data_layer": "sim",
                     "source_file": source_file,
