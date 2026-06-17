@@ -85,7 +85,7 @@ def plot_marker_phase_polar_views(
             plt.close(fig)
             paths[position_label] = output_path
 
-    if grouping_mode != "grid_point":
+    if grouping_mode not in {"grid_point", "sim_sweep"}:
         overview_path = folder / "all_positions.png"
         _save_overview(groups, overview_path, grouping_mode=grouping_mode, title_prefix=title_prefix, config=config)
         paths["overview"] = overview_path
@@ -145,6 +145,17 @@ def _iter_position_groups(marker_points: pd.DataFrame):
         for (sim_r_c, sim_w_c), group in table.groupby(["sim_r_c", "sim_w_c"], sort=False, dropna=False):
             yield _format_grid_label(sim_r_c, sim_w_c), group
         return
+    if grouping_mode == "sim_sweep":
+        sweep_columns = _varying_sim_sweep_columns(table)
+        sort_columns = [f"_{column}_sort" for column in sweep_columns]
+        for column, sort_column in zip(sweep_columns, sort_columns, strict=True):
+            table[sort_column] = pd.to_numeric(table[column], errors="coerce")
+        table = table.sort_values([*sort_columns, *sweep_columns, "source_file", "marker_name"], kind="mergesort")
+        for values, group in table.groupby(sweep_columns, sort=False, dropna=False):
+            if len(sweep_columns) == 1 and not isinstance(values, tuple):
+                values = (values,)
+            yield _format_sim_sweep_label(sweep_columns, values), group
+        return
     if grouping_mode == "source_file":
         group_columns = _position_group_columns(table, base_columns=("source_file",))
         table = table.sort_values([*group_columns, "marker_name"], kind="mergesort")
@@ -157,6 +168,8 @@ def _iter_position_groups(marker_points: pd.DataFrame):
 def _grouping_mode(marker_points: pd.DataFrame) -> str:
     if _has_multiple_grid_points(marker_points):
         return "grid_point"
+    if _has_multiple_sim_sweep_points(marker_points):
+        return "sim_sweep"
     if _has_multiple_tune_positions(marker_points):
         return "tune_position"
     if _has_multiple_source_files(marker_points):
@@ -182,6 +195,14 @@ def _has_multiple_grid_points(marker_points: pd.DataFrame) -> bool:
         return False
     grid_points = marker_points[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
     return len(grid_points) > 1
+
+
+def _has_multiple_sim_sweep_points(marker_points: pd.DataFrame) -> bool:
+    sweep_columns = _varying_sim_sweep_columns(marker_points)
+    if not sweep_columns:
+        return False
+    sweep_points = marker_points[sweep_columns].dropna(how="all").drop_duplicates()
+    return len(sweep_points) > 1
 
 
 def _has_multiple_source_files(marker_points: pd.DataFrame) -> bool:
@@ -523,6 +544,8 @@ def _position_output_stem(position_table: pd.DataFrame, position_label: str, *, 
         return _tune_position_filename_label(position_table)
     if grouping_mode == "grid_point":
         return _grid_point_filename_label(position_table, position_label)
+    if grouping_mode == "sim_sweep":
+        return f"polar_{_simulation_family_label(position_table)}_{_safe_label(position_label)}"
     return f"position_{_safe_label(position_label)}"
 
 
@@ -533,6 +556,8 @@ def _position_plot_title(position_label: str, position_table: pd.DataFrame, *, g
             grid_label = _format_grid_label(position_table["sim_r_c"].iloc[0], position_table["sim_w_c"].iloc[0])
             return f"{family.title()} polar: {grid_label}"
         return f"Grid polar: {position_label}"
+    if grouping_mode == "sim_sweep":
+        return f"{_simulation_family_label(position_table).title()} polar: {position_label}"
     return f"{position_label}: {title_prefix}"
 
 
@@ -584,6 +609,70 @@ def _grid_point_family(position_table: pd.DataFrame) -> str | None:
     if len(families) == 1 and families[0] != "unknown":
         return families[0]
     return None
+
+
+def _simulation_family_label(position_table: pd.DataFrame) -> str:
+    text_parts: list[str] = []
+    for column in ("dataset_id", "source_file"):
+        if column in position_table:
+            text_parts.extend(str(value).lower() for value in position_table[column].dropna().unique())
+    joined = " ".join(text_parts)
+    if "iris" in joined:
+        return "iris"
+    if "cell" in joined:
+        return "cell"
+    if "tune_position" in position_table:
+        tune_positions = position_table["tune_position"].dropna().unique()
+        if len(tune_positions) == 1:
+            try:
+                family = _position_family(tune_positions[0])
+            except (TypeError, ValueError):
+                family = ""
+            if family in {"iris", "cell"}:
+                return family
+    return "sim"
+
+
+def _format_sim_sweep_label(sweep_columns: list[str], values: tuple[object, ...]) -> str:
+    parts = []
+    for column, value in zip(sweep_columns, values, strict=True):
+        parts.append(f"{_sim_sweep_column_label(column)}={_format_grid_value(value)}")
+    return "_".join(parts)
+
+
+def _varying_sim_sweep_columns(marker_points: pd.DataFrame) -> list[str]:
+    columns = []
+    for column in marker_points.columns:
+        if not column.startswith("sim_") or column in {"sim_r_c", "sim_w_c"}:
+            continue
+        metadata_name = column.removeprefix("sim_")
+        if metadata_name.lower().startswith("num"):
+            continue
+        if marker_points[column].dropna().nunique() > 1:
+            columns.append(column)
+    return columns
+
+
+def _sim_sweep_column_label(column: str) -> str:
+    label = column.removeprefix("sim_")
+    if label.startswith("Depth") and len(label) > len("Depth"):
+        label = label[len("Depth") :]
+    return _camel_to_snake(label)
+
+
+def _camel_to_snake(label: str) -> str:
+    converted = []
+    previous_is_lower_or_digit = False
+    for character in label:
+        if character in {" ", "-", "."}:
+            converted.append("_")
+            previous_is_lower_or_digit = False
+            continue
+        if character.isupper() and previous_is_lower_or_digit:
+            converted.append("_")
+        converted.append(character.lower())
+        previous_is_lower_or_digit = character.islower() or character.isdigit()
+    return "".join(converted)
 
 
 def _format_grid_value(value: object) -> str:

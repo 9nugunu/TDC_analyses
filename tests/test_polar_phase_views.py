@@ -191,6 +191,41 @@ def _grid_scan_marker_points_with_tune_positions() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _plunger_offset_marker_points() -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for source_file, offset, num_depth, phases in [
+        ("06_3-4_TDS-Half-Plunger-IrisOffset-260526_1.s1p", -3.0, 1, (10.0, -110.0, 130.0)),
+        ("06_3-4_TDS-Half-Plunger-IrisOffset-260526_4.s1p", 0.0, 1, (25.0, -95.0, 145.0)),
+    ]:
+        for marker_name, target_freq_ghz, s_db, phase_deg in [
+            ("f_2pi3", 2.856, -1.0, phases[0]),
+            ("f_mean", 2.866, -2.0, phases[1]),
+            ("f_pi2", 2.876, -3.0, phases[2]),
+        ]:
+            rows.append(
+                {
+                    "dataset_id": "sim_260526_grid_iris_offset",
+                    "data_kind": "sim",
+                    "data_layer": "sim",
+                    "source_file": source_file,
+                    "tune_position": pd.NA,
+                    "sim_DepthPlunger_offset": offset,
+                    "sim_NumDepth": num_depth,
+                    "port_side": None,
+                    "s_name": "S11",
+                    "marker_name": marker_name,
+                    "marker_role": "sim",
+                    "target_freq_ghz": target_freq_ghz,
+                    "freq_ghz": target_freq_ghz,
+                    "freq_error_ghz": 0.0,
+                    "s_db": s_db,
+                    "s_phase_deg": phase_deg,
+                    "source_format": "touchstone_ri",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp_path: Path) -> None:
     paths = plot_marker_phase_polar_views(_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
@@ -403,6 +438,17 @@ def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_
     assert list(paths) == ["cell r_c=54.59, w_c=18.3224", "cell r_c=55.59, w_c=19.3224"]
     assert paths["cell r_c=54.59, w_c=18.3224"].name == "polar_cell_r_c_54p59_w_c_18p3224.png"
     assert paths["cell r_c=55.59, w_c=19.3224"].name == "polar_cell_r_c_55p59_w_c_19p3224.png"
+    for path in paths.values():
+        assert path.exists()
+        assert path.stat().st_size > 0
+
+
+def test_plot_marker_phase_polar_views_uses_result_navigator_sweep_columns(tmp_path: Path) -> None:
+    paths = plot_marker_phase_polar_views(_plunger_offset_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == ["plunger_offset=-3", "plunger_offset=0"]
+    assert paths["plunger_offset=-3"].name == "polar_iris_plunger_offset_m3.png"
+    assert paths["plunger_offset=0"].name == "polar_iris_plunger_offset_0.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
