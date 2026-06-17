@@ -3,26 +3,27 @@
 Dataset folders under `data/raw`, `data/sim`, and `data/prepro` must use:
 
 ```text
-<layer>_<date>_<category>_<object>_<condition>
+<layer>_<category>_<date>_<object>_<condition>
 ```
 
 Required fields:
 
 ```text
 layer: raw | sim | prepro
-date: YYMMDD | undated
 category: sweep | grid | dispersion
+date: YYMMDD | undated
 object/condition: ASCII alphanumeric tokens joined by underscores
 ```
+
 
 Examples:
 
 ```text
-raw_260604_sweep_iris_portE
-sim_260526_grid_iris_offset
-sim_260505_dispersion_single_cell_step1
-sim_260605_sweep_iris_2d_solver_export_nonorm
-prepro_260415_sweep_sparams_fullbrazing
+raw_sweep_260604_iris_portE
+sim_grid_260526_iris_offset
+sim_dispersion_260505_single_cell_step1
+sim_sweep_260605_iris_2d_solver_export_nonorm
+prepro_sweep_260415_sparams_fullbrazing
 ```
 
 Use `sweep` for tune-position, line, and 2D sweep datasets. The analysis code

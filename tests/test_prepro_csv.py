@@ -4,7 +4,7 @@ from deflector_tuning.data_loading.central_loader import DataLoader
 
 
 def test_prepro_loader_reads_processed_csv_with_phase(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "prepro" / "prepro_260415_sweep_case_a"
+    folder = tmp_path / "data" / "prepro" / "prepro_sweep_260415_case_a"
     folder.mkdir(parents=True)
     (folder / "8_processed.csv").write_text(
         "freq[Hz],Magnitude,Phase_deg\n2756000000.0,-0.089,136.27\n",
@@ -14,7 +14,7 @@ def test_prepro_loader_reads_processed_csv_with_phase(tmp_path: Path) -> None:
     table = DataLoader().load(folder)
 
     row = table.iloc[0]
-    assert row["dataset_id"] == "prepro_260415_sweep_case_a"
+    assert row["dataset_id"] == "prepro_sweep_260415_case_a"
     assert row["data_kind"] == "experiment"
     assert row["data_layer"] == "prepro"
     assert row["source_file"] == "8_processed.csv"
@@ -27,7 +27,7 @@ def test_prepro_loader_reads_processed_csv_with_phase(tmp_path: Path) -> None:
 
 
 def test_prepro_loader_reads_processed_csv_without_phase(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "prepro" / "prepro_260415_sweep_case_b"
+    folder = tmp_path / "data" / "prepro" / "prepro_sweep_260415_case_b"
     folder.mkdir(parents=True)
     (folder / "in_0.5cell_processed.csv").write_text(
         "freq[Hz],Magnitude\n2756000000.0,-0.12\n",

@@ -132,7 +132,7 @@ def _grid_scan_marker_points() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "sim_260526_grid_scan",
+                    "dataset_id": "sim_grid_260526_scan",
                     "data_kind": "sim",
                     "data_layer": "sim",
                     "source_file": source_file,
@@ -169,7 +169,7 @@ def _grid_scan_marker_points_with_tune_positions() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "sim_260526_grid_scan",
+                    "dataset_id": "sim_grid_260526_scan",
                     "data_kind": "sim",
                     "data_layer": "sim",
                     "source_file": source_file,
@@ -204,7 +204,7 @@ def _plunger_offset_marker_points() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "sim_260526_grid_iris_offset",
+                    "dataset_id": "sim_grid_260526_iris_offset",
                     "data_kind": "sim",
                     "data_layer": "sim",
                     "source_file": source_file,

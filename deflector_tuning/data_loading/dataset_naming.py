@@ -10,7 +10,7 @@ from deflector_tuning.data_loading.source_layer import DataLayer
 
 DATASET_NAMING_DOC = "data/NAMING.md"
 DATASET_NAME_PATTERN = re.compile(
-    r"^(?P<layer>raw|sim|prepro)_(?P<date>\d{6}|undated)_(?P<category>sweep|grid|dispersion)_[A-Za-z0-9][A-Za-z0-9_]*$"
+    r"^(?P<layer>raw|sim|prepro)_(?P<category>sweep|grid|dispersion)_(?P<date>\d{6}|undated)_(?P<tail>[A-Za-z0-9][A-Za-z0-9_]*)$"
 )
 
 
@@ -22,6 +22,7 @@ class DatasetIdentity:
     layer: str
     date: str
     category: str
+    tail: str
 
 
 def parse_dataset_id(dataset_id: str) -> DatasetIdentity:
@@ -31,7 +32,7 @@ def parse_dataset_id(dataset_id: str) -> DatasetIdentity:
     if match is None:
         raise ValueError(
             f"Dataset id does not follow the naming rule: {dataset_id!r}. "
-            "Expected <layer>_<YYMMDD|undated>_<sweep|grid|dispersion>_<object>_<condition>; "
+            "Expected <layer>_<sweep|grid|dispersion>_<YYMMDD|undated>_<object>_<condition>; "
             f"see {DATASET_NAMING_DOC}."
         )
     return DatasetIdentity(
@@ -39,6 +40,7 @@ def parse_dataset_id(dataset_id: str) -> DatasetIdentity:
         layer=match.group("layer"),
         date=match.group("date"),
         category=match.group("category"),
+        tail=match.group("tail"),
     )
 
 

@@ -88,7 +88,7 @@ def _port_side_sparameter_table() -> pd.DataFrame:
         ]:
             rows.append(
                 {
-                    "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
+                    "dataset_id": "raw_sweep_250609_sparams_beforebrazing",
                     "data_layer": "raw",
                     "source_file": source_file,
                     "tune_position": tune_position,
@@ -107,7 +107,7 @@ def _port_side_marker_points() -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
-                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
+                "dataset_id": "raw_sweep_250609_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "in_0.5cell.csv",
                 "tune_position": 0.5,
@@ -123,7 +123,7 @@ def _port_side_marker_points() -> pd.DataFrame:
                 "source_format": "raw_csv_ri",
             },
             {
-                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
+                "dataset_id": "raw_sweep_250609_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "out_0.5cell.csv",
                 "tune_position": 0.5,
@@ -139,7 +139,7 @@ def _port_side_marker_points() -> pd.DataFrame:
                 "source_format": "raw_csv_ri",
             },
             {
-                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
+                "dataset_id": "raw_sweep_250609_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "in_1.5cell.csv",
                 "tune_position": 1.5,
@@ -155,7 +155,7 @@ def _port_side_marker_points() -> pd.DataFrame:
                 "source_format": "raw_csv_ri",
             },
             {
-                "dataset_id": "raw_250609_sweep_sparams_beforebrazing",
+                "dataset_id": "raw_sweep_250609_sparams_beforebrazing",
                 "data_layer": "raw",
                 "source_file": "out_1.5cell.csv",
                 "tune_position": 1.5,

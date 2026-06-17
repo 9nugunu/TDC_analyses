@@ -15,7 +15,7 @@ def _write_dispersion_summary(folder: Path) -> Path:
     )
     return summary
 def test_extract_sim_marker_frequencies_from_mode_1_dispersion_summary(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "sim_260505_dispersion_single_cell_step1"
+    folder = tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
     _write_dispersion_summary(folder)
 
     markers = extract_marker_frequencies(folder, marker_role="sim")
@@ -65,7 +65,7 @@ def test_extract_sim_marker_frequencies_from_mode_1_dispersion_summary(tmp_path:
         },
     ]
 def test_extract_exp_marker_frequencies_apply_temperature_humidity_correction(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "sim_260505_dispersion_single_cell_step1"
+    folder = tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
     _write_dispersion_summary(folder)
 
     markers = extract_marker_frequencies(folder, marker_role="exp")

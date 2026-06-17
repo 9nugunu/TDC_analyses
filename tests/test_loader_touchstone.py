@@ -7,7 +7,7 @@ from deflector_tuning.data_loading.records import DataKind
 
 
 def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "sim_260605_sweep_case_a"
+    folder = tmp_path / "data" / "sim" / "sim_sweep_260605_case_a"
     folder.mkdir(parents=True)
     (folder / "trace.s1p").write_text(
         "# GHz S RI R 0\n2.6 1.0 0.0\n2.7 0.0 -1.0\n",
@@ -36,7 +36,7 @@ def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
     ]
     assert table.to_dict("records") == [
         {
-            "dataset_id": "sim_260605_sweep_case_a",
+            "dataset_id": "sim_sweep_260605_case_a",
             "data_kind": "sim",
             "data_layer": "sim",
             "source_file": "trace.s1p",
@@ -54,7 +54,7 @@ def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
             "scan_type": "single_point",
         },
         {
-            "dataset_id": "sim_260605_sweep_case_a",
+            "dataset_id": "sim_sweep_260605_case_a",
             "data_kind": "sim",
             "data_layer": "sim",
             "source_file": "trace.s1p",
@@ -75,7 +75,7 @@ def test_sim_loader_reads_touchstone_files_as_dataframe(tmp_path: Path) -> None:
 
 
 def test_raw_loader_reads_touchstone_but_keeps_experiment_kind(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_case_b"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_case_b"
     folder.mkdir(parents=True)
     (folder / "trace.s2p").write_text(
         "# GHz S RI R 50\n2.6 1 0 2 0 3 0 4 0\n",
@@ -89,7 +89,7 @@ def test_raw_loader_reads_touchstone_but_keeps_experiment_kind(tmp_path: Path) -
 
 
 def test_raw_loader_reads_db_touchstone_into_common_dataframe(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_case_db"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_case_db"
     folder.mkdir(parents=True)
     (folder / "trace.s1p").write_text("# Hz S DB R 50\n2756000000 -6 90\n", encoding="utf-8")
 
@@ -104,7 +104,7 @@ def test_raw_loader_reads_db_touchstone_into_common_dataframe(tmp_path: Path) ->
 
 
 def test_data_loader_parallel_touchstone_loading_matches_sequential_order(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_parallel"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_parallel"
     folder.mkdir(parents=True)
     for index, phase in enumerate([0.0, 45.0, 90.0], start=1):
         (folder / f"trace_{index}.s1p").write_text(
@@ -119,7 +119,7 @@ def test_data_loader_parallel_touchstone_loading_matches_sequential_order(tmp_pa
 
 
 def test_sim_loader_reads_cst_txt_magnitude_export(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "sim_undated_grid_coupler_s11_radius_sweep"
+    folder = tmp_path / "data" / "sim" / "sim_grid_undated_coupler_s11_radius_sweep"
     folder.mkdir(parents=True)
     (folder / "s11_rc5209.txt").write_text(
         "#Parameters = {NumTune=0; r_c=52.09; w_c=19.3224}\n"
@@ -132,7 +132,7 @@ def test_sim_loader_reads_cst_txt_magnitude_export(tmp_path: Path) -> None:
     table = DataLoader().load(folder)
     row = table.iloc[0]
 
-    assert row["dataset_id"] == "sim_undated_grid_coupler_s11_radius_sweep"
+    assert row["dataset_id"] == "sim_grid_undated_coupler_s11_radius_sweep"
     assert row["source_file"] == "s11_rc5209.txt"
     assert row["freq_ghz"] == pytest.approx(2.6)
     assert row["s_name"] == "S11"

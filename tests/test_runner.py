@@ -10,7 +10,7 @@ def _tables() -> dict[str, pd.DataFrame]:
     marker_points = pd.DataFrame(
         [
             {
-                "dataset_id": "sim_260526_grid_scan",
+                "dataset_id": "sim_grid_260526_scan",
                 "data_kind": "sim",
                 "source_file": "run1.s2p",
                 "marker_name": "f_2pi3",
@@ -22,7 +22,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.0,
             },
             {
-                "dataset_id": "sim_260526_grid_scan",
+                "dataset_id": "sim_grid_260526_scan",
                 "data_kind": "sim",
                 "source_file": "run1.s2p",
                 "marker_name": "f_mean",
@@ -34,7 +34,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.0,
             },
             {
-                "dataset_id": "sim_260526_grid_scan",
+                "dataset_id": "sim_grid_260526_scan",
                 "data_kind": "sim",
                 "source_file": "run1.s2p",
                 "marker_name": "f_pi2",
@@ -46,7 +46,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.0,
             },
             {
-                "dataset_id": "sim_260526_grid_scan",
+                "dataset_id": "sim_grid_260526_scan",
                 "data_kind": "sim",
                 "source_file": "run2.s2p",
                 "marker_name": "f_2pi3",
@@ -58,7 +58,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.5,
             },
             {
-                "dataset_id": "sim_260526_grid_scan",
+                "dataset_id": "sim_grid_260526_scan",
                 "data_kind": "sim",
                 "source_file": "run2.s2p",
                 "marker_name": "f_mean",
@@ -70,7 +70,7 @@ def _tables() -> dict[str, pd.DataFrame]:
                 "sim_w_c": 2.5,
             },
             {
-                "dataset_id": "sim_260526_grid_scan",
+                "dataset_id": "sim_grid_260526_scan",
                 "data_kind": "sim",
                 "source_file": "run2.s2p",
                 "marker_name": "f_pi2",
@@ -153,8 +153,8 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
     result = runner.run_folder_analysis(
-        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
-        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
+        sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
         output_dir=output_dir,
         marker_role="sim",
     )
@@ -192,16 +192,16 @@ def test_detect_analysis_modes_uses_dataset_category_as_grid_gate() -> None:
 
 def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Path) -> None:
     sparameter_path, dispersion_path = runner.resolve_input_paths(
-        "prepro/prepro_260415_sweep_sample_prepro",
+        "prepro/prepro_sweep_260415_sample_prepro",
         data_root=tmp_path / "data",
     )
 
-    assert sparameter_path == tmp_path / "data" / "prepro" / "prepro_260415_sweep_sample_prepro"
-    assert dispersion_path == tmp_path / "data" / "sim" / "sim_260505_dispersion_single_cell_step1"
+    assert sparameter_path == tmp_path / "data" / "prepro" / "prepro_sweep_260415_sample_prepro"
+    assert dispersion_path == tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
 
 
 def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path: Path, monkeypatch) -> None:
-    dispersion_folder = tmp_path / "data" / "sim" / "sim_260505_dispersion_case"
+    dispersion_folder = tmp_path / "data" / "sim" / "sim_dispersion_260505_case"
     dispersion_folder.mkdir(parents=True)
     (dispersion_folder / "phase_sweep.txt").write_text(
         "\n".join(
@@ -292,8 +292,8 @@ def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
     result = runner.run_folder_analysis(
-        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
-        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
+        sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
         output_dir=output_dir,
         marker_role="sim",
     )
@@ -358,8 +358,8 @@ def test_run_folder_analysis_reuses_existing_grid_s11_figures_from_manifest(tmp_
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
     result = runner.run_folder_analysis(
-        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
-        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
+        sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
         output_dir=output_dir,
         marker_role="sim",
     )
@@ -408,8 +408,8 @@ def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, ca
 
     with caplog.at_level("INFO", logger="deflector_tuning.runner"):
         runner.run_folder_analysis(
-            sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
-            dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
+            sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
+            dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
             output_dir=output_dir,
             marker_role="sim",
         )
@@ -472,8 +472,8 @@ def test_run_folder_analysis_does_not_save_sparameter_data_csv(tmp_path: Path, m
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
     result = runner.run_folder_analysis(
-        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
-        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
+        sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
         output_dir=output_dir,
         marker_role="sim",
     )

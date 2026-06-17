@@ -4,7 +4,7 @@ from deflector_tuning.data_loading.central_loader import DataLoader
 
 
 def test_raw_loader_processes_ri_csv_export(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_case_ri"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_case_ri"
     folder.mkdir(parents=True)
     (folder / "in_0.5cell.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
@@ -15,7 +15,7 @@ def test_raw_loader_processes_ri_csv_export(tmp_path: Path) -> None:
     table = DataLoader().load(folder)
 
     row = table.iloc[0]
-    assert row["dataset_id"] == "raw_260604_sweep_case_ri"
+    assert row["dataset_id"] == "raw_sweep_260604_case_ri"
     assert row["data_kind"] == "experiment"
     assert row["data_layer"] == "raw"
     assert row["s_name"] == "S11"
@@ -27,7 +27,7 @@ def test_raw_loader_processes_ri_csv_export(tmp_path: Path) -> None:
 
 
 def test_raw_loader_processes_ri_csv_export_with_non_trc1_header(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_raw_260604_sweep_case_ri_trc3"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_raw_260604_sweep_case_ri_trc3"
     folder.mkdir(parents=True)
     (folder / "in_1.0iris.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc3_S11;im:Trc3_S11;re:Trc4_S11;im:Trc4_S11;\n"
@@ -38,7 +38,7 @@ def test_raw_loader_processes_ri_csv_export_with_non_trc1_header(tmp_path: Path)
     table = DataLoader().load(folder)
 
     row = table.iloc[0]
-    assert row["dataset_id"] == "raw_260604_sweep_raw_260604_sweep_case_ri_trc3"
+    assert row["dataset_id"] == "raw_sweep_260604_raw_260604_sweep_case_ri_trc3"
     assert row["source_file"] == "in_1.0iris.csv"
     assert row["tune_position"] == 1.0
     assert row["port_side"] == "in"
@@ -50,7 +50,7 @@ def test_raw_loader_processes_ri_csv_export_with_non_trc1_header(tmp_path: Path)
 
 
 def test_raw_loader_processes_formatted_mag_phase_csv_export(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_case_mag_phase"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_case_mag_phase"
     folder.mkdir(parents=True)
     (folder / "0.5.csv").write_text(
         '"# Channel 1"\n"# Trace 1"\nFrequency, Formatted Data, Formatted Data\n'
@@ -68,7 +68,7 @@ def test_raw_loader_processes_formatted_mag_phase_csv_export(tmp_path: Path) -> 
 
 
 def test_raw_loader_skips_non_sparameter_csv_outputs(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_case_with_outputs"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_case_with_outputs"
     folder.mkdir(parents=True)
     (folder / "in_0.5cell.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"

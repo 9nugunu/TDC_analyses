@@ -43,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--dispersion-path",
         type=Path,
         default=None,
-        help="Advanced override. Defaults to data/sim/sim_260505_dispersion_single_cell_step1.",
+        help="Advanced override. Defaults to data/sim/sim_dispersion_260505_single_cell_step1.",
     )
     parser.add_argument(
         "--data-root",
@@ -64,7 +64,7 @@ def collect_interactive_args() -> argparse.Namespace:
     """Collect the one user-facing runner setting from a simple prompt."""
 
     print(DESCRIPTION)
-    input_folder = _prompt_required_path("Input dataset id or folder, e.g. sim_260527_sweep_iris_line")
+    input_folder = _prompt_required_path("Input dataset id or folder, e.g. sim_sweep_260527_iris_line")
     args = argparse.Namespace(
         input_folder=input_folder,
         output_dir=None,

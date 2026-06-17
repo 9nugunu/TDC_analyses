@@ -6,15 +6,15 @@ from deflector_tuning.data_loading.source_layer import DataLayer, detect_data_la
 
 
 def test_sim_folder_maps_to_sim_layer() -> None:
-    assert detect_data_layer(Path("data/sim/sim_260605_sweep_case")) is DataLayer.SIM
+    assert detect_data_layer(Path("data/sim/sim_sweep_260605_case")) is DataLayer.SIM
 
 
 def test_raw_folder_maps_to_raw_layer() -> None:
-    assert detect_data_layer(Path("data/raw/raw_260604_sweep_case")) is DataLayer.RAW
+    assert detect_data_layer(Path("data/raw/raw_sweep_260604_case")) is DataLayer.RAW
 
 
 def test_prepro_folder_maps_to_prepro_layer() -> None:
-    assert detect_data_layer(Path("data/prepro/prepro_260415_sweep_case")) is DataLayer.PREPRO
+    assert detect_data_layer(Path("data/prepro/prepro_sweep_260415_case")) is DataLayer.PREPRO
 
 
 def test_prepro_policy_is_csv_or_corrected_experiment_data() -> None:

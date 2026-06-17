@@ -30,7 +30,7 @@ FigurePaths = OrderedDict[str, OrderedDict[str, Path]]
 
 BASE_ANALYSIS_MODES: tuple[str, ...] = ("marker_analysis", "s11", "phase_advance", "nodal_shift", "polar")
 DEFAULT_DATA_ROOT = Path("data")
-DEFAULT_DISPERSION_SUBPATH = Path("sim") / "sim_260505_dispersion_single_cell_step1"
+DEFAULT_DISPERSION_SUBPATH = Path("sim") / "sim_dispersion_260505_single_cell_step1"
 GRID_SCAN_REQUIRED_COLUMNS: frozenset[str] = frozenset(
     {"data_kind", "sim_r_c", "sim_w_c", "marker_name", "s_phase_deg"}
 )

@@ -4,7 +4,7 @@ from deflector_tuning.data_loading.central_loader import DataLoader
 
 
 def test_halfbrazing_in_out_file_gets_port_side_and_tune_position(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_250609_sweep_sparams_beforebrazing"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_250609_sparams_beforebrazing"
     folder.mkdir(parents=True)
     (folder / "in_0.5cell.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
@@ -20,7 +20,7 @@ def test_halfbrazing_in_out_file_gets_port_side_and_tune_position(tmp_path: Path
 
 
 def test_fullbrazing_ignores_in_out_even_if_filename_contains_it(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "prepro" / "prepro_260415_sweep_sparams_fullbrazing"
+    folder = tmp_path / "data" / "prepro" / "prepro_sweep_260415_sparams_fullbrazing"
     folder.mkdir(parents=True)
     (folder / "in_0.5cell_processed.csv").write_text(
         "freq[Hz],Magnitude,Phase_deg\n2756000000.0,-1.2,90\n",
@@ -35,7 +35,7 @@ def test_fullbrazing_ignores_in_out_even_if_filename_contains_it(tmp_path: Path)
 
 
 def test_simple_numeric_file_gets_tune_position_only(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "prepro" / "prepro_260415_sweep_sparams_fullbrazing"
+    folder = tmp_path / "data" / "prepro" / "prepro_sweep_260415_sparams_fullbrazing"
     folder.mkdir(parents=True)
     (folder / "8_processed.csv").write_text(
         "freq[Hz],Magnitude,Phase_deg\n2756000000.0,-1.2,90\n",
@@ -50,7 +50,7 @@ def test_simple_numeric_file_gets_tune_position_only(tmp_path: Path) -> None:
 
 
 def test_date_prefixed_iris_file_gets_iris_position_not_date(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_iris_portE"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_iris_portE"
     folder.mkdir(parents=True)
     (folder / "260604_iris_1_portE.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
@@ -66,7 +66,7 @@ def test_date_prefixed_iris_file_gets_iris_position_not_date(tmp_path: Path) -> 
 
 
 def test_leading_date_token_is_not_used_as_fallback_position(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_iris_portE"
+    folder = tmp_path / "data" / "raw" / "raw_sweep_260604_iris_portE"
     folder.mkdir(parents=True)
     (folder / "260604_portE.csv").write_text(
         "# Version 1.00\n#\nfreq[Hz];re:Trc1_S11;im:Trc1_S11;\n"
@@ -80,7 +80,7 @@ def test_leading_date_token_is_not_used_as_fallback_position(tmp_path: Path) -> 
 
 
 def test_touchstone_cell_file_gets_cell_tune_position_not_date(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "sim_260504_sweep_tds_body_plunger"
+    folder = tmp_path / "data" / "sim" / "sim_sweep_260504_tds_body_plunger"
     folder.mkdir(parents=True)
     (folder / "260504_Cell_0.5_RI.s2p").write_text(
         "# GHz S RI R 50\n2.6 1 0 0 0 0 0 1 0\n",
@@ -95,7 +95,7 @@ def test_touchstone_cell_file_gets_cell_tune_position_not_date(tmp_path: Path) -
 
 
 def test_sim_touchstone_run_id_is_not_treated_as_tune_position(tmp_path: Path) -> None:
-    folder = tmp_path / "data" / "sim" / "sim_260527_sweep_iris_line"
+    folder = tmp_path / "data" / "sim" / "sim_sweep_260527_iris_line"
     folder.mkdir(parents=True)
     (folder / "run_001.s1p").write_text(
         "# GHz S RI R 0\n2.6 1 0\n",
