@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,7 @@ from deflector_tuning.data_loading.dataset_naming import validate_dataset_id
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
 from deflector_tuning.data_loading.records import DataFiles, DataFolder, DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
+from deflector_tuning.progress import progress_iter
 
 
 class FolderLoader:
@@ -55,45 +57,118 @@ class FolderLoader:
             other_files=other_files,
         )
 
-    def load_touchstone(self, path: str | Path) -> pd.DataFrame:
+    def load_touchstone(self, path: str | Path, *, file_workers: int = 1) -> pd.DataFrame:
         """Read Touchstone files into one simple long-form table."""
 
         data_folder = self.load(path)
-        rows: list[dict[str, object]] = []
-        for touchstone_file in self.list_files(path).touchstone_files:
-            touchstone_data = read_touchstone(touchstone_file)
-            metadata = metadata_from_filename(
-                touchstone_file,
-                data_folder.dataset_id,
-                strict_cell_position=self.data_layer is DataLayer.SIM,
-            )
-            for freq, s_values_at_freq in zip(
-                touchstone_data.frequency,
-                touchstone_data.s_values,
-                strict=True,
-            ):
-                freq_ghz = _frequency_to_ghz(freq, touchstone_data.header.frequency_unit)
-                for s_name, s_value in zip(_s_names(len(s_values_at_freq)), s_values_at_freq, strict=True):
-                    rows.append(
-                        {
-                            "dataset_id": data_folder.dataset_id,
-                            "data_kind": data_folder.data_kind.value,
-                            "data_layer": data_folder.data_layer.folder_name,
-                            "source_file": touchstone_file.name,
-                            "freq_ghz": freq_ghz,
-                            "s_name": s_name,
-                            "s_real": s_value.real,
-                            "s_imag": s_value.imag,
-                            "s_db": _safe_db(s_value),
-                            "s_phase_deg": float(np.angle(s_value, deg=True)),
-                            "source_format": f"touchstone_{touchstone_data.header.data_format.lower()}",
-                            "reference_ohm": touchstone_data.header.reference_ohm,
-                            "is_normalized": touchstone_data.header.is_normalized,
-                            "tune_position": metadata["tune_position"],
-                            "port_side": metadata["port_side"],
-                        }
-                    )
+        touchstone_files = self.list_files(path).touchstone_files
+        rows = _load_touchstone_file_rows(
+            touchstone_files,
+            dataset_id=data_folder.dataset_id,
+            data_kind=data_folder.data_kind.value,
+            data_layer=data_folder.data_layer.folder_name,
+            strict_cell_position=self.data_layer is DataLayer.SIM,
+            file_workers=file_workers,
+        )
         return pd.DataFrame(rows, columns=_TOUCHSTONE_COLUMNS)
+
+
+def _load_touchstone_file_rows(
+    touchstone_files: list[Path],
+    *,
+    dataset_id: str,
+    data_kind: str,
+    data_layer: str,
+    strict_cell_position: bool,
+    file_workers: int,
+) -> list[dict[str, object]]:
+    effective_workers = min(max(int(file_workers), 1), len(touchstone_files) or 1)
+    if effective_workers <= 1:
+        rows: list[dict[str, object]] = []
+        for touchstone_file in progress_iter(
+            touchstone_files,
+            desc=f"Loading Touchstone {dataset_id}",
+            total=len(touchstone_files),
+        ):
+            rows.extend(
+                _read_one_touchstone_file_rows(
+                    touchstone_file,
+                    dataset_id=dataset_id,
+                    data_kind=data_kind,
+                    data_layer=data_layer,
+                    strict_cell_position=strict_cell_position,
+                )
+            )
+        return rows
+
+    indexed_rows: list[tuple[int, list[dict[str, object]]]] = []
+    with ProcessPoolExecutor(max_workers=effective_workers) as executor:
+        future_to_index = {
+            executor.submit(
+                _read_one_touchstone_file_rows,
+                touchstone_file,
+                dataset_id=dataset_id,
+                data_kind=data_kind,
+                data_layer=data_layer,
+                strict_cell_position=strict_cell_position,
+            ): index
+            for index, touchstone_file in enumerate(touchstone_files)
+        }
+        for future in progress_iter(
+            as_completed(future_to_index),
+            desc=f"Loading Touchstone {dataset_id}",
+            total=len(future_to_index),
+        ):
+            indexed_rows.append((future_to_index[future], future.result()))
+
+    rows: list[dict[str, object]] = []
+    for _, file_rows in sorted(indexed_rows, key=lambda item: item[0]):
+        rows.extend(file_rows)
+    return rows
+
+
+def _read_one_touchstone_file_rows(
+    touchstone_file: Path,
+    *,
+    dataset_id: str,
+    data_kind: str,
+    data_layer: str,
+    strict_cell_position: bool,
+) -> list[dict[str, object]]:
+    touchstone_data = read_touchstone(touchstone_file)
+    metadata = metadata_from_filename(
+        touchstone_file,
+        dataset_id,
+        strict_cell_position=strict_cell_position,
+    )
+    rows: list[dict[str, object]] = []
+    for freq, s_values_at_freq in zip(
+        touchstone_data.frequency,
+        touchstone_data.s_values,
+        strict=True,
+    ):
+        freq_ghz = _frequency_to_ghz(freq, touchstone_data.header.frequency_unit)
+        for s_name, s_value in zip(_s_names(len(s_values_at_freq)), s_values_at_freq, strict=True):
+            rows.append(
+                {
+                    "dataset_id": dataset_id,
+                    "data_kind": data_kind,
+                    "data_layer": data_layer,
+                    "source_file": touchstone_file.name,
+                    "freq_ghz": freq_ghz,
+                    "s_name": s_name,
+                    "s_real": s_value.real,
+                    "s_imag": s_value.imag,
+                    "s_db": _safe_db(s_value),
+                    "s_phase_deg": float(np.angle(s_value, deg=True)),
+                    "source_format": f"touchstone_{touchstone_data.header.data_format.lower()}",
+                    "reference_ohm": touchstone_data.header.reference_ohm,
+                    "is_normalized": touchstone_data.header.is_normalized,
+                    "tune_position": metadata["tune_position"],
+                    "port_side": metadata["port_side"],
+                }
+            )
+    return rows
 
 
 _TOUCHSTONE_COLUMNS = [

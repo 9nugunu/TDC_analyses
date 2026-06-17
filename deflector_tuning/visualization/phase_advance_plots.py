@@ -18,6 +18,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     save_figure,
 )
+from deflector_tuning.progress import progress_iter
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
@@ -75,7 +76,8 @@ def plot_phase_advance(
 
     paths: OrderedDict[str, Path] = OrderedDict()
     if split_by_family and _has_named_position_families(table):
-        for family in _position_family_order(table):
+        families = _position_family_order(table)
+        for family in progress_iter(families, desc="Rendering phase advance figures", total=len(families)):
             family_table = table[table["position_family"] == family].copy()
             if family_table.empty:
                 continue

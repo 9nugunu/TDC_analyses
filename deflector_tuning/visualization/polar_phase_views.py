@@ -26,6 +26,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     save_figure,
 )
+from deflector_tuning.progress import progress_iter
 
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
 MARKER_LABELS: dict[str, str] = {
@@ -65,7 +66,11 @@ def plot_marker_phase_polar_views(
     grouping_mode = _grouping_mode(marker_points)
     groups = list(_iter_position_groups(marker_points))
     if len(groups) > 1:
-        for position_label, position_table in groups:
+        for position_label, position_table in progress_iter(
+            groups,
+            desc="Rendering polar position figures",
+            total=len(groups),
+        ):
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_position(
                 ax,
@@ -85,7 +90,12 @@ def plot_marker_phase_polar_views(
         _save_overview(groups, overview_path, grouping_mode=grouping_mode, title_prefix=title_prefix, config=config)
         paths["overview"] = overview_path
     if grouping_mode == "tune_position":
-        for family, family_table in _iter_family_overlay_groups(marker_points):
+        family_groups = list(_iter_family_overlay_groups(marker_points))
+        for family, family_table in progress_iter(
+            family_groups,
+            desc="Rendering polar overlays",
+            total=len(family_groups),
+        ):
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_family_overlay(ax, family_table, f"{family.title()} overlay: {title_prefix}", config=config)
             output_path = folder / f"{family}_overlay.png"

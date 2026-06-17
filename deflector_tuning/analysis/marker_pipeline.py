@@ -11,6 +11,8 @@ from deflector_tuning.analysis.phase_advance import OUTPUT_COLUMNS as PHASE_ADVA
 from deflector_tuning.analysis.phase_advance import compute_phase_advance
 from deflector_tuning.analysis.phase_summary import OUTPUT_COLUMNS as PHASE_SUMMARY_COLUMNS
 from deflector_tuning.analysis.phase_summary import summarize_phase_advance
+from deflector_tuning.analysis.nodal_shift import OUTPUT_COLUMNS as NODAL_SHIFT_COLUMNS
+from deflector_tuning.analysis.nodal_shift import compute_nodal_shift_errors
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import extract_marker_frequencies
@@ -23,6 +25,7 @@ TABLE_FILENAMES: dict[str, str] = {
     "marker_points": "marker_points.csv",
     "phase_advance": "phase_advance.csv",
     "phase_summary": "phase_summary.csv",
+    "nodal_shift": "nodal_shift.csv",
 }
 
 
@@ -45,12 +48,14 @@ def build_marker_analysis(
     marker_points = sample_nearest_markers(sparameter_table, markers)
     phase_advance = _compute_phase_advance_when_supported(marker_points)
     phase_summary = summarize_phase_advance(phase_advance) if not phase_advance.empty else _empty_phase_summary()
+    nodal_shift = compute_nodal_shift_errors(phase_advance) if not phase_advance.empty else _empty_nodal_shift()
     return OrderedDict(
         [
             ("markers", markers),
             ("marker_points", marker_points),
             ("phase_advance", phase_advance),
             ("phase_summary", phase_summary),
+            ("nodal_shift", nodal_shift),
         ]
     )
 
@@ -82,6 +87,10 @@ def _has_phase_advance_axis(marker_points: pd.DataFrame) -> bool:
 
 def _empty_phase_summary() -> pd.DataFrame:
     return pd.DataFrame(columns=PHASE_SUMMARY_COLUMNS)
+
+
+def _empty_nodal_shift() -> pd.DataFrame:
+    return pd.DataFrame(columns=NODAL_SHIFT_COLUMNS)
 
 
 def _presentation_table(table: pd.DataFrame) -> pd.DataFrame:

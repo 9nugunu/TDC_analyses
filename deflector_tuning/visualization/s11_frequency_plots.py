@@ -21,6 +21,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     save_figure,
 )
+from deflector_tuning.progress import progress_iter
 
 REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db", "s_phase_deg")
 REQUIRED_MARKER_COLUMNS: tuple[str, ...] = (
@@ -101,7 +102,12 @@ def plot_s11_with_markers(
     require_finite_plot_columns(m_table, columns=("freq_ghz", "s_db", "s_phase_deg"), context="S11 marker_points")
     paths: OrderedDict[str, Path] = OrderedDict()
     if _has_grid_point_groups(s_table, m_table):
-        for family, sim_r_c, sim_w_c, group in _iter_grid_point_groups(s_table):
+        groups = list(_iter_grid_point_groups(s_table))
+        for family, sim_r_c, sim_w_c, group in progress_iter(
+            groups,
+            desc="Rendering S11 grid figures",
+            total=len(groups),
+        ):
             marker_group = _select_grid_point_rows(m_table, family=family, sim_r_c=sim_r_c, sim_w_c=sim_w_c)
             key = _grid_point_output_key(family, sim_r_c, sim_w_c)
             paths[key] = _plot_one(
@@ -122,7 +128,12 @@ def plot_s11_with_markers(
             config=config,
         )
     if split_by_position and _has_named_tune_positions(s_table, m_table):
-        for tune_position, group in s_table.groupby("tune_position", dropna=False, sort=True):
+        position_groups = list(s_table.groupby("tune_position", dropna=False, sort=True))
+        for tune_position, group in progress_iter(
+            position_groups,
+            desc="Rendering S11 position figures",
+            total=len(position_groups),
+        ):
             marker_group = m_table[m_table["tune_position"] == tune_position]
             key = _tune_position_output_key(tune_position)
             paths[key] = _plot_one(

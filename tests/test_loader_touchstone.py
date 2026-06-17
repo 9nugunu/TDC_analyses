@@ -103,6 +103,21 @@ def test_raw_loader_reads_db_touchstone_into_common_dataframe(tmp_path: Path) ->
     assert row["source_format"] == "touchstone_db"
 
 
+def test_data_loader_parallel_touchstone_loading_matches_sequential_order(tmp_path: Path) -> None:
+    folder = tmp_path / "data" / "raw" / "raw_260604_sweep_parallel"
+    folder.mkdir(parents=True)
+    for index, phase in enumerate([0.0, 45.0, 90.0], start=1):
+        (folder / f"trace_{index}.s1p").write_text(
+            f"# GHz S DB R 50\n2.6 -{index} {phase}\n",
+            encoding="utf-8",
+        )
+
+    sequential = DataLoader(file_workers=1).load(folder)
+    parallel = DataLoader(file_workers=2).load(folder)
+
+    assert parallel.to_dict("records") == sequential.to_dict("records")
+
+
 def test_sim_loader_reads_cst_txt_magnitude_export(tmp_path: Path) -> None:
     folder = tmp_path / "data" / "sim" / "sim_undated_grid_coupler_s11_radius_sweep"
     folder.mkdir(parents=True)

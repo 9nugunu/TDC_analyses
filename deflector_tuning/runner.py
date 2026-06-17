@@ -20,6 +20,7 @@ from deflector_tuning.data_loading.source_layer import detect_data_layer
 from deflector_tuning.dispersion import load_cst_dispersion_txt, process_cst_dispersion_txt
 from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curves
 from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
+from deflector_tuning.visualization.nodal_shift_plots import plot_nodal_shift
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
@@ -27,7 +28,7 @@ from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_mar
 AnalysisPaths = OrderedDict[str, Path]
 FigurePaths = OrderedDict[str, OrderedDict[str, Path]]
 
-BASE_ANALYSIS_MODES: tuple[str, ...] = ("marker_analysis", "s11", "phase_advance", "polar")
+BASE_ANALYSIS_MODES: tuple[str, ...] = ("marker_analysis", "s11", "phase_advance", "nodal_shift", "polar")
 DEFAULT_DATA_ROOT = Path("data")
 DEFAULT_DISPERSION_SUBPATH = Path("sim") / "sim_260505_dispersion_single_cell_step1"
 GRID_SCAN_REQUIRED_COLUMNS: frozenset[str] = frozenset(
@@ -55,6 +56,7 @@ def run_folder_analysis(
     output_dir: str | Path,
     marker_role: str,
     data_root: str | Path = DEFAULT_DATA_ROOT,
+    file_workers: int = 1,
     loader: DataLoader | None = None,
 ) -> RunResult:
     """Run the standard one-folder marker workflow and write tables/figures.
@@ -80,6 +82,7 @@ def run_folder_analysis(
     output_dir = Path(output_dir)
     table_dir = output_dir / "tables"
     figure_root = output_dir / "figures"
+    manifest_path = output_dir / "manifest.json"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     dispersion_inputs = find_cst_dispersion_inputs(sparameter_path) if dataset_category in {None, "dispersion"} else ()
@@ -99,14 +102,18 @@ def run_folder_analysis(
         logger.info("Dispersion-only analysis completed successfully")
         return result
 
-    loader = loader or DataLoader()
+    loader = loader or DataLoader(file_workers=file_workers)
     logger.info("Resolved input paths: sparameter=%s dispersion=%s", sparameter_path, dispersion_path)
-    logger.info("Loading S-parameter table from %s", sparameter_path)
-    loaded_sparameter_table = loader.load(sparameter_path)
-    logger.info("Loaded S-parameter table with %d rows", len(loaded_sparameter_table))
-    sparameter_table = select_s11_rows(loaded_sparameter_table)
-    if len(sparameter_table) != len(loaded_sparameter_table):
-        logger.info("Selected %d S11 rows for marker analysis outputs", len(sparameter_table))
+    cached_s11_figures = (
+        _cached_manifest_figure_group(manifest_path, "s11")
+        if dataset_category == "grid"
+        else OrderedDict()
+    )
+    sparameter_table: pd.DataFrame | None = None
+    if cached_s11_figures:
+        logger.info("Skipping S11 table load because cached grid-scan S11 figures already exist")
+    else:
+        sparameter_table = _load_s11_table_for_figures(loader, sparameter_path)
     logger.info("Building marker analysis tables")
     tables = build_marker_analysis(
         sparameter_path=sparameter_path,
@@ -122,10 +129,16 @@ def run_folder_analysis(
     logger.info("Enabled analysis modes: %s", ", ".join(modes))
 
     figures: FigurePaths = OrderedDict()
-    logger.info("Rendering S11 figures")
-    figures["s11"] = OrderedDict(
-        plot_s11_with_markers(sparameter_table, tables["marker_points"], figure_root / "s11")
-    )
+    if "grid_scan_spacing" in modes and cached_s11_figures:
+        logger.info("Skipping S11 figures because cached grid-scan S11 figures already exist")
+        figures["s11"] = cached_s11_figures
+    else:
+        if sparameter_table is None:
+            sparameter_table = _load_s11_table_for_figures(loader, sparameter_path)
+        logger.info("Rendering S11 figures")
+        figures["s11"] = OrderedDict(
+            plot_s11_with_markers(sparameter_table, tables["marker_points"], figure_root / "s11")
+        )
     if _has_rows(tables.get("phase_advance")):
         logger.info("Rendering phase advance figures")
         figures["phase_advance"] = OrderedDict(
@@ -133,6 +146,13 @@ def run_folder_analysis(
         )
     else:
         logger.info("Skipping phase advance figures because phase_advance is missing or empty")
+    if _has_rows(tables.get("nodal_shift")):
+        logger.info("Rendering nodal-shift figures")
+        figures["nodal_shift"] = OrderedDict(
+            plot_nodal_shift(tables["nodal_shift"], figure_root / "nodal")
+        )
+    else:
+        logger.info("Skipping nodal-shift figures because nodal_shift is missing or empty")
     if _has_rows(tables.get("marker_points")):
         logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
@@ -151,7 +171,6 @@ def run_folder_analysis(
     else:
         logger.info("Skipping grid-scan spacing figures: %s", detection["grid_scan_spacing"]["reason"])
 
-    manifest_path = output_dir / "manifest.json"
     logger.info("Writing manifest to %s", manifest_path)
     _write_manifest(
         manifest_path,
@@ -309,6 +328,16 @@ def _has_rows(table: pd.DataFrame | None) -> bool:
     return table is not None and not table.empty
 
 
+def _load_s11_table_for_figures(loader: DataLoader, sparameter_path: Path) -> pd.DataFrame:
+    logger.info("Loading S-parameter table from %s", sparameter_path)
+    loaded_sparameter_table = loader.load(sparameter_path)
+    logger.info("Loaded S-parameter table with %d rows", len(loaded_sparameter_table))
+    sparameter_table = select_s11_rows(loaded_sparameter_table)
+    if len(sparameter_table) != len(loaded_sparameter_table):
+        logger.info("Selected %d S11 rows for marker analysis outputs", len(sparameter_table))
+    return sparameter_table
+
+
 def _detection_report(
     tables: dict[str, pd.DataFrame],
     *,
@@ -388,3 +417,23 @@ def _write_manifest(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _cached_manifest_figure_group(manifest_path: Path, group: str) -> OrderedDict[str, Path]:
+    if not manifest_path.exists():
+        return OrderedDict()
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return OrderedDict()
+    group_paths = manifest.get("outputs", {}).get("figures", {}).get(group, {})
+    if not isinstance(group_paths, dict) or not group_paths:
+        return OrderedDict()
+
+    cached: OrderedDict[str, Path] = OrderedDict()
+    for name, raw_path in group_paths.items():
+        path = Path(raw_path)
+        if not path.exists():
+            return OrderedDict()
+        cached[str(name)] = path
+    return cached

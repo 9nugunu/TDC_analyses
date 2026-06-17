@@ -18,6 +18,7 @@ from run_folder_analysis import (
 )
 from deflector_tuning.data_loading.dataset_naming import parse_dataset_id
 from deflector_tuning.dispersion import process_cst_dispersion_txt
+from deflector_tuning.progress import progress_iter
 
 
 DESCRIPTION = "Run all discovered datasets through the standard deflector tuning analysis workflow."
@@ -292,7 +293,7 @@ def execute_batch_tasks(tasks: list[BatchTask], *, workers: int) -> tuple[list[t
     failures: list[tuple[Path, Exception]] = []
 
     if workers <= 1:
-        for index, task in enumerate(tasks, start=1):
+        for index, task in enumerate(progress_iter(tasks, desc="Running datasets", total=total), start=1):
             logger.info("Running dataset %s -> %s", task.sparameter_path, task.output_dir)
             try:
                 successes.append(run_batch_task(task))
@@ -310,7 +311,7 @@ def execute_batch_tasks(tasks: list[BatchTask], *, workers: int) -> tuple[list[t
             logger.info("Submitting dataset %s -> %s", task.sparameter_path, task.output_dir)
             future_to_task[executor.submit(run_batch_task, task)] = task
         completed = 0
-        for future in as_completed(future_to_task):
+        for future in progress_iter(as_completed(future_to_task), desc="Running datasets", total=total):
             task = future_to_task[future]
             completed += 1
             try:

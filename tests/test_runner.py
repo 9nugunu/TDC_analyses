@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import pandas as pd
 
@@ -97,6 +98,18 @@ def _tables() -> dict[str, pd.DataFrame]:
             ]
         ),
         "phase_summary": pd.DataFrame([{"marker_name": "f_2pi3", "transition_count": 1}]),
+        "nodal_shift": pd.DataFrame(
+            [
+                {
+                    "marker_name": "f_2pi3",
+                    "from_tune_position": 0.5,
+                    "to_tune_position": 1.5,
+                    "position_family": "cell",
+                    "phase_error_from_target_deg": 0.0,
+                    "abs_phase_error_from_target_deg": 0.0,
+                }
+            ]
+        ),
     }
 
 
@@ -135,6 +148,7 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
 
     monkeypatch.setattr(runner, "plot_s11_with_markers", fake_plot("s11"))
     monkeypatch.setattr(runner, "plot_phase_advance", fake_plot("phase_advance"))
+    monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
@@ -152,6 +166,7 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     assert not (output_dir / "tables" / "sparameter_data.csv").exists()
     assert result.figures["s11"]["overview"].exists()
     assert result.figures["phase_advance"]["overview"].exists()
+    assert result.figures["nodal_shift"]["overview"].exists()
     assert result.figures["polar"]["overview"].exists()
     assert result.figures["grid_scan_spacing"]["overview"].exists()
     manifest = result.manifest_path.read_text(encoding="utf-8")
@@ -210,6 +225,7 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path:
     monkeypatch.setattr(runner.DataLoader, "load", fail_sparameter_lane)
     monkeypatch.setattr(runner, "plot_s11_with_markers", fail_sparameter_lane)
     monkeypatch.setattr(runner, "plot_phase_advance", fail_sparameter_lane)
+    monkeypatch.setattr(runner, "plot_nodal_shift", fail_sparameter_lane)
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fail_sparameter_lane)
 
     result = runner.run_folder_analysis(
@@ -234,6 +250,7 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_cst_exports(tmp_path:
 def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
     tables["phase_advance"] = tables["phase_advance"].iloc[0:0]
+    tables["nodal_shift"] = tables["nodal_shift"].iloc[0:0]
     sparameter_table = pd.DataFrame(
         [
             {
@@ -270,6 +287,7 @@ def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path
 
     monkeypatch.setattr(runner, "plot_s11_with_markers", fake_plot("s11"))
     monkeypatch.setattr(runner, "plot_phase_advance", fail_phase_plot)
+    monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
@@ -281,8 +299,72 @@ def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path
     )
 
     assert "phase_advance" not in result.figures
+    assert "nodal_shift" not in result.figures
     assert result.figures["s11"]["overview"].exists()
     assert result.figures["polar"]["overview"].exists()
+
+
+def test_run_folder_analysis_reuses_existing_grid_s11_figures_from_manifest(tmp_path: Path, monkeypatch) -> None:
+    tables = _tables()
+    sparameter_table = pd.DataFrame(
+        [
+            {
+                "source_file": "run1.s2p",
+                "tune_position": 0.5,
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": 0.0,
+            }
+        ]
+    )
+    output_dir = tmp_path / "out"
+    cached_s11 = output_dir / "figures" / "s11" / "s11_cached.png"
+    cached_s11.parent.mkdir(parents=True)
+    cached_s11.write_text("cached", encoding="utf-8")
+    (output_dir / "manifest.json").write_text(
+        json.dumps({"outputs": {"figures": {"s11": {"cached": str(cached_s11)}}}}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(runner, "build_marker_analysis", lambda **_: tables)
+
+    def fail_early_s11_load(self, path):
+        raise AssertionError("cached grid S11 figures should be checked before loading S-parameter data")
+
+    monkeypatch.setattr(runner.DataLoader, "load", fail_early_s11_load)
+    monkeypatch.setattr(
+        runner,
+        "save_marker_analysis",
+        lambda analysis_tables, output: {name: Path(output) / f"{name}.csv" for name in analysis_tables},
+    )
+
+    def fail_s11_plot(*args, **kwargs):
+        raise AssertionError("cached grid S11 figures should be reused")
+
+    def fake_plot(name):
+        def _plot(*args, **kwargs):
+            folder = Path(args[1])
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"{name}.png"
+            path.write_text(name, encoding="utf-8")
+            return {"overview": path}
+
+        return _plot
+
+    monkeypatch.setattr(runner, "plot_s11_with_markers", fail_s11_plot)
+    monkeypatch.setattr(runner, "plot_phase_advance", fake_plot("phase_advance"))
+    monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
+    monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
+    monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
+
+    result = runner.run_folder_analysis(
+        sparameter_path=tmp_path / "data" / "sim" / "sim_260526_grid_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_260505_dispersion_case",
+        output_dir=output_dir,
+        marker_role="sim",
+    )
+
+    assert result.figures["s11"]["cached"] == cached_s11
 
 
 def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, caplog) -> None:
@@ -320,6 +402,7 @@ def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, ca
 
     monkeypatch.setattr(runner, "plot_s11_with_markers", fake_plot("s11"))
     monkeypatch.setattr(runner, "plot_phase_advance", fake_plot("phase_advance"))
+    monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 
@@ -384,6 +467,7 @@ def test_run_folder_analysis_does_not_save_sparameter_data_csv(tmp_path: Path, m
 
     monkeypatch.setattr(runner, "plot_s11_with_markers", fake_plot("s11"))
     monkeypatch.setattr(runner, "plot_phase_advance", fake_plot("phase_advance"))
+    monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
     monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
     monkeypatch.setattr(runner, "plot_grid_scan_spacing_error_maps", fake_plot("grid_scan_spacing"))
 

@@ -59,11 +59,12 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
         marker_role="exp",
     )
 
-    assert list(result.keys()) == ["markers", "marker_points", "phase_advance", "phase_summary"]
+    assert list(result.keys()) == ["markers", "marker_points", "phase_advance", "phase_summary", "nodal_shift"]
     assert len(result["markers"]) == 3
     assert len(result["marker_points"]) == 6
     assert len(result["phase_advance"]) == 3
     assert len(result["phase_summary"]) == 3
+    assert len(result["nodal_shift"]) == 2
     assert set(result["marker_points"]["source_file"]) == {"0.5_processed.csv", "1.5_processed.csv"}
     assert "s_phase_deg" in result["marker_points"].columns
     first_phase = result["phase_advance"].sort_values("marker_name").iloc[0]
@@ -88,8 +89,10 @@ def test_build_marker_analysis_skips_transition_phase_advance_for_sim_260526_gri
     assert result["marker_points"]["sim_r_c"].dropna().nunique() == 2
     assert result["phase_advance"].empty
     assert result["phase_summary"].empty
+    assert result["nodal_shift"].empty
     assert "phase_advance_0to360_deg" in result["phase_advance"].columns
     assert "transition_count" in result["phase_summary"].columns
+    assert "phase_error_from_target_deg" in result["nodal_shift"].columns
 
 
 def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
@@ -104,17 +107,20 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
         "phase_summary": pd.DataFrame(
             [{"marker_name": "f_2pi3", "transition_count": 1, "data_kind": "experiment", "port_side": pd.NA}]
         ),
+        "nodal_shift": pd.DataFrame(
+            [{"marker_name": "f_2pi3", "phase_error_from_target_deg": 0.0, "data_kind": "experiment", "port_side": pd.NA}]
+        ),
     }
     output_dir = tmp_path / "analysis_outputs"
 
     paths = save_marker_analysis(result, output_dir)
 
-    assert list(paths.keys()) == ["markers", "marker_points", "phase_advance", "phase_summary"]
+    assert list(paths.keys()) == ["markers", "marker_points", "phase_advance", "phase_summary", "nodal_shift"]
     for path in paths.values():
         assert path.exists()
     saved_marker_points = pd.read_csv(paths["marker_points"])
     assert saved_marker_points.loc[0, "s_phase_deg"] == 10.0
-    for table_name in ["marker_points", "phase_advance", "phase_summary"]:
+    for table_name in ["marker_points", "phase_advance", "phase_summary", "nodal_shift"]:
         saved = pd.read_csv(paths[table_name])
         assert "data_kind" not in saved.columns
         assert "port_side" not in saved.columns

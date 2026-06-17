@@ -11,6 +11,7 @@ import pandas as pd
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
 from deflector_tuning.data_loading.records import DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
+from deflector_tuning.progress import progress_iter
 
 
 class SimLoader(FolderLoader):
@@ -22,7 +23,12 @@ class SimLoader(FolderLoader):
 
         data_folder = self.load(path)
         rows: list[dict[str, object]] = []
-        for txt_file in self.list_files(path).other_files:
+        other_files = self.list_files(path).other_files
+        for txt_file in progress_iter(
+            other_files,
+            desc=f"Loading CST text {data_folder.dataset_id}",
+            total=len(other_files),
+        ):
             if txt_file.suffix.lower() != ".txt":
                 continue
             parameters = _read_cst_parameter_header(txt_file)
@@ -50,8 +56,8 @@ class SimLoader(FolderLoader):
             raise NotImplementedError(f"No CST S-parameter txt files in {path!s}")
         return pd.DataFrame(rows)
 
-    def load_touchstone(self, path: str | Path) -> pd.DataFrame:
-        table = super().load_touchstone(path)
+    def load_touchstone(self, path: str | Path, *, file_workers: int = 1) -> pd.DataFrame:
+        table = super().load_touchstone(path, file_workers=file_workers)
         navigator = _read_result_navigator(Path(path))
         if navigator.empty:
             return _assign_scan_type(table)

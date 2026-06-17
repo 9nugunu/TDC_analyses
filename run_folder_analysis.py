@@ -51,6 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DATA_ROOT,
         help="Project data root used for resolving relative input paths. Default: data.",
     )
+    parser.add_argument(
+        "--file-workers",
+        type=int,
+        default=1,
+        help="Number of per-dataset Touchstone file loading workers. Default: 1.",
+    )
     return parser
 
 
@@ -65,6 +71,7 @@ def collect_interactive_args() -> argparse.Namespace:
         marker_role=None,
         dispersion_path=None,
         data_root=DEFAULT_DATA_ROOT,
+        file_workers=1,
     )
     return apply_inferred_defaults(args)
 
@@ -112,6 +119,7 @@ def apply_inferred_defaults(args: argparse.Namespace) -> argparse.Namespace:
     )
     args.dispersion_path = Path(args.dispersion_path) if args.dispersion_path is not None else None
     args.data_root = data_root
+    args.file_workers = max(int(getattr(args, "file_workers", 1)), 1)
     return args
 
 
@@ -214,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=args.output_dir,
         marker_role=args.marker_role,
         data_root=args.data_root,
+        file_workers=args.file_workers,
     )
 
     print(f"input_folder: {args.input_folder}")

@@ -34,6 +34,7 @@ def test_root_run_folder_analysis_cli_shows_help() -> None:
     assert "input_folder" in result.stdout
     assert "--output-dir" in result.stdout
     assert "--marker-role" in result.stdout
+    assert "--file-workers" in result.stdout
 
 
 def test_root_run_folder_analysis_cli_supports_import_without_running_analysis() -> None:
@@ -74,6 +75,7 @@ def test_parse_args_infers_defaults_from_positional_input_folder() -> None:
     assert args.output_dir == Path("fig/analyses/prepro_260415_sweep_sparams_fullbrazing")
     assert args.marker_role == "exp"
     assert args.data_root == Path("data")
+    assert args.file_workers == 1
 
 
 def test_parse_args_resolves_dataset_id_by_searching_data_layers(tmp_path: Path) -> None:
@@ -125,6 +127,8 @@ def test_parse_args_keeps_advanced_overrides_when_provided() -> None:
             "sim",
             "--data-root",
             "custom_data",
+            "--file-workers",
+            "3",
         ]
     )
 
@@ -132,3 +136,4 @@ def test_parse_args_keeps_advanced_overrides_when_provided() -> None:
     assert args.output_dir == Path("custom/out")
     assert args.marker_role == "sim"
     assert args.data_root == Path("custom_data")
+    assert args.file_workers == 3
