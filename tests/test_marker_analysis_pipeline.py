@@ -3,7 +3,11 @@ from pathlib import Path
 import pandas as pd
 
 import deflector_tuning.analysis.marker_pipeline as marker_pipeline
-from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, save_marker_analysis
+from deflector_tuning.analysis.marker_pipeline import (
+    build_marker_analysis,
+    build_marker_phase_polar_table,
+    save_marker_analysis,
+)
 
 
 def _write_dispersion_summary(folder: Path) -> None:
@@ -59,7 +63,14 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
         marker_role="exp",
     )
 
-    assert list(result.keys()) == ["markers", "marker_points", "phase_advance", "phase_summary", "nodal_shift"]
+    assert list(result.keys()) == [
+        "markers",
+        "marker_points",
+        "marker_phase_polar",
+        "phase_advance",
+        "phase_summary",
+        "nodal_shift",
+    ]
     assert len(result["markers"]) == 3
     assert len(result["marker_points"]) == 6
     assert len(result["phase_advance"]) == 3
@@ -67,6 +78,9 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
     assert len(result["nodal_shift"]) == 2
     assert set(result["marker_points"]["source_file"]) == {"0.5_processed.csv", "1.5_processed.csv"}
     assert "s_phase_deg" in result["marker_points"].columns
+    assert result["marker_phase_polar"]["f_2pi3_phase_deg"].tolist() == [10.0, -110.0]
+    assert result["marker_phase_polar"]["f_mean_phase_deg"].tolist() == [20.0, -100.0]
+    assert result["marker_phase_polar"]["f_pi2_phase_deg"].tolist() == [30.0, -90.0]
     first_phase = result["phase_advance"].sort_values("marker_name").iloc[0]
     assert first_phase["from_tune_position"] == 0.5
     assert first_phase["to_tune_position"] == 1.5
@@ -101,6 +115,7 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
         "marker_points": pd.DataFrame(
             [{"marker_name": "f_2pi3", "s_phase_deg": 10.0, "data_kind": "experiment", "port_side": pd.NA}]
         ),
+        "marker_phase_polar": pd.DataFrame([{"source_file": "run1.s2p", "f_2pi3_phase_deg": 10.0}]),
         "phase_advance": pd.DataFrame(
             [{"marker_name": "f_2pi3", "phase_error_from_240_deg": 0.0, "data_kind": "experiment", "port_side": pd.NA}]
         ),
@@ -115,15 +130,49 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
 
     paths = save_marker_analysis(result, output_dir)
 
-    assert list(paths.keys()) == ["markers", "marker_points", "phase_advance", "phase_summary", "nodal_shift"]
+    assert list(paths.keys()) == [
+        "markers",
+        "marker_points",
+        "marker_phase_polar",
+        "phase_advance",
+        "phase_summary",
+        "nodal_shift",
+    ]
     for path in paths.values():
         assert path.exists()
     saved_marker_points = pd.read_csv(paths["marker_points"])
     assert saved_marker_points.loc[0, "s_phase_deg"] == 10.0
-    for table_name in ["marker_points", "phase_advance", "phase_summary", "nodal_shift"]:
+    for table_name in ["marker_points", "marker_phase_polar", "phase_advance", "phase_summary", "nodal_shift"]:
         saved = pd.read_csv(paths[table_name])
         assert "data_kind" not in saved.columns
         assert "port_side" not in saved.columns
+
+
+def test_build_marker_phase_polar_table_writes_one_row_per_run_with_marker_phase_columns() -> None:
+    marker_points = pd.DataFrame(
+        [
+            {"source_file": "run_2.s1p", "run_id": 2, "marker_name": "f_2pi3", "s_phase_deg": -110.0},
+            {"source_file": "run_2.s1p", "run_id": 2, "marker_name": "f_mean", "s_phase_deg": -100.0},
+            {"source_file": "run_2.s1p", "run_id": 2, "marker_name": "f_pi2", "s_phase_deg": -90.0},
+            {"source_file": "run_1.s1p", "run_id": 1, "marker_name": "f_2pi3", "s_phase_deg": 10.0},
+            {"source_file": "run_1.s1p", "run_id": 1, "marker_name": "f_mean", "s_phase_deg": 20.0},
+            {"source_file": "run_1.s1p", "run_id": 1, "marker_name": "f_pi2", "s_phase_deg": 30.0},
+        ]
+    )
+
+    result = build_marker_phase_polar_table(marker_points)
+
+    assert list(result.columns) == [
+        "source_file",
+        "run_id",
+        "f_2pi3_phase_deg",
+        "f_mean_phase_deg",
+        "f_pi2_phase_deg",
+    ]
+    assert result["run_id"].tolist() == [1, 2]
+    assert result["f_2pi3_phase_deg"].tolist() == [10.0, -110.0]
+    assert result["f_mean_phase_deg"].tolist() == [20.0, -100.0]
+    assert result["f_pi2_phase_deg"].tolist() == [30.0, -90.0]
 
 
 def test_build_marker_analysis_samples_only_s11_rows(monkeypatch, tmp_path: Path) -> None:
