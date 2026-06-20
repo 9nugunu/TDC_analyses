@@ -87,10 +87,10 @@ def test_plot_phase_advance_can_write_individual_position_family_pngs(tmp_path: 
 
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
 
-    assert "phase_advance_cell" in paths
-    assert "phase_advance_iris" in paths
-    assert paths["phase_advance_cell"].name == "phase_advance_cell.png"
-    assert paths["phase_advance_iris"].name == "phase_advance_iris.png"
+    assert "cell" in paths
+    assert "iris" in paths
+    assert paths["cell"].name == "cell.png"
+    assert paths["iris"].name == "iris.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
@@ -129,8 +129,8 @@ def test_plot_phase_advance_uses_only_s11_when_multiple_sparameters_exist(tmp_pa
 
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
 
-    assert list(paths.keys()) == ["phase_advance_cell"]
-    assert paths["phase_advance_cell"].name == "phase_advance_cell.png"
+    assert list(paths.keys()) == ["cell"]
+    assert paths["cell"].name == "cell.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
@@ -172,8 +172,8 @@ def test_plot_phase_advance_can_exclude_edge_transitions(tmp_path: Path) -> None
         config=PlotConfig(dpi=120),
     )
 
-    assert paths["phase_advance_cell"].exists()
-    assert paths["phase_advance_iris"].exists()
+    assert paths["cell"].exists()
+    assert paths["iris"].exists()
 
 
 def test_plot_phase_advance_separates_duplicate_transition_series(
@@ -233,7 +233,7 @@ def test_plot_phase_advance_separates_duplicate_transition_series(
 
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
 
-    assert paths["phase_advance_cell"].exists()
+    assert paths["cell"].exists()
     assert len(captured_lines) == 2
     assert {line[0] for line in captured_lines} == {r"$f_{2\pi/3}$ in", r"$f_{2\pi/3}$ out"}
     assert all(line[1] == [0, 1] for line in captured_lines)

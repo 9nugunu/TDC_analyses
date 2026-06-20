@@ -74,7 +74,7 @@ def _iris_nodal_shift_table() -> pd.DataFrame:
 def test_plot_nodal_shift_writes_bar_and_grid_objective_pngs(tmp_path: Path) -> None:
     paths = plot_nodal_shift(_nodal_shift_table(), tmp_path, config=PlotConfig(dpi=120))
 
-    assert "nodal_shift_cell_bar" in paths
+    assert "cell_bar" in paths
     assert "f_2pi3_abs_error" in paths
     assert "f_pi2_abs_error" in paths
     assert "combined_abs_error" in paths
@@ -98,7 +98,7 @@ def test_plot_nodal_shift_writes_bar_and_grid_objective_pngs(tmp_path: Path) -> 
 def test_plot_nodal_shift_writes_regular_iris_outputs(tmp_path: Path) -> None:
     paths = plot_nodal_shift(_iris_nodal_shift_table(), tmp_path, config=PlotConfig(dpi=120))
 
-    assert "nodal_shift_iris_bar" in paths
+    assert "iris_bar" in paths
     assert "regular_iris_f_2pi3_signed_error" in paths
     assert "regular_iris_f_2pi3_phase_movement" in paths
     assert "regular_iris_f_2pi3_cumulative_phase" in paths

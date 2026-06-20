@@ -18,6 +18,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     save_figure,
 )
+from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
@@ -28,16 +29,6 @@ REQUIRED_COLUMNS: tuple[str, ...] = (
     "phase_error_from_240_deg",
 )
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
-MARKER_LABELS: dict[str, str] = {
-    "f_2pi3": r"$f_{2\pi/3}$",
-    "f_mean": r"$f_{mean}$",
-    "f_pi2": r"$f_{\pi/2}$",
-}
-MARKER_COLORS: dict[str, str] = {
-    "f_2pi3": "#d62728",
-    "f_mean": "#1f77b4",
-    "f_pi2": "#2ca02c",
-}
 SERIES_ID_COLUMNS: tuple[str, ...] = (
     "dataset_id",
     "data_kind",
@@ -294,10 +285,10 @@ def _iter_plot_facets(table: pd.DataFrame):
 
 def _phase_advance_key(family: str, facet_stem: str) -> str:
     if not facet_stem:
-        return f"phase_advance_{family}"
+        return family
     if "r_c_" in facet_stem or "w_c_" in facet_stem:
         return f"{family}_{facet_stem}"
-    return f"phase_advance_{family}_{facet_stem}"
+    return f"{family}_{facet_stem}"
 
 
 def _needs_faceting(table: pd.DataFrame, column: str) -> bool:

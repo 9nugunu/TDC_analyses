@@ -108,7 +108,7 @@ def _assign_scan_type(table: pd.DataFrame) -> pd.DataFrame:
 
 
 def _assign_num_depth_tune_positions(table: pd.DataFrame) -> pd.DataFrame:
-    """Use CST NumDepth as a cell-like tune axis when filenames lack one."""
+    """Use CST NumDepth as the tune axis when filenames lack one."""
 
     if "sim_NumDepth" not in table:
         return table
@@ -124,7 +124,7 @@ def _assign_num_depth_tune_positions(table: pd.DataFrame) -> pd.DataFrame:
         return table
 
     output = table.copy()
-    output.loc[missing_tune_position, "tune_position"] = num_depth - 0.5
+    output.loc[missing_tune_position, "tune_position"] = num_depth
     return output
 
 

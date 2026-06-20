@@ -24,6 +24,7 @@ from deflector_tuning.visualization.plot_config import (
     contour_contrast_color,
     save_figure,
 )
+from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
@@ -33,14 +34,6 @@ REQUIRED_COLUMNS: tuple[str, ...] = (
     "phase_error_from_target_deg",
     "abs_phase_error_from_target_deg",
 )
-MARKER_LABELS: dict[str, str] = {
-    "f_2pi3": r"$f_{2\pi/3}$",
-    "f_pi2": r"$f_{\pi/2}$",
-}
-MARKER_COLORS: dict[str, str] = {
-    "f_2pi3": "#d62728",
-    "f_pi2": "#2ca02c",
-}
 REGULAR_NODAL_FAMILIES: tuple[str, ...] = ("cell", "iris")
 
 
@@ -70,9 +63,9 @@ def plot_nodal_shift(
         family_table = table[table["position_family"] == family].copy()
         if family_table.empty:
             continue
-        paths[f"nodal_shift_{family}_bar"] = _plot_family_bar(
+        paths[f"{family}_bar"] = _plot_family_bar(
             family_table,
-            folder / f"nodal_shift_{family}_bar.png",
+            folder / f"{family}_bar.png",
             family=family,
             config=config,
         )

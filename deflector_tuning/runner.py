@@ -26,6 +26,7 @@ from deflector_tuning.visualization.grid_scan_spacing_maps import (
     plot_grid_scan_phase_sensitivity_maps,
     plot_grid_scan_spacing_error_maps,
 )
+from deflector_tuning.visualization.geometry_phase_response_plots import plot_geometry_phase_response
 from deflector_tuning.visualization.nodal_shift_plots import plot_nodal_shift
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
@@ -159,6 +160,13 @@ def run_folder_analysis(
         )
     else:
         logger.info("Skipping nodal-shift figures because nodal_shift is missing or empty")
+    if _has_rows(tables.get("geometry_phase_response")):
+        logger.info("Rendering geometry phase-response figures")
+        figures["geometry_phase_response"] = OrderedDict(
+            plot_geometry_phase_response(tables["geometry_phase_response"], figure_root / "geometry_phase_response")
+        )
+    else:
+        logger.info("Skipping geometry phase-response figures because geometry_phase_response is missing or empty")
     if _has_rows(tables.get("marker_points")):
         logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
@@ -359,6 +367,8 @@ def detect_analysis_modes(tables: dict[str, pd.DataFrame], *, dataset_category: 
 
     modes = list(BASE_ANALYSIS_MODES)
     report = _detection_report(tables, dataset_category=dataset_category)
+    if report["geometry_phase_response"]["enabled"]:
+        modes.append("geometry_phase_response")
     if report["grid_scan_spacing"]["enabled"]:
         modes.append("grid_scan_spacing")
     return tuple(modes)
@@ -384,8 +394,21 @@ def _detection_report(
     dataset_category: str | None = None,
 ) -> dict[str, dict[str, object]]:
     marker_points = tables.get("marker_points")
-    enabled, reason = _is_simulation_grid_scan(marker_points, dataset_category=dataset_category)
-    return {"grid_scan_spacing": {"enabled": enabled, "reason": reason}}
+    grid_enabled, grid_reason = _is_simulation_grid_scan(marker_points, dataset_category=dataset_category)
+    response_enabled, response_reason = _has_geometry_phase_response(tables.get("geometry_phase_response"))
+    return {
+        "geometry_phase_response": {"enabled": response_enabled, "reason": response_reason},
+        "grid_scan_spacing": {"enabled": grid_enabled, "reason": grid_reason},
+    }
+
+
+def _has_geometry_phase_response(table: pd.DataFrame | None) -> tuple[bool, str]:
+    if table is None or table.empty:
+        return False, "geometry_phase_response table is missing or empty"
+    axes = sorted(table["sweep_axis"].dropna().astype(str).unique()) if "sweep_axis" in table else []
+    if not axes:
+        return False, "geometry_phase_response has no sweep_axis values"
+    return True, f"geometry phase response available for sweep axis: {', '.join(axes)}"
 
 
 def _is_simulation_grid_scan(

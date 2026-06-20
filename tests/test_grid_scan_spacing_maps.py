@@ -91,9 +91,9 @@ def test_plot_grid_scan_spacing_error_maps_writes_only_requested_2d_error_pngs(t
 
     paths = plot_grid_scan_spacing_error_maps(summary, tmp_path)
 
-    assert list(paths) == ["spacing_60deg_target_error", "spacing_equality_error"]
-    assert paths["spacing_60deg_target_error"].name == "spacing_60deg_target_error.png"
-    assert paths["spacing_equality_error"].name == "spacing_equality_error.png"
+    assert list(paths) == ["60deg_target_error", "equality_error"]
+    assert paths["60deg_target_error"].name == "60deg_target_error.png"
+    assert paths["equality_error"].name == "equality_error.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0

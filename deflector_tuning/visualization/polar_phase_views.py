@@ -26,19 +26,10 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     save_figure,
 )
+from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
 
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
-MARKER_LABELS: dict[str, str] = {
-    "f_2pi3": r"$f_{2\pi/3}$",
-    "f_mean": r"$f_{mean}$",
-    "f_pi2": r"$f_{\pi/2}$",
-}
-MARKER_COLORS: dict[str, str] = {
-    "f_2pi3": "#d62728",
-    "f_pi2": "#2ca02c",
-    "f_mean": "#1f77b4",
-}
 REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "s_phase_deg")
 
 
@@ -552,7 +543,7 @@ def _position_output_stem(position_table: pd.DataFrame, position_label: str, *, 
     if grouping_mode == "grid_point":
         return _grid_point_filename_label(position_table, position_label)
     if grouping_mode == "sim_sweep":
-        return f"polar_{_simulation_family_label(position_table)}_{_safe_label(position_label)}"
+        return f"{_simulation_family_label(position_table)}_{_safe_label(position_label)}"
     return f"position_{_safe_label(position_label)}"
 
 
@@ -614,10 +605,10 @@ def _grid_point_filename_label(position_table: pd.DataFrame, position_label: str
     depth_suffix = _grid_point_depth_filename_suffix(position_table)
     if family is not None:
         return (
-            f"polar_{family}{depth_suffix}_"
+            f"{family}{depth_suffix}_"
             f"{_safe_label(_format_grid_label(position_table['sim_r_c'].iloc[0], position_table['sim_w_c'].iloc[0]))}"
         )
-    return f"polar_grid_{_safe_label(position_label)}"
+    return f"grid_{_safe_label(position_label)}"
 
 
 def _grid_point_family(position_table: pd.DataFrame) -> str | None:
@@ -718,7 +709,7 @@ def _sim_sweep_column_label(column: str) -> str:
 def _format_num_depth(value: object) -> str:
     numeric = float(value)
     if numeric.is_integer():
-        return f"{int(numeric):02d}"
+        return f"{int(numeric)}p0"
     return _format_grid_value(value)
 
 

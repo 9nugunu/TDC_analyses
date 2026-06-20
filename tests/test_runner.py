@@ -192,6 +192,25 @@ def test_detect_analysis_modes_uses_dataset_category_as_grid_gate() -> None:
     assert "grid_scan_spacing" not in runner.detect_analysis_modes(_tables(), dataset_category="sweep")
 
 
+def test_detect_analysis_modes_enables_geometry_phase_response_when_table_has_rows() -> None:
+    tables = _tables()
+    tables["geometry_phase_response"] = pd.DataFrame(
+        [
+            {
+                "marker_name": "f_2pi3",
+                "sweep_axis": "sim_offset_cell_03",
+                "sweep_value": 0.0,
+                "phase_delta_shift_from_baseline_deg": 0.0,
+            }
+        ]
+    )
+
+    detected = runner.detect_analysis_modes(tables, dataset_category="sweep")
+
+    assert "geometry_phase_response" in detected
+    assert "grid_scan_spacing" not in detected
+
+
 def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Path) -> None:
     sparameter_path, dispersion_path = runner.resolve_input_paths(
         "prepro/prepro_sweep_260415_sample_prepro",

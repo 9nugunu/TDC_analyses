@@ -27,10 +27,10 @@ from deflector_tuning.visualization.plot_config import (
     save_figure,
 )
 
-ERROR_METRICS: OrderedDict[str, str] = OrderedDict(
+ERROR_METRICS: OrderedDict[str, tuple[str, str]] = OrderedDict(
     [
-        ("spacing_60deg_target_error_deg", "60 deg target error [deg]"),
-        ("spacing_equality_error_deg", "Spacing equality error [deg]"),
+        ("spacing_60deg_target_error_deg", ("60deg_target_error", "60 deg target error [deg]")),
+        ("spacing_equality_error_deg", ("equality_error", "Spacing equality error [deg]")),
     ]
 )
 SENSITIVITY_METRICS: OrderedDict[str, tuple[str, str]] = OrderedDict(
@@ -78,8 +78,7 @@ def plot_grid_scan_spacing_error_maps(
     spacing_summary.to_csv(folder / "grid_scan_spacing_summary.csv", index=False)
 
     paths: OrderedDict[str, Path] = OrderedDict()
-    for column, label in ERROR_METRICS.items():
-        key = column.removesuffix("_deg")
+    for column, (key, label) in ERROR_METRICS.items():
         paths[key] = _plot_error_map(
             spacing_summary,
             folder / f"{key}.png",

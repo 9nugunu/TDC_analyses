@@ -70,12 +70,14 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
         "phase_advance",
         "phase_summary",
         "nodal_shift",
+        "geometry_phase_response",
     ]
     assert len(result["markers"]) == 3
     assert len(result["marker_points"]) == 6
     assert len(result["phase_advance"]) == 3
     assert len(result["phase_summary"]) == 3
     assert len(result["nodal_shift"]) == 2
+    assert result["geometry_phase_response"].empty
     assert set(result["marker_points"]["source_file"]) == {"0.5_processed.csv", "1.5_processed.csv"}
     assert "s_phase_deg" in result["marker_points"].columns
     assert result["marker_phase_polar"]["f_2pi3_phase_deg"].tolist() == [10.0, -110.0]
@@ -109,6 +111,56 @@ def test_build_marker_analysis_skips_transition_phase_advance_for_sim_260526_gri
     assert "phase_error_from_target_deg" in result["nodal_shift"].columns
 
 
+def test_build_marker_phase_polar_table_preserves_offset_cell_sweep_column() -> None:
+    marker_points = pd.DataFrame(
+        [
+            {
+                "dataset_id": "dataset",
+                "source_file": "run_1.s2p",
+                "run_id": 1,
+                "tune_position": 5.0,
+                "s_name": "S11",
+                "marker_role": "sim",
+                "scan_type": "tune_position",
+                "sim_NumDepth": 5.0,
+                "sim_offset_cell_03": 0.0,
+                "marker_name": "f_2pi3",
+                "s_phase_deg": 10.0,
+            },
+            {
+                "dataset_id": "dataset",
+                "source_file": "run_1.s2p",
+                "run_id": 1,
+                "tune_position": 5.0,
+                "s_name": "S11",
+                "marker_role": "sim",
+                "scan_type": "tune_position",
+                "sim_NumDepth": 5.0,
+                "sim_offset_cell_03": 0.0,
+                "marker_name": "f_mean",
+                "s_phase_deg": 20.0,
+            },
+            {
+                "dataset_id": "dataset",
+                "source_file": "run_1.s2p",
+                "run_id": 1,
+                "tune_position": 5.0,
+                "s_name": "S11",
+                "marker_role": "sim",
+                "scan_type": "tune_position",
+                "sim_NumDepth": 5.0,
+                "sim_offset_cell_03": 0.0,
+                "marker_name": "f_pi2",
+                "s_phase_deg": 30.0,
+            },
+        ]
+    )
+
+    table = build_marker_phase_polar_table(marker_points)
+
+    assert table.loc[0, "sim_offset_cell_03"] == 0.0
+
+
 def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
     result = {
         "markers": pd.DataFrame([{"marker_name": "f_2pi3", "freq_ghz": 2.856}]),
@@ -125,6 +177,18 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
         "nodal_shift": pd.DataFrame(
             [{"marker_name": "f_2pi3", "phase_error_from_target_deg": 0.0, "data_kind": "experiment", "port_side": pd.NA}]
         ),
+        "geometry_phase_response": pd.DataFrame(
+            [
+                {
+                    "marker_name": "f_2pi3",
+                    "sweep_axis": "sim_offset_cell_03",
+                    "sweep_value": 0.0,
+                    "phase_delta_shift_from_baseline_deg": 0.0,
+                    "data_kind": "experiment",
+                    "port_side": pd.NA,
+                }
+            ]
+        ),
     }
     output_dir = tmp_path / "analysis_outputs"
 
@@ -137,12 +201,20 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
         "phase_advance",
         "phase_summary",
         "nodal_shift",
+        "geometry_phase_response",
     ]
     for path in paths.values():
         assert path.exists()
     saved_marker_points = pd.read_csv(paths["marker_points"])
     assert saved_marker_points.loc[0, "s_phase_deg"] == 10.0
-    for table_name in ["marker_points", "marker_phase_polar", "phase_advance", "phase_summary", "nodal_shift"]:
+    for table_name in [
+        "marker_points",
+        "marker_phase_polar",
+        "phase_advance",
+        "phase_summary",
+        "nodal_shift",
+        "geometry_phase_response",
+    ]:
         saved = pd.read_csv(paths[table_name])
         assert "data_kind" not in saved.columns
         assert "port_side" not in saved.columns

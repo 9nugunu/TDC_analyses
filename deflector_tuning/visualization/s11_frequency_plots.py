@@ -21,6 +21,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     save_figure,
 )
+from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
 
 REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db", "s_phase_deg")
@@ -32,16 +33,6 @@ REQUIRED_MARKER_COLUMNS: tuple[str, ...] = (
     "s_phase_deg",
 )
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
-MARKER_LABELS: dict[str, str] = {
-    "f_2pi3": r"$f_{2\pi/3}$",
-    "f_mean": r"$f_{mean}$",
-    "f_pi2": r"$f_{\pi/2}$",
-}
-MARKER_COLORS: dict[str, str] = {
-    "f_2pi3": "#2e7d32",
-    "f_mean": "#ff6f00",
-    "f_pi2": "#1565c0",
-}
 PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
     "in": {"color": "#0d47a1", "linestyle": "-", "marker": "o"},
     "out": {"color": "#b71c1c", "linestyle": "--", "marker": "D"},
@@ -57,6 +48,7 @@ DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
     "tune_position",
     "port_side",
     "s_name",
+    "sim_offset_cell_03",
     "sim_r_c",
     "sim_w_c",
     "marker_name",
@@ -120,8 +112,25 @@ def plot_s11_with_markers(
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"s11_{_grid_point_file_stem(family, depth_label, sim_r_c, sim_w_c)}.png",
+                folder / f"{_grid_point_file_stem(family, depth_label, sim_r_c, sim_w_c)}.png",
                 title=f"{_grid_point_title_prefix(family, depth_label, sim_r_c, sim_w_c)}: S11 magnitude",
+                config=config,
+            )
+        return paths
+
+    if _has_sim_sweep_groups(s_table, m_table):
+        groups = list(_iter_sim_sweep_groups(s_table))
+        for key, group in progress_iter(
+            groups,
+            desc="Rendering S11 sweep figures",
+            total=len(groups),
+        ):
+            marker_group = _select_sim_sweep_rows(m_table, group)
+            paths[key] = _plot_one(
+                group,
+                marker_group,
+                folder / f"{key}.png",
+                title=f"{key.replace('_', ' ')}: S11 magnitude",
                 config=config,
             )
         return paths
@@ -130,7 +139,7 @@ def plot_s11_with_markers(
         paths["overview"] = _plot_one(
             s_table,
             m_table,
-            folder / "s11_with_markers.png",
+            folder / "with_markers.png",
             title="S11 magnitude with marker points",
             config=config,
         )
@@ -146,7 +155,7 @@ def plot_s11_with_markers(
             paths[key] = _plot_one(
                 group,
                 marker_group,
-                folder / f"s11_{key}.png",
+                folder / f"{key}.png",
                 title=f"{_tune_position_title_label(tune_position, group=group)}: S11 magnitude",
                 config=config,
             )
@@ -401,7 +410,7 @@ def _num_depth_output_label_from_value(value: object) -> str | None:
     if not np.isfinite(numeric):
         return None
     if abs(numeric - round(numeric)) < 1e-9:
-        return f"depth_{int(round(numeric)):02d}"
+        return f"depth_{int(round(numeric))}p0"
     return f"depth_{_format_position_key(numeric)}"
 
 
@@ -507,6 +516,101 @@ def _grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
     if "sim_NumDepth" in table and pd.to_numeric(table["sim_NumDepth"], errors="coerce").dropna().nunique() > 1:
         return ["sim_NumDepth"]
     return []
+
+
+def _has_sim_sweep_groups(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:
+    return bool(_varying_sim_sweep_columns(s_table)) and bool(_varying_sim_sweep_columns(m_table))
+
+
+def _iter_sim_sweep_groups(s_table: pd.DataFrame):
+    table = s_table.copy()
+    group_columns = _sim_sweep_group_columns(table)
+    sort_columns = [f"_{column}_sort" for column in group_columns]
+    for column, sort_column in zip(group_columns, sort_columns, strict=True):
+        table[sort_column] = pd.to_numeric(table[column], errors="coerce")
+    table = table.sort_values([*sort_columns, *group_columns, "source_file", "freq_ghz"], kind="mergesort")
+    for values, group in table.groupby(group_columns, sort=False, dropna=False):
+        if len(group_columns) == 1 and not isinstance(values, tuple):
+            values = (values,)
+        yield _format_sim_sweep_key(group_columns, values, group), group
+
+
+def _select_sim_sweep_rows(table: pd.DataFrame, s_group: pd.DataFrame) -> pd.DataFrame:
+    if table.empty:
+        return table.copy()
+    mask = pd.Series(True, index=table.index)
+    for column in _sim_sweep_group_columns(s_group):
+        if column not in table:
+            return table.iloc[0:0].copy()
+        values = s_group[column].dropna().unique()
+        if len(values) != 1:
+            continue
+        mask &= table[column] == values[0]
+    return table.loc[mask].copy()
+
+
+def _sim_sweep_group_columns(table: pd.DataFrame) -> list[str]:
+    group_columns = []
+    if "sim_NumDepth" in table and pd.to_numeric(table["sim_NumDepth"], errors="coerce").dropna().nunique() > 1:
+        group_columns.append("sim_NumDepth")
+    group_columns.extend(column for column in _varying_sim_sweep_columns(table) if column not in group_columns)
+    return group_columns
+
+
+def _varying_sim_sweep_columns(table: pd.DataFrame) -> list[str]:
+    columns = []
+    for column in table.columns:
+        if not column.startswith("sim_") or column in {"sim_r_c", "sim_w_c"}:
+            continue
+        metadata_name = column.removeprefix("sim_")
+        if metadata_name.lower().startswith("num"):
+            continue
+        if table[column].dropna().nunique() > 1:
+            columns.append(column)
+    return columns
+
+
+def _format_sim_sweep_key(group_columns: list[str], values: tuple[object, ...], group: pd.DataFrame) -> str:
+    parts = []
+    family = _sim_sweep_family(group)
+    if family:
+        parts.append(family)
+    for column, value in zip(group_columns, values, strict=True):
+        if column == "sim_NumDepth":
+            label = _num_depth_output_label_from_value(value)
+            if label is not None:
+                parts.append(label)
+        else:
+            parts.append(f"{_sim_sweep_column_label(column)}_{_format_grid_value(value).replace('.', 'p').replace('-', 'm')}")
+    return "_".join(parts)
+
+
+def _sim_sweep_family(group: pd.DataFrame) -> str:
+    if "tune_position" not in group:
+        return ""
+    tune_positions = group["tune_position"].dropna().unique()
+    if len(tune_positions) != 1:
+        return ""
+    try:
+        return _position_family(tune_positions[0])
+    except (TypeError, ValueError):
+        return ""
+
+
+def _sim_sweep_column_label(column: str) -> str:
+    label = column.removeprefix("sim_")
+    if label.startswith("Depth") and len(label) > len("Depth"):
+        label = label[len("Depth") :]
+    return _camel_to_snake(label)
+
+
+def _camel_to_snake(label: str) -> str:
+    output = []
+    for index, char in enumerate(label):
+        if char.isupper() and index > 0 and not label[index - 1].isupper():
+            output.append("_")
+        output.append(char.lower())
+    return "".join(output)
 
 
 def _format_grid_point_key(sim_r_c: object, sim_w_c: object) -> str:

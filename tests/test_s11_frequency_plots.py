@@ -196,8 +196,8 @@ def test_plot_s11_with_markers_writes_individual_position_pngs_without_overview(
     assert "overview" in paths
     assert "cell_0p5" in paths
     assert "cell_1p5" in paths
-    assert paths["overview"].name == "s11_with_markers.png"
-    assert paths["cell_0p5"].name == "s11_cell_0p5.png"
+    assert paths["overview"].name == "with_markers.png"
+    assert paths["cell_0p5"].name == "cell_0p5.png"
     for path in paths.values():
         assert path.exists()
         assert path.suffix == ".png"
@@ -213,10 +213,10 @@ def test_plot_s11_with_markers_names_num_depth_positions_by_depth(tmp_path: Path
     paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
 
     assert "overview" in paths
-    assert "depth_01" in paths
-    assert "depth_02" in paths
-    assert paths["depth_01"].name == "s11_depth_01.png"
-    assert paths["depth_02"].name == "s11_depth_02.png"
+    assert "depth_1p0" in paths
+    assert "depth_2p0" in paths
+    assert paths["depth_1p0"].name == "depth_1p0.png"
+    assert paths["depth_2p0"].name == "depth_2p0.png"
 
 
 def test_plot_s11_with_markers_skips_overview_when_port_sides_exist(tmp_path: Path) -> None:
@@ -230,7 +230,7 @@ def test_plot_s11_with_markers_skips_overview_when_port_sides_exist(tmp_path: Pa
 
     assert "overview" not in paths
     assert set(paths) == {"cell_0p5", "cell_1p5"}
-    assert paths["cell_0p5"].name == "s11_cell_0p5.png"
+    assert paths["cell_0p5"].name == "cell_0p5.png"
 
 
 def test_plot_s11_with_markers_uses_distinct_port_side_styles(
@@ -257,7 +257,7 @@ def test_plot_s11_with_markers_uses_distinct_port_side_styles(
         config=PlotConfig(dpi=120),
     )
 
-    target_index = next(index for index, path in enumerate(saved_paths) if path.name == "s11_cell_0p5.png")
+    target_index = next(index for index, path in enumerate(saved_paths) if path.name == "cell_0p5.png")
     ax = next(axis for axis in saved_figures[target_index].axes if axis.get_visible())
     trace_lines = [line for line in ax.lines if line.get_label() in {"in", "out"}]
     trace_styles = {(line.get_label(), line.get_color(), line.get_linestyle()) for line in trace_lines}
@@ -328,7 +328,7 @@ def test_plot_s11_with_markers_collapses_unlabelled_duplicate_position_sources(
         config=PlotConfig(dpi=120),
     )
 
-    target_index = next(index for index, path in enumerate(saved_paths) if path.name == "s11_cell_0p5.png")
+    target_index = next(index for index, path in enumerate(saved_paths) if path.name == "cell_0p5.png")
     ax = next(axis for axis in saved_figures[target_index].axes if axis.get_visible())
     trace_lines = [line for line in ax.lines if line.get_label() == "0.5"]
     marker_texts = [text for text in ax.texts if "f_{" in text.get_text()]
@@ -360,7 +360,7 @@ def test_plot_s11_with_markers_separates_port_side_marker_annotations(
         config=PlotConfig(dpi=120),
     )
 
-    target_index = next(index for index, path in enumerate(saved_paths) if path.name == "s11_cell_0p5.png")
+    target_index = next(index for index, path in enumerate(saved_paths) if path.name == "cell_0p5.png")
     ax = next(axis for axis in saved_figures[target_index].axes if axis.get_visible())
     marker_texts = [text for text in ax.texts if "f_{" in text.get_text()]
     assert len(marker_texts) == 2
@@ -406,7 +406,7 @@ def test_plot_s11_with_markers_accepts_sim_260526_grid_scan_without_tune_positio
     paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["grid_r_c_56p59_w_c_19p32"]
-    assert paths["grid_r_c_56p59_w_c_19p32"].name == "s11_r_c_56p59_w_c_19p32.png"
+    assert paths["grid_r_c_56p59_w_c_19p32"].name == "r_c_56p59_w_c_19p32.png"
     assert paths["grid_r_c_56p59_w_c_19p32"].exists()
 
 
@@ -513,7 +513,7 @@ def test_plot_s11_with_markers_does_not_write_position_nan_when_positions_are_mi
     paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["overview"]
-    assert paths["overview"].name == "s11_with_markers.png"
+    assert paths["overview"].name == "with_markers.png"
 
 
 def test_plot_s11_with_markers_names_sim_260526_grid_scan_by_cell_or_iris_when_tune_position_exists(tmp_path: Path) -> None:
@@ -551,8 +551,8 @@ def test_plot_s11_with_markers_names_sim_260526_grid_scan_by_cell_or_iris_when_t
     paths = plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["cell_r_c_56p59_w_c_19p32", "iris_r_c_56p59_w_c_19p32"]
-    assert paths["cell_r_c_56p59_w_c_19p32"].name == "s11_cell_r_c_56p59_w_c_19p32.png"
-    assert paths["iris_r_c_56p59_w_c_19p32"].name == "s11_iris_r_c_56p59_w_c_19p32.png"
+    assert paths["cell_r_c_56p59_w_c_19p32"].name == "cell_r_c_56p59_w_c_19p32.png"
+    assert paths["iris_r_c_56p59_w_c_19p32"].name == "iris_r_c_56p59_w_c_19p32.png"
 
 
 def test_plot_s11_with_markers_keeps_same_tune_position_grid_points_separate(tmp_path: Path) -> None:
@@ -590,8 +590,8 @@ def test_plot_s11_with_markers_keeps_same_tune_position_grid_points_separate(tmp
     paths = plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["cell_r_c_56p59_w_c_19p3224", "cell_r_c_56p84_w_c_19p3224"]
-    assert paths["cell_r_c_56p59_w_c_19p3224"].name == "s11_cell_r_c_56p59_w_c_19p3224.png"
-    assert paths["cell_r_c_56p84_w_c_19p3224"].name == "s11_cell_r_c_56p84_w_c_19p3224.png"
+    assert paths["cell_r_c_56p59_w_c_19p3224"].name == "cell_r_c_56p59_w_c_19p3224.png"
+    assert paths["cell_r_c_56p84_w_c_19p3224"].name == "cell_r_c_56p84_w_c_19p3224.png"
 
 
 def test_plot_s11_with_markers_keeps_same_grid_point_num_depths_separate(tmp_path: Path) -> None:
@@ -630,9 +630,57 @@ def test_plot_s11_with_markers_keeps_same_grid_point_num_depths_separate(tmp_pat
 
     paths = plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["cell_depth_01_r_c_56p59_w_c_19p3224", "cell_depth_02_r_c_56p59_w_c_19p3224"]
-    assert paths["cell_depth_01_r_c_56p59_w_c_19p3224"].name == "s11_cell_depth_01_r_c_56p59_w_c_19p3224.png"
-    assert paths["cell_depth_02_r_c_56p59_w_c_19p3224"].name == "s11_cell_depth_02_r_c_56p59_w_c_19p3224.png"
+    assert list(paths) == ["cell_depth_1p0_r_c_56p59_w_c_19p3224", "cell_depth_2p0_r_c_56p59_w_c_19p3224"]
+    assert paths["cell_depth_1p0_r_c_56p59_w_c_19p3224"].name == "cell_depth_1p0_r_c_56p59_w_c_19p3224.png"
+    assert paths["cell_depth_2p0_r_c_56p59_w_c_19p3224"].name == "cell_depth_2p0_r_c_56p59_w_c_19p3224.png"
+
+
+def test_plot_s11_with_markers_splits_sim_sweeps_by_depth_and_offset(tmp_path: Path) -> None:
+    sparameter_rows = []
+    marker_rows = []
+    for source_file, num_depth, tune_position, offset in [
+        ("run_001.s2p", 4.5, 4.5, -3),
+        ("run_002.s2p", 4.5, 4.5, 0),
+        ("run_003.s2p", 4.5, 4.5, 3),
+        ("run_004.s2p", 5.0, 5.0, -3),
+        ("run_002.s2p", 5.0, 5.0, 0),
+    ]:
+        for freq_ghz, s_db, phase in [(2.85, -1.0, 10.0), (2.86, -2.0, 20.0)]:
+            sparameter_rows.append(
+                {
+                    "source_file": source_file,
+                    "tune_position": tune_position,
+                    "sim_NumDepth": num_depth,
+                    "sim_offset_cell_03": offset,
+                    "freq_ghz": freq_ghz,
+                    "s_db": s_db,
+                    "s_phase_deg": phase,
+                }
+            )
+        marker_rows.append(
+            {
+                "source_file": source_file,
+                "tune_position": tune_position,
+                "sim_NumDepth": num_depth,
+                "sim_offset_cell_03": offset,
+                "marker_name": "f_2pi3",
+                "freq_ghz": 2.85,
+                "s_db": -1.0,
+                "s_phase_deg": 10.0,
+            }
+        )
+
+    paths = plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
+
+    assert list(paths) == [
+        "cell_depth_4p5_offset_cell_03_m3",
+        "cell_depth_4p5_offset_cell_03_0",
+        "cell_depth_4p5_offset_cell_03_3",
+        "iris_depth_5p0_offset_cell_03_m3",
+        "iris_depth_5p0_offset_cell_03_0",
+    ]
+    assert paths["cell_depth_4p5_offset_cell_03_m3"].name == "cell_depth_4p5_offset_cell_03_m3.png"
+    assert paths["iris_depth_5p0_offset_cell_03_0"].name == "iris_depth_5p0_offset_cell_03_0.png"
 
 
 def test_plot_s11_with_markers_rejects_empty_sparameter_table(tmp_path: Path) -> None:

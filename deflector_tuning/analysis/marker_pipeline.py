@@ -13,6 +13,7 @@ from deflector_tuning.analysis.phase_summary import OUTPUT_COLUMNS as PHASE_SUMM
 from deflector_tuning.analysis.phase_summary import summarize_phase_advance
 from deflector_tuning.analysis.nodal_shift import OUTPUT_COLUMNS as NODAL_SHIFT_COLUMNS
 from deflector_tuning.analysis.nodal_shift import compute_nodal_shift_errors
+from deflector_tuning.analysis.geometry_phase_response import compute_geometry_phase_response
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import extract_marker_frequencies
@@ -27,6 +28,7 @@ TABLE_FILENAMES: dict[str, str] = {
     "phase_advance": "phase_advance.csv",
     "phase_summary": "phase_summary.csv",
     "nodal_shift": "nodal_shift.csv",
+    "geometry_phase_response": "geometry_phase_response.csv",
 }
 
 POLAR_MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
@@ -49,6 +51,7 @@ POLAR_ID_COLUMN_CANDIDATES: tuple[str, ...] = (
     "sim_NumTune",
     "sim_R2Taper2",
     "sim_L2Taper2",
+    "sim_offset_cell_03",
     "sim_r_c",
     "sim_w_c",
 )
@@ -75,6 +78,7 @@ def build_marker_analysis(
     phase_advance = _compute_phase_advance_when_supported(marker_points)
     phase_summary = summarize_phase_advance(phase_advance) if not phase_advance.empty else _empty_phase_summary()
     nodal_shift = compute_nodal_shift_errors(phase_advance) if not phase_advance.empty else _empty_nodal_shift()
+    geometry_phase_response = compute_geometry_phase_response(marker_points)
     return OrderedDict(
         [
             ("markers", markers),
@@ -83,6 +87,7 @@ def build_marker_analysis(
             ("phase_advance", phase_advance),
             ("phase_summary", phase_summary),
             ("nodal_shift", nodal_shift),
+            ("geometry_phase_response", geometry_phase_response),
         ]
     )
 

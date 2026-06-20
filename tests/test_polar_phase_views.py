@@ -409,7 +409,7 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_sim_260526_grid_scan
 
     plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
-    guide_targets = {"polar_cell_r_c_54p59_w_c_18p3224.png", "polar_cell_r_c_55p59_w_c_19p3224.png"}
+    guide_targets = {"cell_r_c_54p59_w_c_18p3224.png", "cell_r_c_55p59_w_c_19p3224.png"}
     matched = [fig for fig, path in zip(saved_figures, saved_paths, strict=True) if path.name in guide_targets]
     assert len(matched) == 2
     for fig in matched:
@@ -436,8 +436,8 @@ def test_plot_marker_phase_polar_views_uses_grid_points_when_tune_position_does_
     paths = plot_marker_phase_polar_views(_grid_scan_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["cell r_c=54.59, w_c=18.3224", "cell r_c=55.59, w_c=19.3224"]
-    assert paths["cell r_c=54.59, w_c=18.3224"].name == "polar_cell_r_c_54p59_w_c_18p3224.png"
-    assert paths["cell r_c=55.59, w_c=19.3224"].name == "polar_cell_r_c_55p59_w_c_19p3224.png"
+    assert paths["cell r_c=54.59, w_c=18.3224"].name == "cell_r_c_54p59_w_c_18p3224.png"
+    assert paths["cell r_c=55.59, w_c=19.3224"].name == "cell_r_c_55p59_w_c_19p3224.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
@@ -457,18 +457,18 @@ def test_plot_marker_phase_polar_views_keeps_same_grid_point_num_depths_separate
     paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == [
-        "cell depth=01 r_c=54.59, w_c=18.3224",
-        "cell depth=01 r_c=55.59, w_c=19.3224",
-        "cell depth=02 r_c=54.59, w_c=18.3224",
-        "cell depth=02 r_c=55.59, w_c=19.3224",
+        "cell depth=1p0 r_c=54.59, w_c=18.3224",
+        "cell depth=1p0 r_c=55.59, w_c=19.3224",
+        "cell depth=2p0 r_c=54.59, w_c=18.3224",
+        "cell depth=2p0 r_c=55.59, w_c=19.3224",
     ]
     assert (
-        paths["cell depth=01 r_c=54.59, w_c=18.3224"].name
-        == "polar_cell_depth_01_r_c_54p59_w_c_18p3224.png"
+        paths["cell depth=1p0 r_c=54.59, w_c=18.3224"].name
+        == "cell_depth_1p0_r_c_54p59_w_c_18p3224.png"
     )
     assert (
-        paths["cell depth=02 r_c=54.59, w_c=18.3224"].name
-        == "polar_cell_depth_02_r_c_54p59_w_c_18p3224.png"
+        paths["cell depth=2p0 r_c=54.59, w_c=18.3224"].name
+        == "cell_depth_2p0_r_c_54p59_w_c_18p3224.png"
     )
 
 
@@ -476,8 +476,8 @@ def test_plot_marker_phase_polar_views_uses_result_navigator_sweep_columns(tmp_p
     paths = plot_marker_phase_polar_views(_plunger_offset_marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == ["plunger_offset=-3", "plunger_offset=0"]
-    assert paths["plunger_offset=-3"].name == "polar_iris_plunger_offset_m3.png"
-    assert paths["plunger_offset=0"].name == "polar_iris_plunger_offset_0.png"
+    assert paths["plunger_offset=-3"].name == "iris_plunger_offset_m3.png"
+    assert paths["plunger_offset=0"].name == "iris_plunger_offset_0.png"
     for path in paths.values():
         assert path.exists()
         assert path.stat().st_size > 0
@@ -495,15 +495,15 @@ def test_plot_marker_phase_polar_views_includes_num_depth_in_sweep_filenames(tmp
     paths = plot_marker_phase_polar_views(table, tmp_path, config=PlotConfig(dpi=120))
 
     assert list(paths) == [
-        "depth=01_plunger_offset=-3",
-        "depth=01_plunger_offset=0",
-        "depth=02_plunger_offset=-3",
-        "depth=02_plunger_offset=0",
+        "depth=1p0_plunger_offset=-3",
+        "depth=1p0_plunger_offset=0",
+        "depth=2p0_plunger_offset=-3",
+        "depth=2p0_plunger_offset=0",
     ]
-    assert paths["depth=01_plunger_offset=-3"].name == "polar_iris_depth_01_plunger_offset_m3.png"
-    assert paths["depth=01_plunger_offset=0"].name == "polar_iris_depth_01_plunger_offset_0.png"
-    assert paths["depth=02_plunger_offset=-3"].name == "polar_iris_depth_02_plunger_offset_m3.png"
-    assert paths["depth=02_plunger_offset=0"].name == "polar_iris_depth_02_plunger_offset_0.png"
+    assert paths["depth=1p0_plunger_offset=-3"].name == "iris_depth_1p0_plunger_offset_m3.png"
+    assert paths["depth=1p0_plunger_offset=0"].name == "iris_depth_1p0_plunger_offset_0.png"
+    assert paths["depth=2p0_plunger_offset=-3"].name == "iris_depth_2p0_plunger_offset_m3.png"
+    assert paths["depth=2p0_plunger_offset=0"].name == "iris_depth_2p0_plunger_offset_0.png"
 
 
 def test_plot_marker_phase_polar_views_splits_duplicate_positions_by_source_file(tmp_path: Path) -> None:
@@ -537,10 +537,10 @@ def test_plot_marker_phase_polar_views_uses_grid_points_before_tune_positions(tm
         "iris r_c=54.59, w_c=18.3224",
         "iris r_c=55.59, w_c=19.3224",
     ]
-    assert paths["cell r_c=54.59, w_c=18.3224"].name == "polar_cell_r_c_54p59_w_c_18p3224.png"
-    assert paths["cell r_c=55.59, w_c=19.3224"].name == "polar_cell_r_c_55p59_w_c_19p3224.png"
-    assert paths["iris r_c=54.59, w_c=18.3224"].name == "polar_iris_r_c_54p59_w_c_18p3224.png"
-    assert paths["iris r_c=55.59, w_c=19.3224"].name == "polar_iris_r_c_55p59_w_c_19p3224.png"
+    assert paths["cell r_c=54.59, w_c=18.3224"].name == "cell_r_c_54p59_w_c_18p3224.png"
+    assert paths["cell r_c=55.59, w_c=19.3224"].name == "cell_r_c_55p59_w_c_19p3224.png"
+    assert paths["iris r_c=54.59, w_c=18.3224"].name == "iris_r_c_54p59_w_c_18p3224.png"
+    assert paths["iris r_c=55.59, w_c=19.3224"].name == "iris_r_c_55p59_w_c_19p3224.png"
 
 
 def test_plot_marker_phase_polar_views_uses_concise_grid_titles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
