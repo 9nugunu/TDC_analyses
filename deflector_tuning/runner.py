@@ -26,6 +26,11 @@ from deflector_tuning.visualization.grid_scan_spacing_maps import (
     plot_grid_scan_phase_sensitivity_maps,
     plot_grid_scan_spacing_error_maps,
 )
+from deflector_tuning.visualization.em_field_structure_plots import (
+    FieldProfileExport,
+    load_field_profile_export,
+    plot_field_profile_with_tdc_structure,
+)
 from deflector_tuning.visualization.geometry_phase_response_plots import plot_geometry_phase_response
 from deflector_tuning.visualization.nodal_shift_plots import plot_nodal_shift
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
@@ -92,6 +97,23 @@ def run_folder_analysis(
     manifest_path = output_dir / "manifest.json"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    if dataset_category == "profile":
+        profile_inputs = find_cst_profile_inputs(sparameter_path)
+        if not profile_inputs:
+            raise ValueError(
+                "Dataset category is profile, but no parseable CST profile txt export "
+                f"was found: {sparameter_path}"
+            )
+        return _run_profile_only_analysis_from_runner(
+            profile_inputs,
+            output_dir=output_dir,
+            table_dir=table_dir,
+            figure_root=figure_root,
+            sparameter_path=sparameter_path,
+            dispersion_path=dispersion_path,
+            marker_role=marker_role,
+        )
+
     dispersion_inputs = find_cst_dispersion_inputs(sparameter_path) if dataset_category in {None, "dispersion"} else ()
     if dataset_category == "dispersion" and not dispersion_inputs:
         raise ValueError(f"Dataset category is dispersion, but no parseable CST dispersion txt export was found: {sparameter_path}")
@@ -108,6 +130,18 @@ def run_folder_analysis(
         )
         logger.info("Dispersion-only analysis completed successfully")
         return result
+
+    profile_inputs = find_cst_profile_inputs(sparameter_path) if dataset_category is None else ()
+    if profile_inputs:
+        return _run_profile_only_analysis_from_runner(
+            profile_inputs,
+            output_dir=output_dir,
+            table_dir=table_dir,
+            figure_root=figure_root,
+            sparameter_path=sparameter_path,
+            dispersion_path=dispersion_path,
+            marker_role=marker_role,
+        )
 
     loader = loader or DataLoader(file_workers=file_workers)
     logger.info("Resolved input paths: sparameter=%s dispersion=%s", sparameter_path, dispersion_path)
@@ -239,6 +273,176 @@ def find_cst_dispersion_inputs(path: str | Path) -> tuple[Path, ...]:
             continue
         dispersion_paths.append(candidate)
     return tuple(dispersion_paths)
+
+
+def find_cst_profile_inputs(path: str | Path) -> tuple[Path, ...]:
+    """Return parseable one-dimensional CST profile exports under ``path``."""
+
+    input_path = Path(path)
+    candidates: list[Path]
+    if input_path.is_file():
+        candidates = [input_path]
+    elif input_path.is_dir():
+        candidates = sorted(input_path.glob("*.txt"), key=lambda item: item.name.lower())
+    else:
+        return ()
+
+    profile_paths: list[Path] = []
+    for candidate in candidates:
+        if candidate.suffix.lower() != ".txt":
+            continue
+        try:
+            load_field_profile_export(candidate)
+        except (OSError, ValueError):
+            continue
+        profile_paths.append(candidate)
+    return tuple(profile_paths)
+
+
+def _run_profile_only_analysis_from_runner(
+    profile_inputs: tuple[Path, ...],
+    *,
+    output_dir: Path,
+    table_dir: Path,
+    figure_root: Path,
+    sparameter_path: Path,
+    dispersion_path: Path,
+    marker_role: str,
+) -> RunResult:
+    logger.info("Detected CST profile data; running profile-only analysis")
+    result = _run_profile_only_analysis(
+        profile_inputs,
+        output_dir=output_dir,
+        table_dir=table_dir,
+        figure_root=figure_root,
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role=marker_role,
+    )
+    logger.info("Profile-only analysis completed successfully")
+    return result
+
+
+def _run_profile_only_analysis(
+    profile_inputs: tuple[Path, ...],
+    *,
+    output_dir: Path,
+    table_dir: Path,
+    figure_root: Path,
+    sparameter_path: Path,
+    dispersion_path: Path,
+    marker_role: str,
+) -> RunResult:
+    table_dir.mkdir(parents=True, exist_ok=True)
+    figure_dir = figure_root / "profile"
+    table_paths: AnalysisPaths = AnalysisPaths()
+    figures: FigurePaths = OrderedDict()
+    profile_figures: OrderedDict[str, Path] = OrderedDict()
+    summary_rows: list[dict[str, object]] = []
+
+    for input_path in profile_inputs:
+        export = load_field_profile_export(input_path)
+        summary_rows.extend(_profile_summary_rows(input_path, export))
+        profile_figures[input_path.stem] = plot_field_profile_with_tdc_structure(
+            export,
+            figure_dir / f"{input_path.stem}.png",
+        )
+        for figure_key, split_export in _split_phase_profile_export_by_field_kind(input_path, export):
+            profile_figures[figure_key] = plot_field_profile_with_tdc_structure(
+                split_export,
+                figure_dir / f"{figure_key}.png",
+            )
+
+    summary_path = table_dir / "profile_summary.csv"
+    pd.DataFrame(summary_rows).to_csv(summary_path, index=False)
+    table_paths["profile_summary"] = summary_path
+    figures["profile"] = profile_figures
+    modes = ("profile",)
+    detection = {
+        "profile": {
+            "enabled": True,
+            "reason": "parseable CST quantity-versus-z profile text export detected",
+            "input_count": len(profile_inputs),
+        },
+        "grid_scan_spacing": {"enabled": False, "reason": "profile data bypasses S-parameter marker analysis"},
+    }
+    manifest_path = output_dir / "manifest.json"
+    _write_manifest(
+        manifest_path,
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role=marker_role,
+        modes=modes,
+        detection=detection,
+        tables=table_paths,
+        figures=figures,
+    )
+    return RunResult(
+        output_dir=output_dir,
+        tables=table_paths,
+        figures=figures,
+        analysis_modes=modes,
+        manifest_path=manifest_path,
+    )
+
+
+def _profile_summary_rows(input_path: Path, export: FieldProfileExport) -> list[dict[str, object]]:
+    rows = []
+    for trace in export.traces:
+        abs_values = abs(trace.values)
+        peak_index = int(abs_values.argmax())
+        rows.append(
+            {
+                "source_file": input_path.name,
+                "trace_label": trace.label,
+                "field_kind": trace.field_kind,
+                "component": trace.component,
+                "value_kind": trace.value_kind,
+                "sample_count": len(trace.z_mm),
+                "z_min_mm": float(trace.z_mm.min()),
+                "z_max_mm": float(trace.z_mm.max()),
+                "value_min": float(trace.values.min()),
+                "value_max": float(trace.values.max()),
+                "abs_peak_value": float(abs_values[peak_index]),
+                "abs_peak_z_mm": float(trace.z_mm[peak_index]),
+            }
+        )
+    return rows
+
+
+def _split_phase_profile_export_by_field_kind(
+    input_path: Path, export: FieldProfileExport
+) -> tuple[tuple[str, FieldProfileExport], ...]:
+    if not export.traces or any(trace.value_kind != "phase" for trace in export.traces):
+        return ()
+
+    field_kinds = []
+    for trace in export.traces:
+        if trace.field_kind not in field_kinds:
+            field_kinds.append(trace.field_kind)
+    if len(field_kinds) < 2:
+        return ()
+
+    outputs: list[tuple[str, FieldProfileExport]] = []
+    for field_kind in field_kinds:
+        traces = tuple(trace for trace in export.traces if trace.field_kind == field_kind)
+        if not traces:
+            continue
+        outputs.append(
+            (
+                _phase_profile_figure_key(input_path, field_kind),
+                FieldProfileExport(parameters=export.parameters, traces=traces),
+            )
+        )
+    return tuple(outputs)
+
+
+def _phase_profile_figure_key(input_path: Path, field_kind: str) -> str:
+    prefix = {"e": "E", "h": "H"}.get(field_kind.lower()[:1], field_kind.upper())
+    stem = input_path.stem
+    if stem.startswith("EM_"):
+        return f"{prefix}_{stem.removeprefix('EM_')}"
+    return f"{prefix}_{stem}"
 
 
 def _run_dispersion_only_analysis(

@@ -10,7 +10,7 @@ Required fields:
 
 ```text
 layer: raw | sim | prepro
-category: sweep | grid | dispersion
+category: sweep | grid | dispersion | profile
 date: YYMMDD | undated
 object/condition: ASCII alphanumeric tokens joined by underscores
 ```
@@ -34,6 +34,10 @@ Use `grid` for tuning sensitivity investigations such as parameter grids,
 offset checks, field maps, or coupler radius sweeps.
 
 Use `dispersion` for CST dispersion / phase advance / mode-frequency exports.
+
+Use `profile` for one-dimensional sampled functions such as CST z-lineouts,
+field-amplitude profiles, field-phase profiles, or other quantity-versus-axis
+exports. Profile datasets are routed away from the S-parameter marker workflow.
 
 The folder prefix must match its parent layer:
 

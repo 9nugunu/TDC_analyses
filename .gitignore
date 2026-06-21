@@ -10,3 +10,4 @@ data/
 # Generated analysis figures and tables.
 fig/
 *.zip
+outputs/

@@ -329,6 +329,38 @@ def test_plot_marker_phase_polar_views_uses_marker_specific_colors(tmp_path: Pat
     assert polar_phase_views.MARKER_COLORS["f_pi2"] in line_colors
 
 
+def test_plot_marker_phase_polar_views_fans_out_clustered_marker_labels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_paths: list[Path] = []
+    saved_figures: list[matplotlib.figure.Figure] = []
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_paths.append(path)
+        saved_figures.append(fig)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+    clustered = _marker_points().copy()
+    clustered.loc[clustered["tune_position"] == 0.5, "s_phase_deg"] = [-147.0, -157.0, -166.0]
+
+    plot_marker_phase_polar_views(clustered, tmp_path, config=PlotConfig(dpi=120))
+
+    fig = next(fig for fig, path in zip(saved_figures, saved_paths, strict=True) if path.name == "cell_0p5.png")
+    ax = next(axis for axis in fig.axes if axis.get_visible())
+    marker_labels = [text for text in ax.texts if "f_{" in text.get_text()]
+    assert len(marker_labels) == 3
+    marker_positions = [text.get_position() for text in marker_labels]
+    assert len({round(radius, 3) for _, radius in marker_positions}) > 1
+    assert max(theta for theta, _ in marker_positions) - min(theta for theta, _ in marker_positions) > 0.5
+    delta_32_label = next(text for text in ax.texts if r"\Delta\phi_{32}" in text.get_text())
+    assert delta_32_label.get_ha() == "left"
+    assert delta_32_label.get_position()[1] < 0.70
+
+
 def test_plot_marker_phase_polar_views_adds_ideal_guides_to_f_2pi3_family_overlays(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -356,8 +388,8 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_f_2pi3_family_overla
     assert len(matched) == 2
     for fig in matched:
         ax = next(axis for axis in fig.axes if axis.get_visible())
-        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "120°", "240°"}}
-        assert guide_labels == {"0°", "120°", "240°"}
+        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "180°", "60°", "-60°"}}
+        assert guide_labels == {"0°", "180°", "60°", "-60°"}
 
 
 def test_plot_marker_phase_polar_views_adds_ideal_guides_to_per_position_tune_plots(
@@ -387,8 +419,8 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_per_position_tune_pl
     assert len(matched) == 2
     for fig in matched:
         ax = next(axis for axis in fig.axes if axis.get_visible())
-        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "120°", "240°"}}
-        assert guide_labels == {"0°", "120°", "240°"}
+        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "180°", "60°", "-60°"}}
+        assert guide_labels == {"0°", "180°", "60°", "-60°"}
 
 
 def test_plot_marker_phase_polar_views_adds_ideal_guides_to_sim_260526_grid_scan_plots(
@@ -414,8 +446,8 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_sim_260526_grid_scan
     assert len(matched) == 2
     for fig in matched:
         ax = next(axis for axis in fig.axes if axis.get_visible())
-        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "120°", "240°"}}
-        assert guide_labels == {"0°", "120°", "240°"}
+        guide_labels = {text.get_text() for text in ax.texts if text.get_text() in {"0°", "180°", "60°", "-60°"}}
+        assert guide_labels == {"0°", "180°", "60°", "-60°"}
 
 
 def test_plot_marker_phase_polar_views_splits_by_source_file_when_tune_positions_are_missing(tmp_path: Path) -> None:

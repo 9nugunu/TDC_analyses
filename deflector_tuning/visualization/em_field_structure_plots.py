@@ -22,7 +22,19 @@ from deflector_tuning.visualization.plot_config import (
 
 PARAMETER_PATTERN = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)=([-+0-9.eE]+)")
 DEFAULT_REGULAR_CELL_COUNT = 9
-GUIDE_COLOR = "#7C00FF"
+IRIS_GUIDE_COLOR = "#c77855"
+REGULAR_CELL_GUIDE_COLOR = "#4f8d63"
+PHASE_GUIDE_COLOR = IRIS_GUIDE_COLOR
+PHASE_STRUCTURE_Y_MIN = -270.0
+PHASE_STRUCTURE_Y_MAX = 235.0
+PHASE_STRUCTURE_AXIS_Y = -262.0
+PHASE_STRUCTURE_CELL_Y = -210.0
+PROFILE_STRUCTURE_BOTTOM_AXIS_FRACTION = 0.0
+PROFILE_STRUCTURE_BAND_AXIS_FRACTION = (PHASE_STRUCTURE_CELL_Y - PHASE_STRUCTURE_AXIS_Y) / (
+    PHASE_STRUCTURE_Y_MAX - PHASE_STRUCTURE_Y_MIN
+)
+PROFILE_STRUCTURE_DATA_GAP_AXIS_FRACTION = 0.06
+PROFILE_STRUCTURE_IRIS_HEIGHT_FRACTION = 0.42
 
 
 @dataclass(frozen=True)
@@ -37,11 +49,31 @@ class FieldPhaseTrace:
 
 
 @dataclass(frozen=True)
+class FieldProfileTrace:
+    """One CST field profile trace sampled along Z."""
+
+    label: str
+    field_kind: str
+    component: str
+    value_kind: str
+    z_mm: np.ndarray
+    values: np.ndarray
+
+
+@dataclass(frozen=True)
 class FieldPhaseExport:
     """Parsed CST field-phase export with repeated header/data blocks."""
 
     parameters: dict[str, float]
     traces: tuple[FieldPhaseTrace, ...]
+
+
+@dataclass(frozen=True)
+class FieldProfileExport:
+    """Parsed CST field profile export with repeated header/data blocks."""
+
+    parameters: dict[str, float]
+    traces: tuple[FieldProfileTrace, ...]
 
 
 def load_field_phase_export(path: str | Path) -> FieldPhaseExport:
@@ -78,6 +110,42 @@ def load_field_phase_export(path: str | Path) -> FieldPhaseExport:
     if not traces:
         raise ValueError(f"No field phase traces found in {path}")
     return FieldPhaseExport(parameters=parameters, traces=tuple(traces))
+
+
+def load_field_profile_export(path: str | Path) -> FieldProfileExport:
+    """Load a CST-style one-dimensional field profile text export."""
+
+    parameters: dict[str, float] = {}
+    traces: list[FieldProfileTrace] = []
+    current_header: str | None = None
+    current_rows: list[tuple[float, float]] = []
+
+    for raw_line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("#Parameters"):
+            _append_profile_trace(traces, current_header, current_rows)
+            current_header = None
+            current_rows = []
+            parameters.update(_parse_parameters(line))
+            continue
+        if line.startswith('#"Z / mm"'):
+            _append_profile_trace(traces, current_header, current_rows)
+            current_header = line
+            current_rows = []
+            continue
+        if line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        current_rows.append((float(parts[0]), float(parts[1])))
+
+    _append_profile_trace(traces, current_header, current_rows)
+    if not traces:
+        raise ValueError(f"No field profile traces found in {path}")
+    return FieldProfileExport(parameters=parameters, traces=tuple(traces))
 
 
 def plot_field_phase_with_tdc_structure(
@@ -142,6 +210,101 @@ def plot_field_phase_with_tdc_structure(
     return save_figure(fig, output_path, config)
 
 
+def plot_field_profile_with_tdc_structure(
+    export: FieldProfileExport,
+    output_path: str | Path,
+    *,
+    regular_cell_count: int = DEFAULT_REGULAR_CELL_COUNT,
+    config: PlotConfig | None = None,
+) -> Path:
+    """Plot one-dimensional E/H field profiles with TDC structure guides."""
+
+    if not export.traces:
+        raise ValueError("field profile export has no traces")
+
+    config = config or PlotConfig()
+    apply_plot_style(config)
+
+    z_min = min(float(np.min(trace.z_mm)) for trace in export.traces)
+    z_max = max(float(np.max(trace.z_mm)) for trace in export.traces)
+    data_y_min = min(float(np.min(trace.values)) for trace in export.traces)
+    data_y_max = max(float(np.max(trace.values)) for trace in export.traces)
+    data_span = data_y_max - data_y_min
+    y_padding = max(data_span * 0.08, 1.0 if data_y_max == data_y_min else 0.0)
+    y_min = data_y_min - y_padding
+    y_max = data_y_max + y_padding
+
+    fig, ax = plt.subplots(figsize=(12.4, 5.0))
+    if _has_tdc_structure_parameters(export.parameters):
+        data_display_span = (y_max - data_y_min) if data_span > 0.0 else max(abs(data_y_max), 1.0)
+        structure_fraction = (
+            PROFILE_STRUCTURE_BOTTOM_AXIS_FRACTION
+            + PROFILE_STRUCTURE_BAND_AXIS_FRACTION
+            + PROFILE_STRUCTURE_DATA_GAP_AXIS_FRACTION
+        )
+        profile_axis_span = data_display_span / (1.0 - structure_fraction)
+        band_span = profile_axis_span * PROFILE_STRUCTURE_BAND_AXIS_FRACTION
+        axis_y = data_y_min - (
+            PROFILE_STRUCTURE_DATA_GAP_AXIS_FRACTION + PROFILE_STRUCTURE_BAND_AXIS_FRACTION
+        ) * profile_axis_span
+        iris_y = axis_y + band_span * PROFILE_STRUCTURE_IRIS_HEIGHT_FRACTION
+        cell_y = axis_y + band_span
+        y_min = min(y_min, axis_y - PROFILE_STRUCTURE_BOTTOM_AXIS_FRACTION * profile_axis_span)
+        _draw_tdc_half_section_band(
+            ax,
+            export.parameters,
+            z_min=z_min,
+            z_max=z_max,
+            regular_cell_count=regular_cell_count,
+            config=config,
+            axis_y=axis_y,
+            iris_y=iris_y,
+            cell_y=cell_y,
+        )
+    _draw_profile_guides(
+        ax,
+        export.parameters,
+        regular_cell_count=regular_cell_count,
+        z_min=z_min,
+        z_max=z_max,
+        y_min=y_min,
+        y_max=y_max,
+        guide_mode=_profile_guide_mode(export.traces),
+    )
+    for trace in export.traces:
+        ax.plot(
+            trace.z_mm,
+            trace.values,
+            label=_profile_legend_label(trace),
+            color=_profile_color(trace),
+            linestyle="--" if trace.value_kind == "phase" and trace.field_kind == "h" else "-",
+            linewidth=config.line_width,
+        )
+
+    ax.set_xlim(z_min, z_max)
+    ax.set_ylim(y_min, y_max)
+    ax.grid(True, color="0.88", linewidth=0.8)
+    apply_axis_text_style(
+        ax,
+        xlabel="Z [mm]",
+        ylabel=_profile_y_label(export.traces),
+        title="TDC field profile with structure guides",
+        config=config,
+        compact=True,
+    )
+    legend = ax.legend(
+        frameon=True,
+        loc="best",
+        fontsize=config.compact_legend_size,
+        facecolor="white",
+        edgecolor="0.6",
+        framealpha=0.72,
+    )
+    apply_legend_text_style(legend, config)
+    _apply_legend_line_text_colors(legend)
+    return save_figure(fig, output_path, config)
+
+
 def _draw_phase_traces(ax: plt.Axes, traces: tuple[FieldPhaseTrace, ...], *, config: PlotConfig) -> None:
     colors = {"e": "#1f5f99", "h": "#b54a00"}
     styles = {"e": "-", "h": "--"}
@@ -165,6 +328,26 @@ def _trace_legend_label(trace: FieldPhaseTrace) -> str:
     return trace.label
 
 
+def _profile_legend_label(trace: FieldProfileTrace) -> str:
+    symbol = "E" if trace.field_kind.lower().startswith("e") else "H" if trace.field_kind.lower().startswith("h") else "field"
+    suffix = "phase" if trace.value_kind == "phase" else "profile"
+    component = f"_{trace.component.lower()}" if trace.component != "?" and symbol in {"E", "H"} else ""
+    return f"${symbol}{component}$ {suffix}" if symbol in {"E", "H"} else trace.label
+
+
+def _profile_color(trace: FieldProfileTrace) -> str:
+    return {"e": "#1f5f99", "h": "#b54a00"}.get(trace.field_kind.lower()[:1], "0.25")
+
+
+def _profile_y_label(traces: tuple[FieldProfileTrace, ...]) -> str:
+    value_kinds = {trace.value_kind for trace in traces}
+    if value_kinds == {"phase"}:
+        return "Field phase [deg]"
+    if value_kinds == {"real"}:
+        return "Field component [a.u.]"
+    return "Profile value"
+
+
 def _apply_legend_line_text_colors(legend) -> None:
     if legend is None:
         return
@@ -182,6 +365,9 @@ def _draw_tdc_half_section_band(
     z_max: float,
     regular_cell_count: int,
     config: PlotConfig,
+    axis_y: float = -262.0,
+    iris_y: float = -240.0,
+    cell_y: float = -210.0,
 ) -> None:
     if regular_cell_count < 1:
         raise ValueError("regular_cell_count must be positive")
@@ -201,9 +387,6 @@ def _draw_tdc_half_section_band(
         cell_radius=cell_radius,
         regular_cell_count=regular_cell_count,
     )
-    axis_y = -262.0
-    iris_y = -240.0
-    cell_y = -210.0
     radius_to_y = {
         iris_radius: iris_y,
         cell_radius: cell_y,
@@ -382,6 +565,37 @@ def _phase_curve_guides(
     ]
 
 
+def _regular_cell_center_guides(
+    *,
+    cell_length: float,
+    iris_thickness: float,
+    regular_cell_count: int,
+) -> list[tuple[float, str]]:
+    guides = []
+    cursor = 0.0
+    for cell_index in range(1, regular_cell_count + 1):
+        regular_start = cursor + iris_thickness
+        regular_center = regular_start + cell_length / 2.0
+        guides.append((regular_center, f"R{cell_index}"))
+        cursor += iris_thickness + cell_length
+    return guides
+
+
+def _iris_center_guides(
+    *,
+    cell_length: float,
+    iris_thickness: float,
+    regular_cell_count: int,
+) -> list[tuple[float, str]]:
+    guides = [(iris_thickness / 2.0, "IN iris")]
+    for iris_index in range(1, regular_cell_count):
+        iris_center = iris_index * (iris_thickness + cell_length) + iris_thickness / 2.0
+        guides.append((iris_center, f"I{iris_index}"))
+    final_iris_start = regular_cell_count * (iris_thickness + cell_length)
+    guides.append((final_iris_start + iris_thickness / 2.0, "OUT iris"))
+    return guides
+
+
 def _draw_regular_group_guides(
     ax: plt.Axes,
     parameters: dict[str, float],
@@ -401,7 +615,7 @@ def _draw_regular_group_guides(
         regular_cell_count=regular_cell_count,
     ):
         if z_min <= guide_z <= z_max:
-            ax.axvline(guide_z, color=GUIDE_COLOR, linestyle=":", linewidth=3.2, alpha=0.98)
+            ax.axvline(guide_z, color=PHASE_GUIDE_COLOR, linestyle=":", linewidth=3.2, alpha=0.98)
             ax.text(
                 guide_z - label_offset,
                 218.0,
@@ -409,9 +623,93 @@ def _draw_regular_group_guides(
                 ha="right",
                 va="top",
                 fontsize=11.0,
-                color=GUIDE_COLOR,
+                color=PHASE_GUIDE_COLOR,
                 fontweight="bold",
             )
+
+
+def _draw_profile_guides(
+    ax: plt.Axes,
+    parameters: dict[str, float],
+    *,
+    regular_cell_count: int,
+    z_min: float,
+    z_max: float,
+    y_min: float,
+    y_max: float,
+    guide_mode: str = "phase",
+) -> None:
+    cell_length = parameters.get("d")
+    iris_thickness = parameters.get("t")
+    if cell_length is None or iris_thickness is None:
+        return
+    label_y = y_max - 0.04 * (y_max - y_min)
+    guides = _profile_guides(
+        cell_length=cell_length,
+        iris_thickness=iris_thickness,
+        regular_cell_count=regular_cell_count,
+        guide_mode=guide_mode,
+    )
+    guide_color = _profile_guide_color(guide_mode)
+    for guide_z, label in guides:
+        if z_min <= guide_z <= z_max:
+            ax.axvline(guide_z, color=guide_color, linestyle=":", linewidth=2.0, alpha=0.8)
+            ax.text(
+                guide_z,
+                label_y,
+                label,
+                ha="center",
+                va="top",
+                fontsize=9.0,
+                color=guide_color,
+                fontweight="bold",
+            )
+
+
+def _profile_guides(
+    *,
+    cell_length: float,
+    iris_thickness: float,
+    regular_cell_count: int,
+    guide_mode: str,
+) -> list[tuple[float, str]]:
+    if guide_mode == "h_cell_centers":
+        return _regular_cell_center_guides(
+            cell_length=cell_length,
+            iris_thickness=iris_thickness,
+            regular_cell_count=regular_cell_count,
+        )
+    if guide_mode == "e_iris_centers":
+        return _iris_center_guides(
+            cell_length=cell_length,
+            iris_thickness=iris_thickness,
+            regular_cell_count=regular_cell_count,
+        )
+    return _phase_curve_guides(
+        cell_length=cell_length,
+        iris_thickness=iris_thickness,
+        regular_cell_count=regular_cell_count,
+    )
+
+
+def _profile_guide_mode(traces: tuple[FieldProfileTrace, ...]) -> str:
+    if traces and all(trace.field_kind.lower().startswith("h") for trace in traces):
+        return "h_cell_centers"
+    if traces and any(trace.field_kind.lower().startswith("e") for trace in traces):
+        return "e_iris_centers"
+    return "phase"
+
+
+def _profile_guide_color(guide_mode: str) -> str:
+    if guide_mode == "h_cell_centers":
+        return REGULAR_CELL_GUIDE_COLOR
+    if guide_mode == "e_iris_centers":
+        return IRIS_GUIDE_COLOR
+    return PHASE_GUIDE_COLOR
+
+
+def _has_tdc_structure_parameters(parameters: dict[str, float]) -> bool:
+    return all(name in parameters for name in ("d", "t", "a", "b"))
 
 
 def _append_trace(
@@ -435,6 +733,30 @@ def _append_trace(
     )
 
 
+def _append_profile_trace(
+    traces: list[FieldProfileTrace],
+    header: str | None,
+    rows: list[tuple[float, float]],
+) -> None:
+    if header is None or not rows:
+        return
+    data = np.asarray(rows, dtype=float)
+    field_kind = _field_kind(header)
+    component = _component(header)
+    value_kind = _value_kind(header)
+    label = f"{field_kind.upper()} field {component} {value_kind}"
+    traces.append(
+        FieldProfileTrace(
+            label=label,
+            field_kind=field_kind,
+            component=component,
+            value_kind=value_kind,
+            z_mm=data[:, 0],
+            values=data[:, 1],
+        )
+    )
+
+
 def _parse_parameters(line: str) -> dict[str, float]:
     return {match.group(1): float(match.group(2)) for match in PARAMETER_PATTERN.finditer(line)}
 
@@ -445,5 +767,9 @@ def _field_kind(header: str) -> str:
 
 
 def _component(header: str) -> str:
-    match = re.search(r"_([XYZ]) \(Z\)_phase", header)
+    match = re.search(r"_([XYZ]) \(Z\)(?:_phase)?", header)
     return match.group(1) if match else "?"
+
+
+def _value_kind(header: str) -> str:
+    return "phase" if "_phase" in header.lower() else "real"

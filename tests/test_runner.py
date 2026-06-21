@@ -334,6 +334,104 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_single_mode_cst_expor
     assert '"phase_advance"' not in manifest
 
 
+def test_run_folder_analysis_uses_profile_only_lane_for_cst_z_profiles(tmp_path: Path, monkeypatch) -> None:
+    profile_folder = tmp_path / "data" / "sim" / "sim_profile_260618_hem11_eh_zcut"
+    profile_folder.mkdir(parents=True)
+    (profile_folder / "E_fieldDist.txt").write_text(
+        "\n".join(
+            [
+                "#Parameters = {d=29.148; t=5.84}",
+                '#"Z / mm"\t"e-field (f=2.8565) (1)_Y (Z) [Real]"',
+                "#----------------------------------------------",
+                "0.0\t1.0",
+                "2.92\t3.0",
+                "20.414\t0.5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (profile_folder / "EM_fieldPhase.txt").write_text(
+        "\n".join(
+            [
+                "#Parameters = {d=29.148; t=5.84}",
+                '#"Z / mm"\t"e-field (f=2.8565) (1)_Y (Z)_phase [Real]"',
+                "#----------------------------------------------",
+                "0.0\t0.0",
+                "2.92\t60.0",
+                "20.414\t120.0",
+                "#Parameters = {d=29.148; t=5.84}",
+                '#"Z / mm"\t"h-field (f=2.8565) (1)_X (Z)_phase [Real]"',
+                "#----------------------------------------------",
+                "0.0\t-20.0",
+                "2.92\t40.0",
+                "20.414\t100.0",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_sparameter_lane(*args, **kwargs):
+        raise AssertionError("profile input must not use S-parameter marker analysis")
+
+    monkeypatch.setattr(runner, "build_marker_analysis", fail_sparameter_lane)
+    monkeypatch.setattr(runner.DataLoader, "load", fail_sparameter_lane)
+
+    result = runner.run_folder_analysis(
+        sparameter_path=profile_folder,
+        output_dir=tmp_path / "out",
+        marker_role="sim",
+        data_root=tmp_path / "data",
+    )
+
+    assert result.analysis_modes == ("profile",)
+    assert set(result.tables) == {"profile_summary"}
+    assert set(result.figures) == {"profile"}
+    assert set(result.figures["profile"]) == {"E_fieldDist", "EM_fieldPhase", "E_fieldPhase", "H_fieldPhase"}
+    assert result.figures["profile"]["E_fieldDist"].exists()
+    assert result.figures["profile"]["E_fieldPhase"].exists()
+    assert result.figures["profile"]["H_fieldPhase"].exists()
+    summary = pd.read_csv(result.tables["profile_summary"])
+    assert summary["source_file"].tolist() == ["E_fieldDist.txt", "EM_fieldPhase.txt", "EM_fieldPhase.txt"]
+    assert summary["value_kind"].tolist() == ["real", "phase", "phase"]
+    manifest = result.manifest_path.read_text(encoding="utf-8")
+    assert '"profile"' in manifest
+    assert '"s11"' not in manifest
+
+
+def test_run_folder_analysis_detects_legacy_named_cst_z_profiles(tmp_path: Path, monkeypatch) -> None:
+    profile_folder = tmp_path / "data" / "sim" / "sim_EMfield_260618_PhaseDistribution"
+    profile_folder.mkdir(parents=True)
+    (profile_folder / "H_fieldDist.txt").write_text(
+        "\n".join(
+            [
+                "#Parameters = {d=29.148; t=5.84}",
+                '#"Z / mm"\t"h-field (f=2.8565) (1)_X (Z) [Real]"',
+                "#----------------------------------------------",
+                "0.0\t1.0",
+                "2.92\t3.0",
+                "20.414\t0.5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_sparameter_lane(*args, **kwargs):
+        raise AssertionError("parseable profile input must not use S-parameter marker analysis")
+
+    monkeypatch.setattr(runner, "build_marker_analysis", fail_sparameter_lane)
+    monkeypatch.setattr(runner.DataLoader, "load", fail_sparameter_lane)
+
+    result = runner.run_folder_analysis(
+        sparameter_path=profile_folder,
+        output_dir=tmp_path / "out",
+        marker_role="sim",
+        data_root=tmp_path / "data",
+    )
+
+    assert result.analysis_modes == ("profile",)
+    assert set(result.figures["profile"]) == {"H_fieldDist"}
+
+
 def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
     tables["phase_advance"] = tables["phase_advance"].iloc[0:0]
