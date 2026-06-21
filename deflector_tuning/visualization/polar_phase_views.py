@@ -35,6 +35,13 @@ MARKER_LABEL_CLUSTER_THRESHOLD_DEG = 22.0
 MARKER_LABEL_CLUSTER_SPREAD_DEG = 10.0
 MARKER_LABEL_BASE_RADIUS = 1.08
 MARKER_LABEL_RADIUS_STEP = 0.04
+KYHL_PHASE_PAIR_OVERLAY_STEPS: tuple[tuple[str, float, float], ...] = (
+    ("cell", 0.5, 1.5),
+    ("iris", 1.0, 2.0),
+)
+KYHL_PHASE_RADIAL_RADIUS = 1.0
+KYHL_PHASE_RADIAL_START_ALPHA = 0.50
+KYHL_PHASE_RADIAL_END_ALPHA = 0.50
 
 
 def plot_marker_phase_polar_views(
@@ -110,6 +117,26 @@ def plot_marker_phase_polar_views(
             save_figure(fig, output_path, config)
             plt.close(fig)
             paths[f"{family}_f_2pi3_overlay"] = output_path
+        kyhl_pair_table = _kyhl_phase_pair_overlay_table(marker_points)
+        if not kyhl_pair_table.empty:
+            for _, pair_table in kyhl_pair_table.groupby("_pair_order", sort=True):
+                pair_label = str(pair_table["_pair_label"].iloc[0])
+                family = str(pair_table["_pair_family"].iloc[0])
+                start = float(pair_table["_pair_start"].iloc[0])
+                end = float(pair_table["_pair_end"].iloc[0])
+                fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
+                _draw_kyhl_phase_pair_overlay(
+                    ax,
+                    pair_table,
+                    _kyhl_phase_pair_overlay_title(family, start, end),
+                    pair_label,
+                    config=config,
+                    guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
+                )
+                output_path = folder / f"kyhl_phase_{family}_overlay.png"
+                save_figure(fig, output_path, config)
+                plt.close(fig)
+                paths[f"kyhl_phase_{family}_overlay"] = output_path
     return paths
 
 
@@ -280,6 +307,53 @@ def _iter_family_overlay_groups(marker_points: pd.DataFrame):
         yield str(family), group.copy()
 
 
+def _kyhl_phase_pair_overlay_table(marker_points: pd.DataFrame) -> pd.DataFrame:
+    table = marker_points.copy()
+    table = table.dropna(subset=["tune_position"]).copy()
+    if table.empty:
+        return pd.DataFrame()
+    table["_tune_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+    table = table[table["_tune_sort"].notna() & table["marker_name"].isin(MARKER_ORDER)].copy()
+    if table.empty:
+        return pd.DataFrame()
+
+    frames: list[pd.DataFrame] = []
+    marker_order = {marker: index for index, marker in enumerate(MARKER_ORDER)}
+    for pair_order, (family, start, end) in enumerate(KYHL_PHASE_PAIR_OVERLAY_STEPS):
+        is_start = np.isclose(table["_tune_sort"], start, atol=1e-9, equal_nan=False)
+        is_end = np.isclose(table["_tune_sort"], end, atol=1e-9, equal_nan=False)
+        pair_rows = table[is_start | is_end].copy()
+        if pair_rows.empty or not bool(is_start.any() and is_end.any()):
+            continue
+        complete_markers = [
+            marker
+            for marker, group in pair_rows.groupby("marker_name", sort=False)
+            if {"start", "end"}.issubset(
+                set(np.where(np.isclose(group["_tune_sort"], start, atol=1e-9), "start", "end"))
+            )
+        ]
+        if not complete_markers:
+            continue
+        pair_rows = pair_rows[pair_rows["marker_name"].isin(complete_markers)].copy()
+        pair_rows["_pair_order"] = pair_order
+        pair_rows["_pair_family"] = family
+        pair_rows["_pair_start"] = start
+        pair_rows["_pair_end"] = end
+        pair_rows["_pair_label"] = f"{family} {_format_position(start)}->{_format_position(end)}"
+        pair_rows["_pair_endpoint"] = np.where(np.isclose(pair_rows["_tune_sort"], start, atol=1e-9), "start", "end")
+        pair_rows["_marker_order"] = pair_rows["marker_name"].map(marker_order)
+        frames.append(pair_rows)
+
+    if not frames:
+        return pd.DataFrame()
+    overlay = pd.concat(frames, ignore_index=True)
+    return overlay.sort_values(["_pair_order", "_marker_order", "_pair_endpoint"], kind="mergesort")
+
+
+def _kyhl_phase_pair_overlay_title(family: str, start: float, end: float) -> str:
+    return f"KYHL {family} phase overlay: {_format_position(start)}->{_format_position(end)}"
+
+
 def _draw_position(
     ax,
     position_table: pd.DataFrame,
@@ -417,6 +491,115 @@ def _draw_family_overlay(
         _draw_family_overlay_marker_legend(ax, config=config, markers=marker_names)
 
 
+def _draw_kyhl_phase_pair_overlay(
+    ax,
+    pair_table: pd.DataFrame,
+    title: str,
+    pair_label: str,
+    *,
+    config: PlotConfig,
+    guide_angles_deg: tuple[float, ...] = (),
+) -> None:
+    ax.set_title(title, fontsize=config.title_size, fontweight="bold", pad=12)
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    ax.set_ylim(0, 1.08)
+    ax.set_xticks(np.deg2rad([0, 90, 180, 270]))
+    ax.set_xticklabels([])
+    ax.grid(color="0.88", linewidth=0.6)
+    ax.spines["polar"].set_color("0.20")
+    ax.spines["polar"].set_linewidth(0.8)
+    if guide_angles_deg:
+        _draw_angle_guides(ax, guide_angles_deg, config=config)
+
+    ax.text(
+        np.deg2rad(315.0),
+        0.36,
+        pair_label,
+        color="0.25",
+        fontsize=config.annotation_size,
+        ha="center",
+        va="center",
+        bbox={"boxstyle": "round,pad=0.14", "facecolor": "white", "edgecolor": "0.85", "alpha": 0.88},
+    ).set_clip_on(False)
+    marker_radii = dict(zip(MARKER_ORDER, np.linspace(0.54, 0.86, len(MARKER_ORDER)), strict=True))
+    label_angle_offsets = dict(zip(MARKER_ORDER, np.linspace(11.0, -11.0, len(MARKER_ORDER)), strict=True))
+    marker_size = max(config.marker_size * 0.42, 14.0)
+    for marker in MARKER_ORDER:
+        marker_rows = pair_table[pair_table["marker_name"] == marker]
+        if marker_rows["_pair_endpoint"].nunique() < 2:
+            continue
+        by_endpoint = {row["_pair_endpoint"]: row for _, row in marker_rows.iterrows()}
+        if "start" not in by_endpoint or "end" not in by_endpoint:
+            continue
+        start = by_endpoint["start"]
+        end = by_endpoint["end"]
+        start_deg = float(start["s_phase_deg"])
+        end_deg = float(end["s_phase_deg"])
+        delta_deg = _wrap180(end_deg - start_deg)
+        radius = marker_radii[marker]
+        color = MARKER_COLORS.get(marker, "#444444")
+        theta_deg = np.linspace(start_deg, start_deg + delta_deg, 96)
+        theta = np.deg2rad(theta_deg)
+        _draw_kyhl_phase_radial_line(ax, start_deg, KYHL_PHASE_RADIAL_RADIUS, color, "start", config=config)
+        _draw_kyhl_phase_radial_line(ax, start_deg + delta_deg, KYHL_PHASE_RADIAL_RADIUS, color, "end", config=config)
+        arc_line = ax.plot(theta, np.full_like(theta, radius), color=color, alpha=0.74, linewidth=config.line_width)[0]
+        arc_line.set_gid("kyhl_phase_rotation_arc")
+        ax.scatter(
+            [np.deg2rad(start_deg)],
+            [radius],
+            marker="o",
+            s=marker_size,
+            facecolors="white",
+            edgecolors=color,
+            linewidths=config.line_width * 0.55,
+            zorder=3,
+        )
+        ax.scatter(
+            [np.deg2rad(start_deg + delta_deg)],
+            [radius],
+            marker="o",
+            s=marker_size,
+            facecolors=color,
+            edgecolors="white",
+            linewidths=0.6,
+            zorder=4,
+        )
+        _annotate_kyhl_rotation_arc(
+            ax,
+            marker,
+            start_deg + delta_deg / 2.0 + label_angle_offsets.get(marker, 0.0),
+            min(radius + 0.075, 1.04),
+            delta_deg,
+            config=config,
+        )
+    ax.set_yticks([])
+
+
+def _draw_kyhl_phase_radial_line(
+    ax,
+    angle_deg: float,
+    radius: float,
+    color: str,
+    endpoint: str,
+    *,
+    config: PlotConfig,
+) -> None:
+    theta = np.deg2rad(angle_deg)
+    linestyle = ":" if endpoint == "start" else "-"
+    alpha = KYHL_PHASE_RADIAL_START_ALPHA if endpoint == "start" else KYHL_PHASE_RADIAL_END_ALPHA
+    line = ax.plot(
+        [theta, theta],
+        [0.0, radius],
+        color=color,
+        alpha=alpha,
+        linewidth=max(config.line_width * 0.58, 0.8),
+        linestyle=linestyle,
+        zorder=1,
+    )[0]
+    line.set_gid(f"kyhl_phase_radial_{endpoint}")
+
+
 def _draw_family_overlay_marker_legend(ax, *, config: PlotConfig, markers: tuple[str, ...]) -> None:
     handles: list[Line2D] = []
     labels: list[str] = []
@@ -454,6 +637,31 @@ def _draw_family_overlay_marker_legend(ax, *, config: PlotConfig, markers: tuple
     for text, marker in zip(legend.get_texts(), markers, strict=True):
         text.set_color(MARKER_COLORS.get(marker, "#444444"))
         text.set_fontweight(config.legend_weight)
+
+
+def _annotate_kyhl_rotation_arc(
+    ax,
+    marker: str,
+    angle_deg: float,
+    radius: float,
+    delta_deg: float,
+    *,
+    config: PlotConfig,
+) -> None:
+    color = MARKER_COLORS.get(marker, "#444444")
+    theta = np.deg2rad(angle_deg)
+    text = ax.text(
+        theta,
+        radius,
+        f"{MARKER_LABELS.get(marker, marker)} $\\Delta$={delta_deg:+.1f} deg",
+        color=color,
+        fontsize=config.compact_annotation_size,
+        fontweight="bold",
+        ha="center",
+        va="center",
+        bbox={"boxstyle": "round,pad=0.14", "facecolor": "white", "edgecolor": "none", "alpha": 0.78},
+    )
+    text.set_clip_on(False)
 
 
 def _draw_angle_guides(ax, angles_deg: tuple[float, ...], *, config: PlotConfig) -> None:

@@ -119,6 +119,41 @@ def _marker_points() -> pd.DataFrame:
     )
 
 
+def _kyhl_pair_marker_points() -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for source_file, tune_position, phases in [
+        ("0.5_processed.csv", 0.5, (10.0, -110.0, 130.0)),
+        ("1.0_processed.csv", 1.0, (20.0, -100.0, 140.0)),
+        ("1.5_processed.csv", 1.5, (35.0, -70.0, 160.0)),
+        ("2.0_processed.csv", 2.0, (45.0, -60.0, 170.0)),
+    ]:
+        for marker_name, target_freq_ghz, s_db, phase_deg in [
+            ("f_2pi3", 2.856, -1.0, phases[0]),
+            ("f_mean", 2.866, -2.0, phases[1]),
+            ("f_pi2", 2.876, -3.0, phases[2]),
+        ]:
+            rows.append(
+                {
+                    "dataset_id": "sample_dataset",
+                    "data_kind": "experiment",
+                    "data_layer": "prepro",
+                    "source_file": source_file,
+                    "tune_position": tune_position,
+                    "port_side": None,
+                    "s_name": "S11",
+                    "marker_name": marker_name,
+                    "marker_role": "exp",
+                    "target_freq_ghz": target_freq_ghz,
+                    "freq_ghz": target_freq_ghz,
+                    "freq_error_ghz": 0.0,
+                    "s_db": s_db,
+                    "s_phase_deg": phase_deg,
+                    "source_format": "processed_csv_db_phase",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def _grid_scan_marker_points() -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     for source_file, sim_r_c, sim_w_c, phases in [
@@ -250,6 +285,62 @@ def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp
     assert paths["iris_overlay"].name == "iris_overlay.png"
     assert paths["iris_f_2pi3_overlay"].name == "iris_f_2pi3_overlay.png"
     assert plt.rcParams["font.sans-serif"][:4] == ["Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans"]
+
+
+def test_plot_marker_phase_polar_views_writes_separate_kyhl_phase_pair_arc_overlays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_figures: dict[str, matplotlib.figure.Figure] = {}
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_figures[path.name] = fig
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    paths = plot_marker_phase_polar_views(_kyhl_pair_marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    assert paths["kyhl_phase_cell_overlay"].name == "kyhl_phase_cell_overlay.png"
+    assert paths["kyhl_phase_iris_overlay"].name == "kyhl_phase_iris_overlay.png"
+    assert "kyhl_phase_pair_overlay" not in paths
+
+    cell_ax = saved_figures["kyhl_phase_cell_overlay.png"].axes[0]
+    iris_ax = saved_figures["kyhl_phase_iris_overlay.png"].axes[0]
+    assert cell_ax.get_title() == "KYHL cell phase overlay: 0.5->1.5"
+    assert iris_ax.get_title() == "KYHL iris phase overlay: 1.0->2.0"
+    assert "cell 0.5->1.5" in [text.get_text() for text in cell_ax.texts]
+    assert "iris 1.0->2.0" in [text.get_text() for text in iris_ax.texts]
+    assert cell_ax.get_legend() is None
+    assert iris_ax.get_legend() is None
+
+    for ax in [cell_ax, iris_ax]:
+        text_labels = [text.get_text() for text in ax.texts]
+        assert any(r"\Delta" in label and "deg" in label for label in text_labels)
+        line_colors = {line.get_color() for line in ax.lines}
+        assert polar_phase_views.MARKER_COLORS["f_2pi3"] in line_colors
+        assert polar_phase_views.MARKER_COLORS["f_mean"] in line_colors
+        assert polar_phase_views.MARKER_COLORS["f_pi2"] in line_colors
+        marker_arc_lines = [line for line in ax.lines if line.get_gid() == "kyhl_phase_rotation_arc"]
+        assert len(marker_arc_lines) == 3
+        assert all(len(line.get_xdata()) > 2 for line in marker_arc_lines)
+        start_radial_lines = [line for line in ax.lines if line.get_gid() == "kyhl_phase_radial_start"]
+        end_radial_lines = [line for line in ax.lines if line.get_gid() == "kyhl_phase_radial_end"]
+        assert len(start_radial_lines) == 3
+        assert len(end_radial_lines) == 3
+        for line in start_radial_lines + end_radial_lines:
+            assert len(line.get_xdata()) == 2
+            assert len(set(line.get_xdata())) == 1
+            assert line.get_ydata()[0] == pytest.approx(0.0)
+            assert line.get_ydata()[1] == pytest.approx(1.0)
+        for line in start_radial_lines:
+            assert line.get_alpha() == pytest.approx(0.50)
+            assert line.get_linestyle() == ":"
+        for line in end_radial_lines:
+            assert line.get_alpha() == pytest.approx(0.50)
+            assert line.get_linestyle() == "-"
 
 
 def test_plot_marker_phase_polar_views_uses_full_typography_for_per_position_and_overview(
