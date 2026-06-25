@@ -15,6 +15,10 @@ from deflector_tuning.analysis.grid_scan_spacing import (
     summarize_marker_phase_sensitivity_for_grid_scan,
     summarize_marker_spacing_for_grid_scan,
 )
+from deflector_tuning.analysis.field_energy_ratio import (
+    compute_cell_iris_field_energy_ratios,
+    summarize_cell_iris_field_energy_ratios,
+)
 from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, save_marker_analysis
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
@@ -339,10 +343,18 @@ def _run_profile_only_analysis(
     figures: FigurePaths = OrderedDict()
     profile_figures: OrderedDict[str, Path] = OrderedDict()
     summary_rows: list[dict[str, object]] = []
+    field_energy_ratio_tables: list[pd.DataFrame] = []
+    field_energy_summary_tables: list[pd.DataFrame] = []
 
     for input_path in profile_inputs:
         export = load_field_profile_export(input_path)
         summary_rows.extend(_profile_summary_rows(input_path, export))
+        field_ratios = _field_energy_ratio_table(input_path, export)
+        if not field_ratios.empty:
+            field_energy_ratio_tables.append(field_ratios)
+            field_summary = summarize_cell_iris_field_energy_ratios(field_ratios)
+            field_summary.insert(0, "source_file", input_path.name)
+            field_energy_summary_tables.append(field_summary)
         profile_figures[input_path.stem] = plot_field_profile_with_tdc_structure(
             export,
             figure_dir / f"{input_path.stem}.png",
@@ -356,6 +368,13 @@ def _run_profile_only_analysis(
     summary_path = table_dir / "profile_summary.csv"
     pd.DataFrame(summary_rows).to_csv(summary_path, index=False)
     table_paths["profile_summary"] = summary_path
+    if field_energy_ratio_tables:
+        field_pairs_path = table_dir / "field_energy_ratio_pairs.csv"
+        field_summary_path = table_dir / "field_energy_ratio_summary.csv"
+        pd.concat(field_energy_ratio_tables, ignore_index=True).to_csv(field_pairs_path, index=False)
+        pd.concat(field_energy_summary_tables, ignore_index=True).to_csv(field_summary_path, index=False)
+        table_paths["field_energy_ratio_pairs"] = field_pairs_path
+        table_paths["field_energy_ratio_summary"] = field_summary_path
     figures["profile"] = profile_figures
     modes = ("profile",)
     detection = {
@@ -408,6 +427,16 @@ def _profile_summary_rows(input_path: Path, export: FieldProfileExport) -> list[
             }
         )
     return rows
+
+
+def _field_energy_ratio_table(input_path: Path, export: FieldProfileExport) -> pd.DataFrame:
+    try:
+        table = compute_cell_iris_field_energy_ratios(export)
+    except ValueError:
+        return pd.DataFrame()
+    table = table.copy()
+    table.insert(0, "source_file", input_path.name)
+    return table
 
 
 def _split_phase_profile_export_by_field_kind(

@@ -7,6 +7,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from deflector_tuning.analysis.cell_iris_response import compare_cell_and_iris_responses
+from deflector_tuning.analysis.kyhl_admittance import POINT_OUTPUT_COLUMNS as KYHL_ADMITTANCE_POINT_COLUMNS
+from deflector_tuning.analysis.kyhl_admittance import OUTPUT_COLUMNS as KYHL_ADMITTANCE_TRANSITION_COLUMNS
+from deflector_tuning.analysis.kyhl_admittance import (
+    compute_kyhl_admittance_points,
+    compute_kyhl_admittance_transitions,
+)
 from deflector_tuning.analysis.phase_advance import OUTPUT_COLUMNS as PHASE_ADVANCE_COLUMNS
 from deflector_tuning.analysis.phase_advance import compute_phase_advance
 from deflector_tuning.analysis.phase_summary import OUTPUT_COLUMNS as PHASE_SUMMARY_COLUMNS
@@ -25,6 +32,9 @@ TABLE_FILENAMES: dict[str, str] = {
     "markers": "markers.csv",
     "marker_points": "marker_points.csv",
     "marker_phase_polar": "marker_phase_polar.csv",
+    "kyhl_admittance_points": "kyhl_admittance_points.csv",
+    "kyhl_admittance_transitions": "kyhl_admittance_transitions.csv",
+    "cell_iris_response_comparison": "cell_iris_response_comparison.csv",
     "phase_advance": "phase_advance.csv",
     "phase_summary": "phase_summary.csv",
     "nodal_shift": "nodal_shift.csv",
@@ -75,6 +85,13 @@ def build_marker_analysis(
     markers = extract_marker_frequencies(dispersion_path, marker_role=marker_role)
     marker_points = sample_nearest_markers(sparameter_table, markers)
     marker_phase_polar = build_marker_phase_polar_table(marker_points)
+    kyhl_admittance_points = _compute_kyhl_admittance_points_when_supported(marker_points)
+    kyhl_admittance_transitions = _compute_kyhl_admittance_transitions_when_supported(marker_points)
+    cell_iris_response_comparison = (
+        compare_cell_and_iris_responses(kyhl_admittance_transitions)
+        if not kyhl_admittance_transitions.empty
+        else _empty_cell_iris_response_comparison()
+    )
     phase_advance = _compute_phase_advance_when_supported(marker_points)
     phase_summary = summarize_phase_advance(phase_advance) if not phase_advance.empty else _empty_phase_summary()
     nodal_shift = compute_nodal_shift_errors(phase_advance) if not phase_advance.empty else _empty_nodal_shift()
@@ -84,6 +101,9 @@ def build_marker_analysis(
             ("markers", markers),
             ("marker_points", marker_points),
             ("marker_phase_polar", marker_phase_polar),
+            ("kyhl_admittance_points", kyhl_admittance_points),
+            ("kyhl_admittance_transitions", kyhl_admittance_transitions),
+            ("cell_iris_response_comparison", cell_iris_response_comparison),
             ("phase_advance", phase_advance),
             ("phase_summary", phase_summary),
             ("nodal_shift", nodal_shift),
@@ -137,6 +157,18 @@ def _compute_phase_advance_when_supported(marker_points: pd.DataFrame) -> pd.Dat
     return compute_phase_advance(marker_points)
 
 
+def _compute_kyhl_admittance_points_when_supported(marker_points: pd.DataFrame) -> pd.DataFrame:
+    if marker_points.empty or "tune_position" not in marker_points:
+        return pd.DataFrame(columns=KYHL_ADMITTANCE_POINT_COLUMNS)
+    return compute_kyhl_admittance_points(marker_points)
+
+
+def _compute_kyhl_admittance_transitions_when_supported(marker_points: pd.DataFrame) -> pd.DataFrame:
+    if not _has_phase_advance_axis(marker_points):
+        return pd.DataFrame(columns=KYHL_ADMITTANCE_TRANSITION_COLUMNS)
+    return compute_kyhl_admittance_transitions(marker_points)
+
+
 def _has_phase_advance_axis(marker_points: pd.DataFrame) -> bool:
     if "tune_position" not in marker_points:
         return False
@@ -149,6 +181,10 @@ def _empty_phase_summary() -> pd.DataFrame:
 
 def _empty_nodal_shift() -> pd.DataFrame:
     return pd.DataFrame(columns=NODAL_SHIFT_COLUMNS)
+
+
+def _empty_cell_iris_response_comparison() -> pd.DataFrame:
+    return compare_cell_and_iris_responses(pd.DataFrame())
 
 
 def _polar_phase_id_columns(table: pd.DataFrame) -> list[str]:

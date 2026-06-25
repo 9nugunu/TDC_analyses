@@ -384,7 +384,11 @@ def test_run_folder_analysis_uses_profile_only_lane_for_cst_z_profiles(tmp_path:
     )
 
     assert result.analysis_modes == ("profile",)
-    assert set(result.tables) == {"profile_summary"}
+    assert set(result.tables) == {
+        "profile_summary",
+        "field_energy_ratio_pairs",
+        "field_energy_ratio_summary",
+    }
     assert set(result.figures) == {"profile"}
     assert set(result.figures["profile"]) == {"E_fieldDist", "EM_fieldPhase", "E_fieldPhase", "H_fieldPhase"}
     assert result.figures["profile"]["E_fieldDist"].exists()
@@ -393,6 +397,8 @@ def test_run_folder_analysis_uses_profile_only_lane_for_cst_z_profiles(tmp_path:
     summary = pd.read_csv(result.tables["profile_summary"])
     assert summary["source_file"].tolist() == ["E_fieldDist.txt", "EM_fieldPhase.txt", "EM_fieldPhase.txt"]
     assert summary["value_kind"].tolist() == ["real", "phase", "phase"]
+    field_ratios = pd.read_csv(result.tables["field_energy_ratio_pairs"])
+    assert "adjacent_average_iris_to_cell_energy_ratio" in field_ratios.columns
     manifest = result.manifest_path.read_text(encoding="utf-8")
     assert '"profile"' in manifest
     assert '"s11"' not in manifest
@@ -492,17 +498,6 @@ def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path
 
 def test_run_folder_analysis_reuses_existing_grid_s11_figures_from_manifest(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
-    sparameter_table = pd.DataFrame(
-        [
-            {
-                "source_file": "run1.s2p",
-                "tune_position": 0.5,
-                "freq_ghz": 2.856,
-                "s_db": -1.0,
-                "s_phase_deg": 0.0,
-            }
-        ]
-    )
     output_dir = tmp_path / "out"
     cached_s11 = output_dir / "figures" / "s11" / "s11_cached.png"
     cached_s11.parent.mkdir(parents=True)

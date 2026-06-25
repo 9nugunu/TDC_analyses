@@ -67,6 +67,9 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
         "markers",
         "marker_points",
         "marker_phase_polar",
+        "kyhl_admittance_points",
+        "kyhl_admittance_transitions",
+        "cell_iris_response_comparison",
         "phase_advance",
         "phase_summary",
         "nodal_shift",
@@ -74,6 +77,9 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
     ]
     assert len(result["markers"]) == 3
     assert len(result["marker_points"]) == 6
+    assert len(result["kyhl_admittance_points"]) == 6
+    assert len(result["kyhl_admittance_transitions"]) == 3
+    assert result["cell_iris_response_comparison"].empty
     assert len(result["phase_advance"]) == 3
     assert len(result["phase_summary"]) == 3
     assert len(result["nodal_shift"]) == 2
@@ -104,6 +110,8 @@ def test_build_marker_analysis_skips_transition_phase_advance_for_sim_260526_gri
     assert result["marker_points"]["scan_type"].unique().tolist() == ["grid_2d"]
     assert result["marker_points"]["sim_r_c"].dropna().nunique() == 2
     assert result["phase_advance"].empty
+    assert result["kyhl_admittance_transitions"].empty
+    assert result["cell_iris_response_comparison"].empty
     assert result["phase_summary"].empty
     assert result["nodal_shift"].empty
     assert "phase_advance_0to360_deg" in result["phase_advance"].columns
@@ -168,6 +176,36 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
             [{"marker_name": "f_2pi3", "s_phase_deg": 10.0, "data_kind": "experiment", "port_side": pd.NA}]
         ),
         "marker_phase_polar": pd.DataFrame([{"source_file": "run1.s2p", "f_2pi3_phase_deg": 10.0}]),
+        "kyhl_admittance_points": pd.DataFrame(
+            [
+                {
+                    "marker_name": "f_2pi3",
+                    "operation_scaled_admittance_angle_deg": 60.0,
+                    "data_kind": "experiment",
+                    "port_side": pd.NA,
+                }
+            ]
+        ),
+        "kyhl_admittance_transitions": pd.DataFrame(
+            [
+                {
+                    "marker_name": "f_2pi3",
+                    "operation_scaled_admittance_angle_deg": 60.0,
+                    "data_kind": "experiment",
+                    "port_side": pd.NA,
+                }
+            ]
+        ),
+        "cell_iris_response_comparison": pd.DataFrame(
+            [
+                {
+                    "marker_name": "f_2pi3",
+                    "operation_scaled_admittance_response_ratio_iris_over_cell": 2.0,
+                    "data_kind": "experiment",
+                    "port_side": pd.NA,
+                }
+            ]
+        ),
         "phase_advance": pd.DataFrame(
             [{"marker_name": "f_2pi3", "phase_error_from_240_deg": 0.0, "data_kind": "experiment", "port_side": pd.NA}]
         ),
@@ -198,6 +236,9 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
         "markers",
         "marker_points",
         "marker_phase_polar",
+        "kyhl_admittance_points",
+        "kyhl_admittance_transitions",
+        "cell_iris_response_comparison",
         "phase_advance",
         "phase_summary",
         "nodal_shift",
@@ -210,6 +251,9 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
     for table_name in [
         "marker_points",
         "marker_phase_polar",
+        "kyhl_admittance_points",
+        "kyhl_admittance_transitions",
+        "cell_iris_response_comparison",
         "phase_advance",
         "phase_summary",
         "nodal_shift",
