@@ -28,18 +28,18 @@ class PlotConfig:
     """Shared plotting defaults for deflector-tuning visualizations."""
 
     dpi: int = 300
-    title_size: int = 18
-    compact_title_size: int = 13
-    label_size: int = 15
-    compact_label_size: int = 12
-    tick_size: int = 12
-    compact_tick_size: int = 11
-    annotation_size: int = 11
-    compact_annotation_size: int = 9
-    legend_size: int = 11
-    compact_legend_size: int = 10
-    contour_line_width: float = 1.2
-    contour_label_size: int = 11
+    title_size: int = 20
+    compact_title_size: int = 16
+    label_size: int = 17
+    compact_label_size: int = 14
+    tick_size: int = 14
+    compact_tick_size: int = 13
+    annotation_size: int = 13
+    compact_annotation_size: int = 11
+    legend_size: int = 13
+    compact_legend_size: int = 12
+    contour_line_width: float = 1.6
+    contour_label_size: int = 12
     contour_label_weight: str = "bold"
     contour_line_alpha: float = 0.85
     contour_error_cmap: str = "RdYlGn_r"
@@ -53,12 +53,14 @@ class PlotConfig:
     title_weight: str = "bold"
     legend_weight: str = "bold"
     math_bold: bool = True
-    line_width: float = 1.8
+    line_width: float = 2.4
     marker_size: int = 52
     compact_marker_size: int = 32
     figure_size: tuple[float, float] = (5.6, 5.6)
     overview_panel_size: tuple[float, float] = (5.8, 5.2)
     font_family: tuple[str, ...] = ("Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans")
+    save_bbox_inches: str | None = "tight"
+    save_pad_inches: float = 0.1
 
 
 def apply_plot_style(config: PlotConfig | None = None) -> None:
@@ -182,7 +184,12 @@ def save_figure(fig, output_path: str | Path, config: PlotConfig | None = None) 
     apply_plot_style(config)
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=config.dpi, bbox_inches="tight")
+    fig.savefig(
+        path,
+        dpi=config.dpi,
+        bbox_inches=config.save_bbox_inches,
+        pad_inches=config.save_pad_inches,
+    )
     return path
 
 

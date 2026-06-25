@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from PIL import Image
 import pytest
 
 from scripts.plot_em_field_phase_structure import default_output_path
@@ -130,6 +131,61 @@ def test_plot_field_profile_uses_fill_band_when_structure_parameters_exist(
     assert len(band_calls) == 1
     assert len(guide_calls) == 1
     assert band_calls[0]["axis_y"] < min(trace.values.min() for trace in export.traces)
+
+
+def test_e_and_h_field_profile_figures_use_matching_canvas_size(tmp_path: Path) -> None:
+    e_export = load_field_profile_export(_field_profile_export(tmp_path / "E_fieldDist.txt"))
+    h_export = load_field_profile_export(_h_field_profile_export(tmp_path / "H_fieldDist.txt"))
+    config = PlotConfig(dpi=120)
+
+    e_path = plot_field_profile_with_tdc_structure(e_export, tmp_path / "E_fieldDist.png", config=config)
+    h_path = plot_field_profile_with_tdc_structure(h_export, tmp_path / "H_fieldDist.png", config=config)
+
+    with Image.open(e_path) as e_image, Image.open(h_path) as h_image:
+        assert e_image.size == h_image.size == (1488, 600)
+
+
+def test_field_profile_plot_uses_readable_guides_and_centered_left_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    export = load_field_profile_export(_field_profile_export(tmp_path / "field_profile.txt"))
+    saved_axes = []
+    config = PlotConfig(dpi=120)
+
+    def record_figure(fig, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        saved_axes.append(fig.axes[0])
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(em_plots, "save_figure", record_figure)
+
+    plot_field_profile_with_tdc_structure(export, tmp_path / "field_profile.png", config=config)
+
+    ax = saved_axes[0]
+    profile_lines = [line for line in ax.lines if line.get_gid() == "field_profile_trace"]
+    guide_lines = [line for line in ax.lines if line.get_gid() == "profile_structure_guide"]
+    guide_labels = [text for text in ax.texts if text.get_gid() == "profile_structure_guide_label"]
+
+    assert profile_lines
+    assert all(line.get_linewidth() == pytest.approx(3.0) for line in profile_lines)
+    assert guide_lines
+    assert all(line.get_linewidth() == pytest.approx(3.0) for line in guide_lines)
+    assert guide_labels
+    for label in guide_labels:
+        x_position, y_position = label.get_position()
+        matching_guide = min(guide_lines, key=lambda line: abs(line.get_xdata()[0] - x_position))
+        guide_x = matching_guide.get_xdata()[0]
+        assert x_position < guide_x
+        assert y_position == pytest.approx((ax.get_ylim()[0] + ax.get_ylim()[1]) / 2.0)
+        assert label.get_ha() == "right"
+        assert label.get_va() == "center"
+        assert label.get_fontsize() == pytest.approx(config.compact_annotation_size)
+    assert ax.xaxis.label.get_fontsize() == pytest.approx(config.label_size)
+    assert ax.yaxis.label.get_fontsize() == pytest.approx(config.label_size)
+    assert ax.xaxis.get_ticklabels()[0].get_fontsize() == pytest.approx(config.tick_size)
 
 
 def test_h_field_profile_uses_regular_cell_center_guides(tmp_path: Path) -> None:

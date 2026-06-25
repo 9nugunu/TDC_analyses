@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import matplotlib
@@ -35,6 +35,9 @@ PROFILE_STRUCTURE_BAND_AXIS_FRACTION = (PHASE_STRUCTURE_CELL_Y - PHASE_STRUCTURE
 )
 PROFILE_STRUCTURE_DATA_GAP_AXIS_FRACTION = 0.06
 PROFILE_STRUCTURE_IRIS_HEIGHT_FRACTION = 0.42
+PROFILE_TRACE_LINE_WIDTH = 3.0
+PROFILE_GUIDE_LINE_WIDTH = 3.0
+PROFILE_GUIDE_LABEL_X_OFFSET_FRACTION = 0.008
 
 
 @dataclass(frozen=True)
@@ -222,7 +225,7 @@ def plot_field_profile_with_tdc_structure(
     if not export.traces:
         raise ValueError("field profile export has no traces")
 
-    config = config or PlotConfig()
+    config = _fixed_canvas_config(config or PlotConfig())
     apply_plot_style(config)
 
     z_min = min(float(np.min(trace.z_mm)) for trace in export.traces)
@@ -270,16 +273,18 @@ def plot_field_profile_with_tdc_structure(
         y_min=y_min,
         y_max=y_max,
         guide_mode=_profile_guide_mode(export.traces),
+        config=config,
     )
     for trace in export.traces:
-        ax.plot(
+        (line,) = ax.plot(
             trace.z_mm,
             trace.values,
             label=_profile_legend_label(trace),
             color=_profile_color(trace),
             linestyle="--" if trace.value_kind == "phase" and trace.field_kind == "h" else "-",
-            linewidth=config.line_width,
+            linewidth=PROFILE_TRACE_LINE_WIDTH,
         )
+        line.set_gid("field_profile_trace")
 
     ax.set_xlim(z_min, z_max)
     ax.set_ylim(y_min, y_max)
@@ -290,7 +295,7 @@ def plot_field_profile_with_tdc_structure(
         ylabel=_profile_y_label(export.traces),
         title="TDC field profile with structure guides",
         config=config,
-        compact=True,
+        compact=False,
     )
     legend = ax.legend(
         frameon=True,
@@ -303,6 +308,14 @@ def plot_field_profile_with_tdc_structure(
     apply_legend_text_style(legend, config)
     _apply_legend_line_text_colors(legend)
     return save_figure(fig, output_path, config)
+
+
+def _fixed_canvas_config(config: PlotConfig) -> PlotConfig:
+    """Keep sibling profile figures at the same final pixel dimensions."""
+
+    if config.save_bbox_inches is None:
+        return config
+    return replace(config, save_bbox_inches=None)
 
 
 def _draw_phase_traces(ax: plt.Axes, traces: tuple[FieldPhaseTrace, ...], *, config: PlotConfig) -> None:
@@ -638,12 +651,15 @@ def _draw_profile_guides(
     y_min: float,
     y_max: float,
     guide_mode: str = "phase",
+    config: PlotConfig | None = None,
 ) -> None:
+    config = config or PlotConfig()
     cell_length = parameters.get("d")
     iris_thickness = parameters.get("t")
     if cell_length is None or iris_thickness is None:
         return
-    label_y = y_max - 0.04 * (y_max - y_min)
+    label_y = (y_min + y_max) / 2.0
+    label_offset = (z_max - z_min) * PROFILE_GUIDE_LABEL_X_OFFSET_FRACTION
     guides = _profile_guides(
         cell_length=cell_length,
         iris_thickness=iris_thickness,
@@ -653,17 +669,25 @@ def _draw_profile_guides(
     guide_color = _profile_guide_color(guide_mode)
     for guide_z, label in guides:
         if z_min <= guide_z <= z_max:
-            ax.axvline(guide_z, color=guide_color, linestyle=":", linewidth=2.0, alpha=0.8)
-            ax.text(
+            guide_line = ax.axvline(
                 guide_z,
+                color=guide_color,
+                linestyle=":",
+                linewidth=PROFILE_GUIDE_LINE_WIDTH,
+                alpha=0.8,
+            )
+            guide_line.set_gid("profile_structure_guide")
+            guide_label = ax.text(
+                guide_z - label_offset,
                 label_y,
                 label,
-                ha="center",
-                va="top",
-                fontsize=9.0,
+                ha="right",
+                va="center",
+                fontsize=config.compact_annotation_size,
                 color=guide_color,
                 fontweight="bold",
             )
+            guide_label.set_gid("profile_structure_guide_label")
 
 
 def _profile_guides(

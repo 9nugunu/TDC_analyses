@@ -21,6 +21,7 @@ def test_plot_config_defaults_use_larger_readable_typography() -> None:
     assert config.label_size >= 15
     assert config.tick_size >= 12
     assert config.annotation_size >= 11
+    assert config.line_width >= 2.4
     assert config.contour_line_width >= 1.2
     assert config.contour_label_size >= 11
     assert config.contour_label_weight == "bold"
@@ -30,6 +31,7 @@ def test_plot_config_defaults_use_larger_readable_typography() -> None:
     assert config.label_weight == "bold"
     assert config.legend_weight == "bold"
     assert config.math_bold is True
+    assert config.save_bbox_inches == "tight"
 
 
 def test_bold_math_wraps_math_expressions_for_bold_labels() -> None:
