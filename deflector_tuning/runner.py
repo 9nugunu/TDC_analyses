@@ -40,6 +40,7 @@ from deflector_tuning.visualization.nodal_shift_plots import plot_nodal_shift
 from deflector_tuning.visualization.phase_advance_plots import plot_phase_advance
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
+from deflector_tuning.visualization.cell_iris_response_plots import plot_cell_iris_response_comparison
 
 AnalysisPaths = OrderedDict[str, Path]
 FigurePaths = OrderedDict[str, OrderedDict[str, Path]]
@@ -198,6 +199,18 @@ def run_folder_analysis(
         )
     else:
         logger.info("Skipping nodal-shift figures because nodal_shift is missing or empty")
+    if _has_rows(tables.get("cell_iris_response_comparison")):
+        logger.info("Rendering cell-iris response figures")
+        figures["cell_iris_response"] = OrderedDict(
+            plot_cell_iris_response_comparison(
+                tables["cell_iris_response_comparison"],
+                figure_root / "cell_iris_response",
+            )
+        )
+    else:
+        logger.info(
+            "Skipping cell-iris response figures because cell_iris_response_comparison is missing or empty"
+        )
     if _has_rows(tables.get("geometry_phase_response")):
         logger.info("Rendering geometry phase-response figures")
         figures["geometry_phase_response"] = OrderedDict(
@@ -600,6 +613,8 @@ def detect_analysis_modes(tables: dict[str, pd.DataFrame], *, dataset_category: 
 
     modes = list(BASE_ANALYSIS_MODES)
     report = _detection_report(tables, dataset_category=dataset_category)
+    if report["cell_iris_response"]["enabled"]:
+        modes.append("cell_iris_response")
     if report["geometry_phase_response"]["enabled"]:
         modes.append("geometry_phase_response")
     if report["grid_scan_spacing"]["enabled"]:
@@ -628,11 +643,19 @@ def _detection_report(
 ) -> dict[str, dict[str, object]]:
     marker_points = tables.get("marker_points")
     grid_enabled, grid_reason = _is_simulation_grid_scan(marker_points, dataset_category=dataset_category)
+    cell_iris_enabled, cell_iris_reason = _has_cell_iris_response(tables.get("cell_iris_response_comparison"))
     response_enabled, response_reason = _has_geometry_phase_response(tables.get("geometry_phase_response"))
     return {
+        "cell_iris_response": {"enabled": cell_iris_enabled, "reason": cell_iris_reason},
         "geometry_phase_response": {"enabled": response_enabled, "reason": response_reason},
         "grid_scan_spacing": {"enabled": grid_enabled, "reason": grid_reason},
     }
+
+
+def _has_cell_iris_response(table: pd.DataFrame | None) -> tuple[bool, str]:
+    if table is None or table.empty:
+        return False, "cell_iris_response_comparison table is missing or empty"
+    return True, f"cell_iris_response_comparison has {len(table)} matched transition rows"
 
 
 def _has_geometry_phase_response(table: pd.DataFrame | None) -> tuple[bool, str]:
