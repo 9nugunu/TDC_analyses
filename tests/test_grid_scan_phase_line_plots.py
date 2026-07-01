@@ -7,7 +7,7 @@ from deflector_tuning.visualization.grid_scan_phase_line_plots import (
 )
 
 
-def test_plot_grid_scan_sparameter_phase_r_c_line_scan_writes_named_unwrapped_phase_plot(tmp_path: Path) -> None:
+def test_plot_grid_scan_sparameter_phase_r_c_line_scan_writes_named_phase_plot(tmp_path: Path) -> None:
     marker_points = pd.DataFrame(
         [
             {
@@ -32,7 +32,7 @@ def test_plot_grid_scan_sparameter_phase_r_c_line_scan_writes_named_unwrapped_ph
                 "sim_r_c": 55.59,
                 "sim_w_c": 19.3224,
                 "marker_name": "f_mean",
-                "s_phase_deg": -170.0,
+                "s_phase_deg": 160.0,
             },
             {
                 "sim_r_c": 54.59,
@@ -64,9 +64,16 @@ def test_plot_grid_scan_sparameter_phase_r_c_line_scan_writes_named_unwrapped_ph
     assert csv["sim_w_c"].tolist() == [19.3224] * 6
     assert csv["sim_r_c"].tolist() == [54.59, 55.59, 54.59, 55.59, 54.59, 55.59]
     assert csv["marker_name"].tolist() == ["f_2pi3", "f_2pi3", "f_mean", "f_mean", "f_pi2", "f_pi2"]
-    assert csv["s_phase_deg"].tolist() == [-30.0, -20.0, 170.0, -170.0, 20.0, 30.0]
-    assert csv["s_phase_deg_0_360"].tolist() == [330.0, 340.0, 170.0, 190.0, 20.0, 30.0]
-    assert csv["s_phase_deg_unwrapped"].tolist() == [-30.0, -20.0, 170.0, 190.0, 20.0, 30.0]
+    assert csv["s_phase_deg"].tolist() == [-30.0, -20.0, 170.0, 160.0, 20.0, 30.0]
+    assert "s_phase_deg_0_360" not in csv
+    assert "s_phase_deg_unwrapped" not in csv
+    f_mean_csv = pd.read_csv(tmp_path / "sparameter_phase_vs_r_c_at_w_c_19p3224__f_mean.csv")
+    assert f_mean_csv["marker_name"].tolist() == ["f_mean", "f_mean"]
+    assert f_mean_csv["s_phase_deg"].tolist() == [170.0, 160.0]
+    assert "s_phase_deg_0_360" not in f_mean_csv
+    assert "s_phase_deg_unwrapped" not in f_mean_csv
+    assert (tmp_path / "sparameter_phase_vs_r_c_at_w_c_19p3224__f_2pi3.csv").exists()
+    assert (tmp_path / "sparameter_phase_vs_r_c_at_w_c_19p3224__f_pi2.csv").exists()
 
 
 def test_plot_grid_scan_sparameter_phase_r_c_line_scan_keeps_one_point_per_radius(tmp_path: Path) -> None:
@@ -95,6 +102,6 @@ def test_plot_grid_scan_sparameter_phase_r_c_line_scan_keeps_one_point_per_radiu
 
     csv = pd.read_csv(tmp_path / "sparameter_phase_vs_r_c_at_w_c_19p3224.csv")
     assert csv["s_phase_deg"].tolist() == [62.0]
-    assert csv["s_phase_deg_0_360"].tolist() == [62.0]
-    assert csv["s_phase_deg_unwrapped"].tolist() == [62.0]
+    assert "s_phase_deg_0_360" not in csv
+    assert "s_phase_deg_unwrapped" not in csv
     assert csv["source_file"].tolist() == ["run_2.s1p"]

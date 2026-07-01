@@ -62,12 +62,12 @@ def plot_grid_scan_sparameter_phase_r_c_line_scan(
         raise ValueError(f"no S-parameter phases found at fixed w_c={fixed_w_c:g} mm")
     require_finite_plot_columns(
         line_scan,
-        columns=("sim_r_c", "s_phase_deg_unwrapped"),
+        columns=("sim_r_c", "s_phase_deg"),
         context="grid_scan S-parameter phase r_c line scan",
         id_columns=("marker_name", "sim_r_c", "sim_w_c", "source_file", "run_id"),
     )
 
-    line_scan.to_csv(folder / f"{file_stem}.csv", index=False)
+    _write_phase_line_scan_csvs(line_scan, folder, file_stem)
     path = _plot_sparameter_phase_line_scan(
         line_scan,
         folder / f"{file_stem}.png",
@@ -75,6 +75,13 @@ def plot_grid_scan_sparameter_phase_r_c_line_scan(
         config=config,
     )
     return OrderedDict([(file_stem, path)])
+
+
+def _write_phase_line_scan_csvs(line_scan: pd.DataFrame, folder: Path, file_stem: str) -> None:
+    line_scan.to_csv(folder / f"{file_stem}.csv", index=False)
+    for marker_name, marker_table in line_scan.groupby("marker_name", sort=False, dropna=False):
+        marker_token = _filename_token(str(marker_name))
+        marker_table.to_csv(folder / f"{file_stem}__{marker_token}.csv", index=False)
 
 
 def _sparameter_phase_line_scan_table(marker_points: pd.DataFrame, *, fixed_w_c: float) -> pd.DataFrame:
@@ -89,7 +96,6 @@ def _sparameter_phase_line_scan_table(marker_points: pd.DataFrame, *, fixed_w_c:
     if numeric.empty:
         return numeric
     sorted_table = numeric.assign(
-        s_phase_deg_0_360=lambda table: table["s_phase_deg"].mod(360.0),
         _marker_order=numeric["marker_name"].map(_marker_sort_key),
     )
     sort_columns = ["_marker_order", "sim_r_c"]
@@ -102,30 +108,7 @@ def _sparameter_phase_line_scan_table(marker_points: pd.DataFrame, *, fixed_w_c:
         .drop(columns=["_marker_order"])
         .reset_index(drop=True)
     )
-    return _add_unwrapped_phase_by_marker(deduplicated)
-
-
-def _add_unwrapped_phase_by_marker(line_scan: pd.DataFrame) -> pd.DataFrame:
-    unwrapped_groups: list[pd.DataFrame] = []
-    for _, marker_table in line_scan.groupby("marker_name", sort=False, dropna=False):
-        unwrapped_groups.append(
-            marker_table.assign(
-                s_phase_deg_unwrapped=_unwrap_phase_deg(marker_table["s_phase_deg"]),
-            )
-        )
-    return pd.concat(unwrapped_groups, ignore_index=True)
-
-
-def _unwrap_phase_deg(phases: pd.Series) -> list[float]:
-    values = [float(phase) for phase in phases]
-    if not values:
-        return []
-    unwrapped = [values[0]]
-    for phase in values[1:]:
-        previous = unwrapped[-1]
-        delta = ((phase - previous + 180.0) % 360.0) - 180.0
-        unwrapped.append(previous + delta)
-    return unwrapped
+    return deduplicated
 
 
 def _plot_sparameter_phase_line_scan(
@@ -140,7 +123,7 @@ def _plot_sparameter_phase_line_scan(
         marker_key = str(marker_name)
         ax.plot(
             marker_table["sim_r_c"].tolist(),
-            marker_table["s_phase_deg_unwrapped"].tolist(),
+            marker_table["s_phase_deg"].tolist(),
             marker="o",
             linewidth=config.line_width,
             markersize=6.0,
@@ -160,7 +143,7 @@ def _plot_sparameter_phase_line_scan(
     apply_axis_text_style(
         ax,
         xlabel=rf"$r_c$ [mm]",
-        ylabel="S-parameter phase [deg, unwrapped]",
+        ylabel="S-parameter phase [deg]",
         title=rf"S-parameter phase vs $r_c$ ($w_c={fixed_w_c:g}$ mm)",
         config=config,
         compact=True,
@@ -187,7 +170,7 @@ def _annotate_design_phase_values(
     offsets = {"f_2pi3": (8, 8), "f_mean": (8, -18), "f_pi2": (8, -6)}
     for row in design_rows.itertuples(index=False):
         marker_key = str(getattr(row, "marker_name"))
-        phase = float(getattr(row, "s_phase_deg_unwrapped"))
+        phase = float(getattr(row, "s_phase_deg"))
         ax.annotate(
             f"{phase:.1f} deg",
             xy=(design_r_c, phase),
@@ -207,6 +190,10 @@ def _sparameter_phase_line_scan_file_stem(fixed_w_c: float) -> str:
 
 def _number_token(value: float) -> str:
     return f"{float(value):g}".replace("-", "m").replace(".", "p")
+
+
+def _filename_token(value: str) -> str:
+    return value.strip().replace(" ", "_").replace("/", "_")
 
 
 def _marker_sort_key(marker_name: object) -> int:
