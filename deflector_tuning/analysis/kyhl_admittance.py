@@ -7,6 +7,8 @@ import math
 import numpy as np
 import pandas as pd
 
+from deflector_tuning.analysis.coupler_position_gate import is_allowed_coupler_cavity_transition
+
 GROUP_COLUMNS: list[str] = [
     "dataset_id",
     "data_kind",
@@ -222,6 +224,8 @@ def compute_kyhl_admittance_transitions(
         for index in range(len(group) - 1):
             start = group.iloc[index]
             end = group.iloc[index + 1]
+            if not is_allowed_coupler_cavity_transition(start["tune_position"], end["tune_position"]):
+                continue
             delta_y = complex(
                 float(end["_admittance_real"]) - float(start["_admittance_real"]),
                 float(end["_admittance_imag"]) - float(start["_admittance_imag"]),

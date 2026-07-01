@@ -17,6 +17,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_axis_text_style,
     apply_legend_text_style,
     apply_plot_style,
+    match_legend_text_colors_to_handles,
     save_figure,
 )
 
@@ -208,7 +209,7 @@ def plot_field_phase_with_tdc_structure(
         framealpha=0.72,
     )
     apply_legend_text_style(legend, config)
-    _apply_legend_line_text_colors(legend)
+    match_legend_text_colors_to_handles(legend)
 
     return save_figure(fig, output_path, config)
 
@@ -306,7 +307,7 @@ def plot_field_profile_with_tdc_structure(
         framealpha=0.72,
     )
     apply_legend_text_style(legend, config)
-    _apply_legend_line_text_colors(legend)
+    match_legend_text_colors_to_handles(legend)
     return save_figure(fig, output_path, config)
 
 
@@ -359,15 +360,6 @@ def _profile_y_label(traces: tuple[FieldProfileTrace, ...]) -> str:
     if value_kinds == {"real"}:
         return "Field component [a.u.]"
     return "Profile value"
-
-
-def _apply_legend_line_text_colors(legend) -> None:
-    if legend is None:
-        return
-    for handle, text in zip(legend.legend_handles, legend.get_texts(), strict=False):
-        color = getattr(handle, "get_color", lambda: None)()
-        if color is not None:
-            text.set_color(color)
 
 
 def _draw_tdc_half_section_band(

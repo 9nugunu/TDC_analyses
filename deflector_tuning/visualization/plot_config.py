@@ -117,6 +117,7 @@ def bold_math(label: str) -> str:
         r"\partial": "§∂§",
         r"\nabla": "§∇§",
         r"\phi": "§φ§",
+        r"\beta": "§β§",
         r"\pi": "§π§",
     }
     for command, token in protected_commands.items():
@@ -126,6 +127,7 @@ def bold_math(label: str) -> str:
     body = body.replace("§∂§", r"\mathbf{\partial}")
     body = body.replace("§∇§", r"\mathbf{\nabla}")
     body = body.replace("§φ§", r"\mathbf{\phi}")
+    body = body.replace("§β§", r"\mathbf{\beta}")
     body = body.replace("§π§", r"\mathbf{\pi}")
     return f"${body}$"
 
@@ -164,6 +166,17 @@ def apply_legend_text_style(legend, config: PlotConfig | None = None) -> None:
     config = config or PlotConfig()
     for text in legend.get_texts():
         text.set_fontweight(config.legend_weight)
+
+
+def match_legend_text_colors_to_handles(legend) -> None:
+    """Color each legend label with the matching legend handle color."""
+
+    if legend is None:
+        return
+    for handle, text in zip(legend.legend_handles, legend.get_texts(), strict=False):
+        color = getattr(handle, "get_color", lambda: None)()
+        if color is not None:
+            text.set_color(color)
 
 
 def contour_contrast_color(cmap: str, config: PlotConfig | None = None) -> str:

@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 
 from deflector_tuning.analysis.cell_iris_response import compare_cell_and_iris_responses
+from deflector_tuning.analysis.coupler_cavity_parameters import build_coupler_cavity_parameter_table
 from deflector_tuning.analysis.kyhl_admittance import POINT_OUTPUT_COLUMNS as KYHL_ADMITTANCE_POINT_COLUMNS
 from deflector_tuning.analysis.kyhl_admittance import OUTPUT_COLUMNS as KYHL_ADMITTANCE_TRANSITION_COLUMNS
 from deflector_tuning.analysis.kyhl_admittance import (
@@ -21,6 +22,7 @@ from deflector_tuning.analysis.phase_summary import summarize_phase_advance
 from deflector_tuning.analysis.nodal_shift import OUTPUT_COLUMNS as NODAL_SHIFT_COLUMNS
 from deflector_tuning.analysis.nodal_shift import compute_nodal_shift_errors
 from deflector_tuning.analysis.geometry_phase_response import compute_geometry_phase_response
+from deflector_tuning.analysis.grid_rc_line_scan import extract_fixed_width_rc_line_scan
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import extract_marker_frequencies
@@ -35,6 +37,8 @@ TABLE_FILENAMES: dict[str, str] = {
     "kyhl_admittance_points": "kyhl_admittance_points.csv",
     "kyhl_admittance_transitions": "kyhl_admittance_transitions.csv",
     "cell_iris_response_comparison": "cell_iris_response_comparison.csv",
+    "coupler_cavity_parameter_estimates": "coupler_cavity_parameter_estimates.csv",
+    "grid_rc_line_scan": "grid_rc_line_scan.csv",
     "phase_advance": "phase_advance.csv",
     "phase_summary": "phase_summary.csv",
     "nodal_shift": "nodal_shift.csv",
@@ -85,6 +89,7 @@ def build_marker_analysis(
     markers = extract_marker_frequencies(dispersion_path, marker_role=marker_role)
     marker_points = sample_nearest_markers(sparameter_table, markers)
     marker_phase_polar = build_marker_phase_polar_table(marker_points)
+    grid_rc_line_scan = extract_fixed_width_rc_line_scan(marker_phase_polar)
     kyhl_admittance_points = _compute_kyhl_admittance_points_when_supported(marker_points)
     kyhl_admittance_transitions = _compute_kyhl_admittance_transitions_when_supported(marker_points)
     cell_iris_response_comparison = (
@@ -92,6 +97,7 @@ def build_marker_analysis(
         if not kyhl_admittance_transitions.empty
         else _empty_cell_iris_response_comparison()
     )
+    coupler_cavity_parameter_estimates = build_coupler_cavity_parameter_table(marker_points, markers)
     phase_advance = _compute_phase_advance_when_supported(marker_points)
     phase_summary = summarize_phase_advance(phase_advance) if not phase_advance.empty else _empty_phase_summary()
     nodal_shift = compute_nodal_shift_errors(phase_advance) if not phase_advance.empty else _empty_nodal_shift()
@@ -104,6 +110,8 @@ def build_marker_analysis(
             ("kyhl_admittance_points", kyhl_admittance_points),
             ("kyhl_admittance_transitions", kyhl_admittance_transitions),
             ("cell_iris_response_comparison", cell_iris_response_comparison),
+            ("coupler_cavity_parameter_estimates", coupler_cavity_parameter_estimates),
+            ("grid_rc_line_scan", grid_rc_line_scan),
             ("phase_advance", phase_advance),
             ("phase_summary", phase_summary),
             ("nodal_shift", nodal_shift),

@@ -51,6 +51,25 @@ def _write_grid_sim_dataset(folder: Path) -> None:
         )
 
 
+def _write_rc_line_grid_sim_dataset(folder: Path) -> None:
+    folder.mkdir(parents=True)
+    (folder / "result_navigator.csv").write_text(
+        '" 3D Run ID"\t"r_c"\t"w_c"\n'
+        '"1"\t"55.59"\t"19.3224"\n'
+        '"2"\t"54.59"\t"19.3224"\n'
+        '"3"\t"56.59"\t"18.3224"\n',
+        encoding="utf-8",
+    )
+    for run_id, phases in [(1, [40.0, 50.0, 60.0]), (2, [10.0, 20.0, 30.0]), (3, [70.0, 80.0, 90.0])]:
+        (folder / f"run_{run_id}.s1p").write_text(
+            "# GHz S DB R 50\n"
+            f"2.85588 -1.0 {phases[0]}\n"
+            f"2.86605 -2.0 {phases[1]}\n"
+            f"2.87621 -3.0 {phases[2]}\n",
+            encoding="utf-8",
+        )
+
+
 def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp_path: Path) -> None:
     sparameter_path = tmp_path / "data" / "prepro" / "prepro_sweep_260415_sample_prepro"
     dispersion_path = tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
@@ -70,6 +89,8 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
         "kyhl_admittance_points",
         "kyhl_admittance_transitions",
         "cell_iris_response_comparison",
+        "coupler_cavity_parameter_estimates",
+        "grid_rc_line_scan",
         "phase_advance",
         "phase_summary",
         "nodal_shift",
@@ -80,6 +101,14 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(tmp
     assert len(result["kyhl_admittance_points"]) == 6
     assert len(result["kyhl_admittance_transitions"]) == 3
     assert result["cell_iris_response_comparison"].empty
+    assert len(result["coupler_cavity_parameter_estimates"]) == 2
+    assert result["coupler_cavity_parameter_estimates"]["coupling_beta_status"].unique().tolist() == [
+        "ok"
+    ]
+    assert result["coupler_cavity_parameter_estimates"]["coupling_k_source"].unique().tolist() == [
+        "marker_frequency_ratio_abs"
+    ]
+    assert result["grid_rc_line_scan"].empty
     assert len(result["phase_advance"]) == 3
     assert len(result["phase_summary"]) == 3
     assert len(result["nodal_shift"]) == 2
@@ -112,11 +141,31 @@ def test_build_marker_analysis_skips_transition_phase_advance_for_sim_260526_gri
     assert result["phase_advance"].empty
     assert result["kyhl_admittance_transitions"].empty
     assert result["cell_iris_response_comparison"].empty
+    assert result["coupler_cavity_parameter_estimates"].empty
     assert result["phase_summary"].empty
     assert result["nodal_shift"].empty
     assert "phase_advance_0to360_deg" in result["phase_advance"].columns
     assert "transition_count" in result["phase_summary"].columns
     assert "phase_error_from_target_deg" in result["nodal_shift"].columns
+
+
+def test_build_marker_analysis_extracts_fixed_width_rc_line_scan_for_grid_scan(tmp_path: Path) -> None:
+    sparameter_path = tmp_path / "data" / "sim" / "sim_grid_260526_scan"
+    dispersion_path = tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
+    _write_rc_line_grid_sim_dataset(sparameter_path)
+    _write_dispersion_summary(dispersion_path)
+
+    result = build_marker_analysis(
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role="sim",
+    )
+
+    line_scan = result["grid_rc_line_scan"]
+    assert line_scan["sim_w_c"].tolist() == [19.3224, 19.3224]
+    assert line_scan["sim_r_c"].tolist() == [54.59, 55.59]
+    assert line_scan["source_file"].tolist() == ["run_2.s1p", "run_1.s1p"]
+    assert line_scan["f_2pi3_phase_deg"].tolist() == [10.0, 40.0]
 
 
 def test_build_marker_phase_polar_table_preserves_offset_cell_sweep_column() -> None:
@@ -206,6 +255,20 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
                 }
             ]
         ),
+        "coupler_cavity_parameter_estimates": pd.DataFrame(
+            [
+                {
+                    "source_file": "run1.s2p",
+                    "coupler_frequency_ghz": 2.866,
+                    "external_quality_factor": 50.0,
+                    "data_kind": "experiment",
+                    "port_side": pd.NA,
+                }
+            ]
+        ),
+        "grid_rc_line_scan": pd.DataFrame(
+            [{"source_file": "run2.s2p", "sim_r_c": 55.59, "sim_w_c": 19.3224}]
+        ),
         "phase_advance": pd.DataFrame(
             [{"marker_name": "f_2pi3", "phase_error_from_240_deg": 0.0, "data_kind": "experiment", "port_side": pd.NA}]
         ),
@@ -239,6 +302,8 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
         "kyhl_admittance_points",
         "kyhl_admittance_transitions",
         "cell_iris_response_comparison",
+        "coupler_cavity_parameter_estimates",
+        "grid_rc_line_scan",
         "phase_advance",
         "phase_summary",
         "nodal_shift",
@@ -254,6 +319,8 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
         "kyhl_admittance_points",
         "kyhl_admittance_transitions",
         "cell_iris_response_comparison",
+        "coupler_cavity_parameter_estimates",
+        "grid_rc_line_scan",
         "phase_advance",
         "phase_summary",
         "nodal_shift",

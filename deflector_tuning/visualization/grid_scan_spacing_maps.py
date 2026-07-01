@@ -12,6 +12,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from deflector_tuning.analysis.grid_rc_line_scan import (
+    rc_line_scan_filename,
+    write_fixed_width_rc_line_scan_csv,
+)
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.plot_config import (
     BEST_MARKER_COLOR,
@@ -76,6 +80,7 @@ def plot_grid_scan_spacing_error_maps(
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     spacing_summary.to_csv(folder / "grid_scan_spacing_summary.csv", index=False)
+    write_fixed_width_rc_line_scan_csv(spacing_summary, folder / rc_line_scan_filename("grid_scan_spacing"))
 
     paths: OrderedDict[str, Path] = OrderedDict()
     for column, (key, label) in ERROR_METRICS.items():
@@ -121,6 +126,10 @@ def plot_grid_scan_phase_sensitivity_maps(
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     sensitivity_summary.to_csv(folder / "grid_scan_phase_sensitivity_summary.csv", index=False)
+    write_fixed_width_rc_line_scan_csv(
+        sensitivity_summary,
+        folder / rc_line_scan_filename("grid_scan_phase_sensitivity"),
+    )
 
     paths: OrderedDict[str, Path] = OrderedDict()
     for marker_name, marker_table in sensitivity_summary.groupby("marker_name", sort=False, dropna=False):

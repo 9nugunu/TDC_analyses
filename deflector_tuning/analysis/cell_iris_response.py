@@ -6,6 +6,8 @@ import math
 
 import pandas as pd
 
+from deflector_tuning.analysis.coupler_position_gate import is_allowed_coupler_cavity_transition
+
 GROUP_COLUMNS: list[str] = [
     "dataset_id",
     "data_kind",
@@ -92,6 +94,11 @@ def compare_cell_and_iris_responses(
     table["_from_tune_sort"] = pd.to_numeric(table["from_tune_position"], errors="coerce")
     table["_to_tune_sort"] = pd.to_numeric(table["to_tune_position"], errors="coerce")
     table = table[table["_from_tune_sort"].notna() & table["_to_tune_sort"].notna()].copy()
+    allowed_transition = table.apply(
+        lambda row: is_allowed_coupler_cavity_transition(row["from_tune_position"], row["to_tune_position"]),
+        axis=1,
+    )
+    table = table[allowed_transition].copy()
     if table.empty:
         return pd.DataFrame(columns=output_columns)
 

@@ -41,6 +41,7 @@ from deflector_tuning.visualization.phase_advance_plots import plot_phase_advanc
 from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
 from deflector_tuning.visualization.cell_iris_response_plots import plot_cell_iris_response_comparison
+from deflector_tuning.visualization.coupler_cavity_parameter_plots import plot_coupler_cavity_parameters
 
 AnalysisPaths = OrderedDict[str, Path]
 FigurePaths = OrderedDict[str, OrderedDict[str, Path]]
@@ -210,6 +211,18 @@ def run_folder_analysis(
     else:
         logger.info(
             "Skipping cell-iris response figures because cell_iris_response_comparison is missing or empty"
+        )
+    if _has_rows(tables.get("coupler_cavity_parameter_estimates")):
+        logger.info("Rendering coupler-cavity parameter figures")
+        figures["coupler_cavity_parameters"] = OrderedDict(
+            plot_coupler_cavity_parameters(
+                tables["coupler_cavity_parameter_estimates"],
+                figure_root / "coupler_cavity_parameters",
+            )
+        )
+    else:
+        logger.info(
+            "Skipping coupler-cavity parameter figures because coupler_cavity_parameter_estimates is missing or empty"
         )
     if _has_rows(tables.get("geometry_phase_response")):
         logger.info("Rendering geometry phase-response figures")
@@ -613,6 +626,8 @@ def detect_analysis_modes(tables: dict[str, pd.DataFrame], *, dataset_category: 
 
     modes = list(BASE_ANALYSIS_MODES)
     report = _detection_report(tables, dataset_category=dataset_category)
+    if report["coupler_cavity_parameters"]["enabled"]:
+        modes.append("coupler_cavity_parameters")
     if report["cell_iris_response"]["enabled"]:
         modes.append("cell_iris_response")
     if report["geometry_phase_response"]["enabled"]:
@@ -643,13 +658,23 @@ def _detection_report(
 ) -> dict[str, dict[str, object]]:
     marker_points = tables.get("marker_points")
     grid_enabled, grid_reason = _is_simulation_grid_scan(marker_points, dataset_category=dataset_category)
+    coupler_enabled, coupler_reason = _has_coupler_cavity_parameters(
+        tables.get("coupler_cavity_parameter_estimates")
+    )
     cell_iris_enabled, cell_iris_reason = _has_cell_iris_response(tables.get("cell_iris_response_comparison"))
     response_enabled, response_reason = _has_geometry_phase_response(tables.get("geometry_phase_response"))
     return {
+        "coupler_cavity_parameters": {"enabled": coupler_enabled, "reason": coupler_reason},
         "cell_iris_response": {"enabled": cell_iris_enabled, "reason": cell_iris_reason},
         "geometry_phase_response": {"enabled": response_enabled, "reason": response_reason},
         "grid_scan_spacing": {"enabled": grid_enabled, "reason": grid_reason},
     }
+
+
+def _has_coupler_cavity_parameters(table: pd.DataFrame | None) -> tuple[bool, str]:
+    if table is None or table.empty:
+        return False, "coupler_cavity_parameter_estimates table is missing or empty"
+    return True, f"coupler_cavity_parameter_estimates has {len(table)} estimate rows"
 
 
 def _has_cell_iris_response(table: pd.DataFrame | None) -> tuple[bool, str]:

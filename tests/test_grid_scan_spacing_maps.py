@@ -100,6 +100,56 @@ def test_plot_grid_scan_spacing_error_maps_writes_only_requested_2d_error_pngs(t
     assert (tmp_path / "grid_scan_spacing_summary.csv").exists()
 
 
+def test_plot_grid_scan_spacing_error_maps_writes_fixed_width_rc_line_scan_csv(tmp_path: Path) -> None:
+    summary = pd.DataFrame(
+        [
+            {
+                "dataset_id": "scan",
+                "source_file": "run_2.s1p",
+                "run_id": 2,
+                "sim_r_c": 55.59,
+                "sim_w_c": 19.3224,
+                "spacing_60deg_target_error_deg": 4.0,
+                "spacing_equality_error_deg": 2.0,
+            },
+            {
+                "dataset_id": "scan",
+                "source_file": "run_1.s1p",
+                "run_id": 1,
+                "sim_r_c": 54.59,
+                "sim_w_c": 19.3224,
+                "spacing_60deg_target_error_deg": 1.0,
+                "spacing_equality_error_deg": 3.0,
+            },
+            {
+                "dataset_id": "scan",
+                "source_file": "run_3.s1p",
+                "run_id": 3,
+                "sim_r_c": 54.59,
+                "sim_w_c": 18.3224,
+                "spacing_60deg_target_error_deg": 9.0,
+                "spacing_equality_error_deg": 5.0,
+            },
+            {
+                "dataset_id": "scan",
+                "source_file": "run_4.s1p",
+                "run_id": 4,
+                "sim_r_c": 55.59,
+                "sim_w_c": 18.3224,
+                "spacing_60deg_target_error_deg": 8.0,
+                "spacing_equality_error_deg": 6.0,
+            },
+        ]
+    )
+
+    plot_grid_scan_spacing_error_maps(summary, tmp_path)
+
+    line_scan = pd.read_csv(tmp_path / "grid_scan_spacing_r_c_line_scan_w_c_19p3224.csv")
+    assert line_scan["sim_w_c"].tolist() == [19.3224, 19.3224]
+    assert line_scan["sim_r_c"].tolist() == [54.59, 55.59]
+    assert line_scan["spacing_60deg_target_error_deg"].tolist() == [1.0, 4.0]
+
+
 def test_plot_grid_scan_phase_sensitivity_maps_writes_marker_derivative_pngs(tmp_path: Path) -> None:
     summary = summarize_marker_phase_sensitivity_for_grid_scan(_marker_points())
 
@@ -112,6 +162,68 @@ def test_plot_grid_scan_phase_sensitivity_maps_writes_marker_derivative_pngs(tmp
         assert path.exists()
         assert path.stat().st_size > 0
     assert (tmp_path / "grid_scan_phase_sensitivity_summary.csv").exists()
+
+
+def test_plot_grid_scan_phase_sensitivity_maps_writes_fixed_width_rc_line_scan_csv(tmp_path: Path) -> None:
+    summary = pd.DataFrame(
+        [
+            {
+                "dataset_id": "scan",
+                "source_file": "run_2.s1p",
+                "run_id": 2,
+                "sim_r_c": 55.59,
+                "sim_w_c": 19.3224,
+                "marker_name": "f_2pi3",
+                "phase_deg": 20.0,
+                "dphase_d_sim_r_c_deg_per_mm": 2.0,
+                "dphase_d_sim_w_c_deg_per_mm": 3.0,
+                "gradient_magnitude_deg_per_mm": 3.6,
+            },
+            {
+                "dataset_id": "scan",
+                "source_file": "run_1.s1p",
+                "run_id": 1,
+                "sim_r_c": 54.59,
+                "sim_w_c": 19.3224,
+                "marker_name": "f_2pi3",
+                "phase_deg": 10.0,
+                "dphase_d_sim_r_c_deg_per_mm": 1.0,
+                "dphase_d_sim_w_c_deg_per_mm": 4.0,
+                "gradient_magnitude_deg_per_mm": 4.1,
+            },
+            {
+                "dataset_id": "scan",
+                "source_file": "run_3.s1p",
+                "run_id": 3,
+                "sim_r_c": 54.59,
+                "sim_w_c": 18.3224,
+                "marker_name": "f_2pi3",
+                "phase_deg": 30.0,
+                "dphase_d_sim_r_c_deg_per_mm": 5.0,
+                "dphase_d_sim_w_c_deg_per_mm": 6.0,
+                "gradient_magnitude_deg_per_mm": 7.8,
+            },
+            {
+                "dataset_id": "scan",
+                "source_file": "run_4.s1p",
+                "run_id": 4,
+                "sim_r_c": 55.59,
+                "sim_w_c": 18.3224,
+                "marker_name": "f_2pi3",
+                "phase_deg": 40.0,
+                "dphase_d_sim_r_c_deg_per_mm": 7.0,
+                "dphase_d_sim_w_c_deg_per_mm": 8.0,
+                "gradient_magnitude_deg_per_mm": 10.6,
+            },
+        ]
+    )
+
+    plot_grid_scan_phase_sensitivity_maps(summary, tmp_path)
+
+    line_scan = pd.read_csv(tmp_path / "grid_scan_phase_sensitivity_r_c_line_scan_w_c_19p3224.csv")
+    assert line_scan["sim_w_c"].tolist() == [19.3224, 19.3224]
+    assert line_scan["sim_r_c"].tolist() == [54.59, 55.59]
+    assert line_scan["phase_deg"].tolist() == [10.0, 20.0]
 
 
 def test_plot_grid_scan_spacing_error_maps_reports_non_finite_summary_values(tmp_path: Path) -> None:
