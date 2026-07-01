@@ -11,10 +11,7 @@ from typing import Any
 
 import pandas as pd
 
-from deflector_tuning.analysis.grid_scan_spacing import (
-    summarize_marker_phase_sensitivity_for_grid_scan,
-    summarize_marker_spacing_for_grid_scan,
-)
+from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
 from deflector_tuning.analysis.field_energy_ratio import (
     compute_cell_iris_field_energy_ratios,
     summarize_cell_iris_field_energy_ratios,
@@ -26,10 +23,8 @@ from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_p
 from deflector_tuning.data_loading.source_layer import detect_data_layer
 from deflector_tuning.dispersion import load_cst_dispersion_txt, process_cst_dispersion_txt
 from deflector_tuning.visualization.dispersion_plots import plot_dispersion_curves
-from deflector_tuning.visualization.grid_scan_spacing_maps import (
-    plot_grid_scan_phase_sensitivity_maps,
-    plot_grid_scan_spacing_error_maps,
-)
+from deflector_tuning.visualization.grid_scan_phase_line_plots import plot_grid_scan_sparameter_phase_r_c_line_scan
+from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
 from deflector_tuning.visualization.em_field_structure_plots import (
     FieldProfileExport,
     load_field_profile_export,
@@ -246,10 +241,12 @@ def run_folder_analysis(
         figures["grid_scan_spacing"] = OrderedDict(
             plot_grid_scan_spacing_error_maps(spacing_summary, figure_root / "grid_scan_spacing")
         )
-        logger.info("Rendering grid-scan phase sensitivity figures")
-        sensitivity_summary = summarize_marker_phase_sensitivity_for_grid_scan(tables["marker_points"])
-        figures["grid_scan_sensitivity"] = OrderedDict(
-            plot_grid_scan_phase_sensitivity_maps(sensitivity_summary, figure_root / "grid_scan_sensitivity")
+        logger.info("Rendering grid-scan S-parameter phase r_c line scan")
+        figures["grid_scan_sparameter_phase_r_c_line_scan"] = OrderedDict(
+            plot_grid_scan_sparameter_phase_r_c_line_scan(
+                tables["marker_points"],
+                figure_root / "grid_scan_sparameter_phase_r_c_line_scan",
+            )
         )
     else:
         logger.info("Skipping grid-scan spacing figures: %s", detection["grid_scan_spacing"]["reason"])
