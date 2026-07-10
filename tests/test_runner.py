@@ -113,6 +113,55 @@ def _tables() -> dict[str, pd.DataFrame]:
     }
 
 
+def test_run_folder_analysis_loads_sparameter_folder_once(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sparameter_path = tmp_path / "data" / "prepro" / "prepro_sweep_260415_sample_prepro"
+    dispersion_path = tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
+    sparameter_path.mkdir(parents=True)
+    for tune_position, phases in [
+        (0.5, [10.0, 20.0, 30.0]),
+        (1.5, [-110.0, -100.0, -90.0]),
+    ]:
+        (sparameter_path / f"{tune_position}_processed.csv").write_text(
+            "freq[Hz],Magnitude,Phase_deg\n"
+            f"2855880000,-1.0,{phases[0]}\n"
+            f"2866050000,-2.0,{phases[1]}\n"
+            f"2876210000,-3.0,{phases[2]}\n",
+            encoding="utf-8",
+        )
+
+    processed = dispersion_path / "processed"
+    processed.mkdir(parents=True)
+    (processed / "dispersion_summary.csv").write_text(
+        "mode_index,freq_90_GHz,freq_120_GHz\n1,2.8778045932946,2.8574021866048\n",
+        encoding="utf-8",
+    )
+
+    loader = runner.DataLoader()
+    original_load = loader.load
+    loaded_paths: list[Path] = []
+
+    def tracked_load(path: str | Path) -> pd.DataFrame:
+        loaded_paths.append(Path(path))
+        return original_load(path)
+
+    monkeypatch.setattr(loader, "load", tracked_load)
+
+    runner.run_folder_analysis(
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        output_dir=tmp_path / "out",
+        marker_role="exp",
+        loader=loader,
+    )
+
+    assert loaded_paths == [sparameter_path], (
+        f"expected one S-parameter folder load, got {len(loaded_paths)}: {loaded_paths}"
+    )
+
+
 def _cell_iris_response_comparison_table() -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -153,7 +202,68 @@ def _coupler_cavity_parameter_estimates_table() -> pd.DataFrame:
     )
 
 
-def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manifest(tmp_path: Path, monkeypatch) -> None:
+def _kyhl_admittance_points_table() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "marker_name": "f_2pi3",
+                "source_file": "run1.s2p",
+                "tune_position": 0.5,
+                "admittance_real": 1.0,
+                "admittance_imag": 0.5,
+                "operation_mode_deg": 120.0,
+                "operation_axes_deg": "60;180;300",
+                "kyhl_operation_angle_deg": 60.0,
+                "nearest_operation_axis_deg": 60.0,
+                "operation_axis_error_deg": 0.0,
+            }
+        ]
+    )
+
+
+def _kyhl_f2pi3_normalized_admittance_audit_table() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "marker_name": "f_2pi3",
+                "source_file": "run1.s2p",
+                "tune_position": 0.5,
+                "mode_normalized_admittance_real": 0.2,
+                "mode_normalized_admittance_imag": -1.7,
+                "mode_reflection_real": -0.5,
+                "mode_reflection_imag": -0.8660254,
+                "mode_reflection_abs": 1.0,
+                "mode_reflection_angle_deg": 240.0,
+            }
+        ]
+    )
+
+
+def _kyhl_admittance_transitions_table() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "marker_name": "f_2pi3",
+                "position_family": "cell",
+                "from_tune_position": 0.5,
+                "to_tune_position": 1.5,
+                "from_admittance_real": 1.0,
+                "from_admittance_imag": 0.5,
+                "to_admittance_real": 1.5,
+                "to_admittance_imag": -0.5,
+                "operation_mode_deg": 120.0,
+                "operation_axes_deg": "60;180;300",
+                "kyhl_operation_angle_deg": 60.0,
+                "nearest_operation_axis_deg": 60.0,
+                "operation_axis_error_deg": 0.0,
+            }
+        ]
+    )
+
+
+def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manifest(
+    tmp_path: Path, monkeypatch
+) -> None:
     tables = _tables()
     sparameter_table = pd.DataFrame(
         [
@@ -381,7 +491,72 @@ def test_run_folder_analysis_renders_cell_iris_response_when_available(tmp_path:
     assert '"cell_iris_response"' in manifest
 
 
-def test_resolve_input_paths_uses_data_root_and_default_dispersion(tmp_path: Path) -> None:
+def test_run_folder_analysis_renders_f2pi3_normalized_admittance_when_available(tmp_path: Path, monkeypatch) -> None:
+    tables = _tables()
+    tables["kyhl_f2pi3_normalized_admittance_audit"] = _kyhl_f2pi3_normalized_admittance_audit_table()
+    sparameter_table = pd.DataFrame(
+        [
+            {
+                "source_file": "run1.s2p",
+                "tune_position": 0.5,
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": 0.0,
+            }
+        ]
+    )
+    output_dir = tmp_path / "out"
+
+    monkeypatch.setattr(runner, "build_marker_analysis", lambda **_: tables)
+    monkeypatch.setattr(runner.DataLoader, "load", lambda self, path: sparameter_table)
+    monkeypatch.setattr(
+        runner,
+        "save_marker_analysis",
+        lambda analysis_tables, output: {name: Path(output) / f"{name}.csv" for name in analysis_tables},
+    )
+
+    def fake_plot(name):
+        def _plot(*args, **kwargs):
+            folder = Path(args[2] if name == "s11" else args[1])
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"{name}.png"
+            path.write_text(name, encoding="utf-8")
+            return {"overview": path}
+
+        return _plot
+
+    def fake_f2pi3_normalized_admittance(*args, **kwargs):
+        folder = Path(args[1])
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / "f_2pi3_normalized_admittance.png"
+        path.write_text("f2pi3_normalized_admittance", encoding="utf-8")
+        return {"f_2pi3": path}
+
+    monkeypatch.setattr(runner, "plot_s11_with_markers", fake_plot("s11"))
+    monkeypatch.setattr(runner, "plot_phase_advance", fake_plot("phase_advance"))
+    monkeypatch.setattr(runner, "plot_nodal_shift", fake_plot("nodal_shift"))
+    monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fake_plot("polar"))
+    monkeypatch.setattr(
+        runner,
+        "plot_f2pi3_normalized_admittance_view",
+        fake_f2pi3_normalized_admittance,
+    )
+
+    result = runner.run_folder_analysis(
+        sparameter_path=tmp_path / "data" / "sim" / "sim_sweep_260620_case",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
+        output_dir=output_dir,
+        marker_role="sim",
+    )
+
+    assert result.figures["kyhl_normalized_admittance"]["f_2pi3"].exists()
+    manifest = result.manifest_path.read_text(encoding="utf-8")
+    assert '"kyhl_normalized_admittance"' in manifest
+
+
+def test_resolve_input_paths_uses_data_root_and_default_dispersion(
+    tmp_path: Path,
+) -> None:
     sparameter_path, dispersion_path = runner.resolve_input_paths(
         "prepro/prepro_sweep_260415_sample_prepro",
         data_root=tmp_path / "data",
@@ -444,7 +619,11 @@ def test_run_folder_analysis_uses_short_dispersion_figure_names(tmp_path: Path, 
     assert result.figures["dispersion"]["all_modes"].name == "all_modes.png"
     assert result.figures["dispersion"]["mode_01"].name == "mode_01.png"
     assert result.figures["dispersion"]["mode_02"].name == "mode_02.png"
-    assert set(result.tables) == {"phase_sweep_long", "phase_sweep_wide", "phase_sweep_summary"}
+    assert set(result.tables) == {
+        "phase_sweep_long",
+        "phase_sweep_wide",
+        "phase_sweep_summary",
+    }
     summary = pd.read_csv(result.tables["phase_sweep_summary"])
     assert summary.loc[0, "freq_120_GHz"] == 2.86
     manifest = result.manifest_path.read_text(encoding="utf-8")
@@ -453,9 +632,7 @@ def test_run_folder_analysis_uses_short_dispersion_figure_names(tmp_path: Path, 
     assert '"phase_advance"' not in manifest
 
 
-def test_run_folder_analysis_uses_dispersion_only_lane_for_single_mode_cst_exports(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_run_folder_analysis_uses_dispersion_only_lane_for_single_mode_cst_exports(tmp_path: Path, monkeypatch) -> None:
     dispersion_folder = tmp_path / "data" / "sim" / "dispersion_case"
     dispersion_folder.mkdir(parents=True)
     (dispersion_folder / "phase_sweep.txt").write_text(
@@ -495,7 +672,11 @@ def test_run_folder_analysis_uses_dispersion_only_lane_for_single_mode_cst_expor
     assert set(result.figures["dispersion"]) == {"all_modes", "mode_01"}
     assert result.figures["dispersion"]["all_modes"].name == "all_modes.png"
     assert result.figures["dispersion"]["mode_01"].name == "mode_01.png"
-    assert set(result.tables) == {"phase_sweep_long", "phase_sweep_wide", "phase_sweep_summary"}
+    assert set(result.tables) == {
+        "phase_sweep_long",
+        "phase_sweep_wide",
+        "phase_sweep_summary",
+    }
     summary = pd.read_csv(result.tables["phase_sweep_summary"])
     assert summary.loc[0, "freq_120_GHz"] == 2.86
     manifest = result.manifest_path.read_text(encoding="utf-8")
@@ -560,12 +741,21 @@ def test_run_folder_analysis_uses_profile_only_lane_for_cst_z_profiles(tmp_path:
         "field_energy_ratio_summary",
     }
     assert set(result.figures) == {"profile"}
-    assert set(result.figures["profile"]) == {"E_fieldDist", "EM_fieldPhase", "E_fieldPhase", "H_fieldPhase"}
+    assert set(result.figures["profile"]) == {
+        "E_fieldDist",
+        "EM_fieldPhase",
+        "E_fieldPhase",
+        "H_fieldPhase",
+    }
     assert result.figures["profile"]["E_fieldDist"].exists()
     assert result.figures["profile"]["E_fieldPhase"].exists()
     assert result.figures["profile"]["H_fieldPhase"].exists()
     summary = pd.read_csv(result.tables["profile_summary"])
-    assert summary["source_file"].tolist() == ["E_fieldDist.txt", "EM_fieldPhase.txt", "EM_fieldPhase.txt"]
+    assert summary["source_file"].tolist() == [
+        "E_fieldDist.txt",
+        "EM_fieldPhase.txt",
+        "EM_fieldPhase.txt",
+    ]
     assert summary["value_kind"].tolist() == ["real", "phase", "phase"]
     field_ratios = pd.read_csv(result.tables["field_energy_ratio_pairs"])
     assert "adjacent_average_iris_to_cell_energy_ratio" in field_ratios.columns
@@ -725,6 +915,98 @@ def test_run_folder_analysis_reuses_existing_grid_s11_figures_from_manifest(tmp_
     )
 
     assert result.figures["s11"]["cached"] == cached_s11
+
+
+def test_run_folder_analysis_reuses_loaded_table_when_grid_cache_becomes_invalid(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    tables = _tables()
+    tables["marker_points"] = tables["marker_points"].iloc[0:0]
+    tables["phase_advance"] = tables["phase_advance"].iloc[0:0]
+    tables["nodal_shift"] = tables["nodal_shift"].iloc[0:0]
+    output_dir = tmp_path / "out"
+    cached_s11 = output_dir / "figures" / "s11" / "s11_cached.png"
+    cached_s11.parent.mkdir(parents=True)
+    cached_s11.write_text("cached", encoding="utf-8")
+    (output_dir / "manifest.json").write_text(
+        json.dumps({"outputs": {"figures": {"s11": {"cached": str(cached_s11)}}}}),
+        encoding="utf-8",
+    )
+
+    sparameter_path = tmp_path / "data" / "sim" / "sim_grid_260526_scan"
+    sparameter_table = pd.DataFrame(
+        [
+            {
+                "source_file": "run.s2p",
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": 0.0,
+            }
+        ]
+    )
+    loader = runner.DataLoader()
+    loaded_paths: list[Path] = []
+
+    def tracked_load(path: str | Path) -> pd.DataFrame:
+        loaded_paths.append(Path(path))
+        return sparameter_table
+
+    monkeypatch.setattr(loader, "load", tracked_load)
+
+    def fake_build_marker_analysis(**kwargs):
+        kwargs["loader"].load(kwargs["sparameter_path"])
+        return tables
+
+    monkeypatch.setattr(runner, "build_marker_analysis", fake_build_marker_analysis)
+    monkeypatch.setattr(
+        runner,
+        "save_marker_analysis",
+        lambda analysis_tables, output: {name: Path(output) / f"{name}.csv" for name in analysis_tables},
+    )
+    monkeypatch.setattr(
+        runner,
+        "plot_s11_with_markers",
+        lambda *args, **kwargs: {"overview": output_dir / "figures" / "s11" / "rebuilt.png"},
+    )
+
+    runner.run_folder_analysis(
+        sparameter_path=sparameter_path,
+        dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
+        output_dir=output_dir,
+        marker_role="sim",
+        loader=loader,
+    )
+
+    assert loaded_paths == [sparameter_path]
+
+
+def test_runner_preserves_profile_and_dispersion_patch_seams(tmp_path: Path, monkeypatch) -> None:
+    profile_path = tmp_path / "profile.txt"
+    dispersion_path = tmp_path / "dispersion.txt"
+    profile_path.write_text("profile", encoding="utf-8")
+    dispersion_path.write_text("dispersion", encoding="utf-8")
+    profile_calls: list[Path] = []
+    dispersion_calls: list[Path] = []
+
+    monkeypatch.setattr(
+        runner,
+        "load_field_profile_export",
+        lambda path: profile_calls.append(Path(path)),
+    )
+    monkeypatch.setattr(
+        runner,
+        "load_cst_dispersion_txt",
+        lambda path: dispersion_calls.append(Path(path)),
+    )
+
+    assert runner.find_cst_profile_inputs(profile_path) == (profile_path,)
+    assert runner.find_cst_dispersion_inputs(dispersion_path) == (dispersion_path,)
+    assert profile_calls == [profile_path]
+    assert dispersion_calls == [dispersion_path]
+    assert runner.BASE_ANALYSIS_MODES[0] == "marker_analysis"
+    assert "sim_r_c" in runner.GRID_SCAN_REQUIRED_COLUMNS
+    assert "f_2pi3" in runner.GRID_SCAN_REQUIRED_MARKERS
 
 
 def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, caplog) -> None:

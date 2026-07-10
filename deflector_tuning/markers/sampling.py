@@ -29,7 +29,7 @@ OUTPUT_COLUMNS: list[str] = [
     "humidity_fraction",
 ]
 PASSTHROUGH_PREFIXES: tuple[str, ...] = ("sim_",)
-PASSTHROUGH_COLUMNS: tuple[str, ...] = ("run_id", "scan_type")
+PASSTHROUGH_COLUMNS: tuple[str, ...] = ("run_id", "scan_type", "reference_ohm", "is_normalized")
 MARKER_METADATA_COLUMNS: list[str] = [
     "uncorrected_freq_ghz",
     "frequency_scale_factor",

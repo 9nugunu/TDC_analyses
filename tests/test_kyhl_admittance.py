@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from deflector_tuning.analysis.kyhl_admittance import (
+    compute_f2pi3_normalized_admittance_audit,
     compute_kyhl_admittance_points,
     compute_kyhl_admittance_transitions,
     is_allowed_coupler_cavity_transition,
@@ -150,6 +151,46 @@ def test_compute_kyhl_admittance_points_reports_nearest_branch_axis() -> None:
     assert row["nearest_operation_axis_deg"] == pytest.approx(60.0)
 
 
+def test_compute_f2pi3_normalized_admittance_audit_reports_source_based_steps() -> None:
+    marker_points = pd.DataFrame(
+        [
+            _marker_point(tune_position=0.5, phase_deg=-60.0),
+            {**_marker_point(tune_position=0.5, phase_deg=45.0), "marker_name": "f_pi2"},
+        ]
+    )
+
+    result = compute_f2pi3_normalized_admittance_audit(marker_points)
+
+    assert len(result) == 1
+    row = result.iloc[0]
+    magnitude = 10.0 ** (-3.0 / 20.0)
+    gamma = complex(magnitude * 0.5, -magnitude * math.sqrt(3.0) / 2.0)
+    impedance = (1.0 + gamma) / (1.0 - gamma)
+    admittance = 1.0 / impedance
+    mode_admittance = math.sqrt(3.0) * admittance
+    mode_reflection = (1.0 - mode_admittance) / (1.0 + mode_admittance)
+    assert row["marker_name"] == "f_2pi3"
+    assert row["gamma_magnitude"] == pytest.approx(magnitude)
+    assert row["gamma_phase_deg"] == pytest.approx(-60.0)
+    assert row["gamma_real"] == pytest.approx(gamma.real)
+    assert row["gamma_imag"] == pytest.approx(gamma.imag)
+    assert row["normalized_impedance_real"] == pytest.approx(impedance.real)
+    assert row["normalized_impedance_imag"] == pytest.approx(impedance.imag)
+    assert row["reference_ohm"] == pytest.approx(50.0)
+    assert row["reference_admittance_siemens"] == pytest.approx(0.02)
+    assert row["line_normalized_admittance_real"] == pytest.approx(admittance.real)
+    assert row["line_normalized_admittance_imag"] == pytest.approx(admittance.imag)
+    assert row["admittance_real"] == pytest.approx(admittance.real)
+    assert row["admittance_imag"] == pytest.approx(admittance.imag)
+    assert row["physical_admittance_siemens_real"] == pytest.approx(admittance.real / 50.0)
+    assert row["physical_admittance_siemens_imag"] == pytest.approx(admittance.imag / 50.0)
+    assert row["mode_normalization_factor"] == pytest.approx(math.sqrt(3.0))
+    assert row["mode_normalized_admittance_real"] == pytest.approx(mode_admittance.real)
+    assert row["mode_normalized_admittance_imag"] == pytest.approx(mode_admittance.imag)
+    assert row["mode_reflection_real"] == pytest.approx(mode_reflection.real)
+    assert row["mode_reflection_imag"] == pytest.approx(mode_reflection.imag)
+
+
 def _marker_point(*, tune_position: float, phase_deg: float) -> dict[str, object]:
     magnitude = 10.0 ** (-3.0 / 20.0)
     phase_rad = math.radians(phase_deg)
@@ -168,4 +209,6 @@ def _marker_point(*, tune_position: float, phase_deg: float) -> dict[str, object
         "s_imag": magnitude * math.sin(phase_rad),
         "s_db": -3.0,
         "s_phase_deg": phase_deg,
+        "reference_ohm": 50.0,
+        "is_normalized": True,
     }

@@ -19,6 +19,52 @@ GROUP_COLUMNS: list[str] = [
     "s_name",
 ]
 TUNE_SWEEP_METADATA_COLUMNS: frozenset[str] = frozenset({"sim_NumTune", "sim_NumDepth"})
+F2PI3_MARKER = "f_2pi3"
+F2PI3_AUDIT_COLUMNS: list[str] = [
+    "dataset_id",
+    "data_kind",
+    "data_layer",
+    "marker_name",
+    "marker_role",
+    "port_side",
+    "s_name",
+    "source_file",
+    "tune_position",
+    "target_freq_ghz",
+    "freq_ghz",
+    "s_db",
+    "s_phase_deg",
+    "gamma_source",
+    "gamma_magnitude",
+    "gamma_phase_deg",
+    "gamma_real",
+    "gamma_imag",
+    "reference_ohm",
+    "is_normalized",
+    "reference_admittance_siemens",
+    "normalized_impedance_real",
+    "normalized_impedance_imag",
+    "line_normalized_admittance_real",
+    "line_normalized_admittance_imag",
+    "physical_admittance_siemens_real",
+    "physical_admittance_siemens_imag",
+    "admittance_real",
+    "admittance_imag",
+    "line_normalized_admittance_abs",
+    "line_normalized_admittance_angle_deg",
+    "operation_mode_deg",
+    "mode_normalization_factor",
+    "mode_normalized_admittance_real",
+    "mode_normalized_admittance_imag",
+    "mode_normalized_admittance_abs",
+    "mode_normalized_admittance_angle_deg",
+    "mode_reflection_real",
+    "mode_reflection_imag",
+    "mode_reflection_abs",
+    "mode_reflection_angle_deg",
+    "formula_note",
+    "kyhl_source_note",
+]
 OUTPUT_COLUMNS: list[str] = [
     "dataset_id",
     "data_kind",
@@ -172,6 +218,107 @@ def compute_kyhl_admittance_points(
                     "raw S11 is not de-embedded or CST-renormalized here; operation_scaled_admittance "
                     "is a derived comparison coordinate"
                 ),
+            }
+        )
+    return pd.DataFrame(rows, columns=output_columns)
+
+
+def compute_f2pi3_normalized_admittance_audit(
+    marker_points: pd.DataFrame,
+    *,
+    operation_mode_deg: float = 120.0,
+) -> pd.DataFrame:
+    output_columns = _f2pi3_audit_output_columns(marker_points)
+    operation_mode_deg = _validate_operation_mode(operation_mode_deg)
+    mode_normalization = operation_mode_scale(operation_mode_deg)
+    table = marker_points.copy()
+    for column in GROUP_COLUMNS:
+        if column not in table:
+            table[column] = pd.NA
+    if "tune_position" not in table:
+        table["tune_position"] = pd.NA
+    if table.empty or "marker_name" not in table:
+        return pd.DataFrame(columns=output_columns)
+
+    table = table[table["marker_name"] == F2PI3_MARKER].copy()
+    if table.empty:
+        return pd.DataFrame(columns=output_columns)
+    table["_tune_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
+    table = table[table["_tune_sort"].notna()].copy()
+    if table.empty:
+        return pd.DataFrame(columns=output_columns)
+
+    gamma = _complex_gamma(table)
+    table["_gamma"] = gamma
+    impedance = _normalized_impedance(gamma)
+    table["_normalized_impedance"] = impedance
+    line_admittance = _pseudo_admittance(gamma)
+    table["_line_normalized_admittance"] = line_admittance
+    mode_admittance = mode_normalization * line_admittance
+    table["_mode_normalized_admittance"] = mode_admittance
+    mode_reflection = _admittance_reflection(mode_admittance)
+    table["_mode_reflection"] = mode_reflection
+    rows: list[dict[str, object]] = []
+    for _, point in table.sort_values(_point_sort_columns(table), kind="mergesort").iterrows():
+        gamma_value = point["_gamma"]
+        impedance_value = point["_normalized_impedance"]
+        line_admittance_value = point["_line_normalized_admittance"]
+        raw_reference_ohm = point.get("reference_ohm", pd.NA)
+        reference_ohm = _positive_reference_ohm(raw_reference_ohm)
+        reference_admittance = 1.0 / reference_ohm if reference_ohm is not None else math.nan
+        physical_admittance = (
+            line_admittance_value * reference_admittance
+            if math.isfinite(reference_admittance)
+            else complex(math.nan, math.nan)
+        )
+        mode_admittance_value = point["_mode_normalized_admittance"]
+        mode_reflection_value = point["_mode_reflection"]
+        rows.append(
+            {
+                **{column: point[column] for column in GROUP_COLUMNS},
+                **{column: point[column] for column in _metadata_columns(table)},
+                "source_file": point.get("source_file", pd.NA),
+                "tune_position": point["tune_position"],
+                "target_freq_ghz": point.get("target_freq_ghz", pd.NA),
+                "freq_ghz": point.get("freq_ghz", pd.NA),
+                "s_db": point.get("s_db", pd.NA),
+                "s_phase_deg": point.get("s_phase_deg", pd.NA),
+                "gamma_source": _gamma_source(point),
+                "gamma_magnitude": float(abs(gamma_value)),
+                "gamma_phase_deg": wrap180(math.degrees(math.atan2(gamma_value.imag, gamma_value.real))),
+                "gamma_real": float(gamma_value.real),
+                "gamma_imag": float(gamma_value.imag),
+                "reference_ohm": raw_reference_ohm,
+                "is_normalized": point.get("is_normalized", pd.NA),
+                "reference_admittance_siemens": reference_admittance,
+                "normalized_impedance_real": float(impedance_value.real),
+                "normalized_impedance_imag": float(impedance_value.imag),
+                "line_normalized_admittance_real": float(line_admittance_value.real),
+                "line_normalized_admittance_imag": float(line_admittance_value.imag),
+                "physical_admittance_siemens_real": float(physical_admittance.real),
+                "physical_admittance_siemens_imag": float(physical_admittance.imag),
+                "admittance_real": float(line_admittance_value.real),
+                "admittance_imag": float(line_admittance_value.imag),
+                "line_normalized_admittance_abs": float(abs(line_admittance_value)),
+                "line_normalized_admittance_angle_deg": wrap180(
+                    math.degrees(math.atan2(line_admittance_value.imag, line_admittance_value.real))
+                ),
+                "operation_mode_deg": operation_mode_deg,
+                "mode_normalization_factor": mode_normalization,
+                "mode_normalized_admittance_real": float(mode_admittance_value.real),
+                "mode_normalized_admittance_imag": float(mode_admittance_value.imag),
+                "mode_normalized_admittance_abs": float(abs(mode_admittance_value)),
+                "mode_normalized_admittance_angle_deg": wrap180(
+                    math.degrees(math.atan2(mode_admittance_value.imag, mode_admittance_value.real))
+                ),
+                "mode_reflection_real": float(mode_reflection_value.real),
+                "mode_reflection_imag": float(mode_reflection_value.imag),
+                "mode_reflection_abs": float(abs(mode_reflection_value)),
+                "mode_reflection_angle_deg": _wrap360(
+                    math.degrees(math.atan2(mode_reflection_value.imag, mode_reflection_value.real))
+                ),
+                "formula_note": "Gamma=S11 referenced to Touchstone/VNA Z0; z=Z/Z0=(1+Gamma)/(1-Gamma); y_line=Y/Y0=(1-Gamma)/(1+Gamma); for Z0=50 ohm, Y[S]=y_line/50; y_mode=tan(theta/2)*y_line; rho_mode=(1-y_mode)/(1+y_mode)",
+                "kyhl_source_note": "Chanudet 1993 normalizes input admittance to operating-mode characteristic admittance; Westbrook 1963 applies the 2pi/3 renormalization to the admittance chart",
             }
         )
     return pd.DataFrame(rows, columns=output_columns)
@@ -372,6 +519,35 @@ def _pseudo_admittance(gamma: np.ndarray) -> np.ndarray:
     return output
 
 
+def _normalized_impedance(gamma: np.ndarray) -> np.ndarray:
+    denominator = 1.0 - gamma
+    output = np.full(gamma.shape, np.nan + 1j * np.nan, dtype=complex)
+    np.divide(1.0 + gamma, denominator, out=output, where=np.abs(denominator) > 1e-15)
+    return output
+
+
+def _admittance_reflection(admittance: np.ndarray) -> np.ndarray:
+    denominator = 1.0 + admittance
+    output = np.full(admittance.shape, np.nan + 1j * np.nan, dtype=complex)
+    np.divide(1.0 - admittance, denominator, out=output, where=np.abs(denominator) > 1e-15)
+    return output
+
+
+def _positive_reference_ohm(value: object) -> float | None:
+    if pd.isna(value):
+        return None
+    reference_ohm = float(str(value))
+    if not math.isfinite(reference_ohm) or reference_ohm <= 0.0:
+        return None
+    return reference_ohm
+
+
+def _gamma_source(point: pd.Series) -> str:
+    if pd.notna(point.get("s_real", pd.NA)) and pd.notna(point.get("s_imag", pd.NA)):
+        return "s_real/s_imag"
+    return "s_db/s_phase_deg"
+
+
 def _validate_operation_mode(operation_mode_deg: float) -> float:
     operation_mode_deg = float(operation_mode_deg)
     if not 0.0 < operation_mode_deg < 360.0:
@@ -407,6 +583,12 @@ def _point_output_columns(table: pd.DataFrame) -> list[str]:
     metadata_columns = _metadata_columns(table)
     insert_index = POINT_OUTPUT_COLUMNS.index("source_file")
     return [*POINT_OUTPUT_COLUMNS[:insert_index], *metadata_columns, *POINT_OUTPUT_COLUMNS[insert_index:]]
+
+
+def _f2pi3_audit_output_columns(table: pd.DataFrame) -> list[str]:
+    metadata_columns = _metadata_columns(table)
+    insert_index = F2PI3_AUDIT_COLUMNS.index("source_file")
+    return [*F2PI3_AUDIT_COLUMNS[:insert_index], *metadata_columns, *F2PI3_AUDIT_COLUMNS[insert_index:]]
 
 
 def _point_sort_columns(table: pd.DataFrame) -> list[str]:

@@ -1,7 +1,6 @@
-"""Polar plots for KYHL operation-mode admittance metrics."""
-
 from __future__ import annotations
 
+from collections import OrderedDict
 from pathlib import Path
 
 import matplotlib
@@ -30,6 +29,18 @@ REQUIRED_TRANSITION_COLUMNS: tuple[str, ...] = (
     "kyhl_operation_angle_deg",
     "nearest_operation_axis_deg",
     "operation_axis_error_deg",
+)
+F2PI3_MARKER = "f_2pi3"
+NORMALIZED_POINT_COLUMNS: tuple[str, ...] = (
+    "marker_name",
+    "source_file",
+    "tune_position",
+    "mode_normalized_admittance_real",
+    "mode_normalized_admittance_imag",
+    "mode_reflection_real",
+    "mode_reflection_imag",
+    "mode_reflection_abs",
+    "mode_reflection_angle_deg",
 )
 
 
@@ -77,6 +88,99 @@ def plot_kyhl_operation_polar(
     return Path(output_path)
 
 
+def plot_f2pi3_normalized_admittance_view(
+    points: pd.DataFrame,
+    output_dir: str | Path,
+    *,
+    config: PlotConfig | None = None,
+) -> OrderedDict[str, Path]:
+    folder = Path(output_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    return OrderedDict(
+        [
+            (
+                F2PI3_MARKER,
+                plot_f2pi3_normalized_admittance(
+                    points,
+                    folder / "f_2pi3_normalized_admittance.png",
+                    config=config,
+                ),
+            )
+        ]
+    )
+
+
+def plot_f2pi3_normalized_admittance(
+    points: pd.DataFrame,
+    output_path: str | Path,
+    *,
+    config: PlotConfig | None = None,
+) -> Path:
+    _require_columns(points, NORMALIZED_POINT_COLUMNS, context="KYHL normalized admittance points")
+    point_table = points[points["marker_name"] == F2PI3_MARKER].copy()
+    if point_table.empty:
+        raise ValueError("No normalized admittance point rows found for marker_name='f_2pi3'")
+
+    config = config or PlotConfig()
+    apply_plot_style(config)
+    point_table["_tune_sort"] = pd.to_numeric(point_table["tune_position"], errors="coerce")
+    point_table = point_table.sort_values(
+        ["_tune_sort", "source_file"] if "source_file" in point_table else ["_tune_sort"],
+        kind="mergesort",
+    )
+    fig, ax = plt.subplots(figsize=(7.2, 5.8), subplot_kw={"projection": "polar"}, constrained_layout=True)
+    color = MARKER_COLORS.get(F2PI3_MARKER, "#444444")
+    _draw_smith_polar_reference(ax, config=config)
+    theta = np.deg2rad(point_table["mode_reflection_angle_deg"].astype(float))
+    radius = point_table["mode_reflection_abs"].astype(float)
+    ax.scatter(
+        theta,
+        radius,
+        s=config.marker_size,
+        marker="s",
+        facecolors="white",
+        edgecolors=color,
+        linewidths=config.line_width,
+        zorder=4,
+    )
+    ax.set_title(
+        "f2pi/3 normalized-admittance polar",
+        fontsize=min(config.title_size, 18),
+        fontweight=config.title_weight,
+        pad=18,
+    )
+    save_figure(fig, output_path, config)
+    plt.close(fig)
+    return Path(output_path)
+
+
+def plot_kyhl_operation_polar_views(
+    points: pd.DataFrame,
+    transitions: pd.DataFrame,
+    output_dir: str | Path,
+    *,
+    config: PlotConfig | None = None,
+) -> OrderedDict[str, Path]:
+    _require_columns(points, REQUIRED_POINT_COLUMNS, context="KYHL points")
+    _require_columns(transitions, REQUIRED_TRANSITION_COLUMNS, context="KYHL transitions")
+    folder = Path(output_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    return OrderedDict(
+        [
+            (
+                F2PI3_MARKER,
+                plot_kyhl_operation_polar(
+                    points,
+                    transitions,
+                    folder / "f_2pi3_admittance_polar.png",
+                    marker_name=F2PI3_MARKER,
+                    config=config,
+                ),
+            )
+        ]
+    )
+
+
 def _draw_operation_axes(ax, axes_deg: tuple[float, ...], *, config: PlotConfig) -> None:
     ax.set_theta_zero_location("E")
     ax.set_theta_direction(1)
@@ -94,6 +198,34 @@ def _draw_operation_axes(ax, axes_deg: tuple[float, ...], *, config: PlotConfig)
             theta,
             1.10,
             f"{axis_deg:g} deg",
+            color="0.25",
+            fontsize=config.annotation_size,
+            fontweight="bold",
+            ha="center",
+            va="center",
+            bbox={"boxstyle": "round,pad=0.12", "facecolor": "white", "edgecolor": "none", "alpha": 0.82},
+        )
+        text.set_clip_on(False)
+
+
+def _draw_smith_polar_reference(ax, *, config: PlotConfig) -> None:
+    ax.set_theta_zero_location("E")
+    ax.set_theta_direction(1)
+    ax.set_ylim(0.0, 1.08)
+    ax.set_yticks([0.5, 1.0])
+    ax.set_yticklabels([])
+    ax.set_xticks(np.deg2rad([0.0, 90.0, 180.0, 270.0]))
+    ax.set_xticklabels([])
+    ax.grid(color="0.88", linewidth=0.6)
+    ax.spines["polar"].set_color("0.20")
+    ax.spines["polar"].set_linewidth(0.8)
+    for angle_deg, label in ((120.0, "pi/2"), (180.0, "mean"), (240.0, "2pi/3")):
+        theta = np.deg2rad(angle_deg)
+        ax.plot([theta, theta], [0.0, 1.02], color="0.35", linestyle="--", linewidth=max(config.line_width - 0.2, 0.8), alpha=0.55)
+        text = ax.text(
+            theta,
+            1.07,
+            f"{angle_deg:.0f} deg\n{label}",
             color="0.25",
             fontsize=config.annotation_size,
             fontweight="bold",
@@ -204,7 +336,10 @@ def _first_float(table: pd.DataFrame, column: str, *, fallback: float = float("n
 
 
 def _format_position(value: object) -> str:
-    number = float(value)
+    number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(number):
+        return str(value)
+    number = float(number)
     if number.is_integer():
         return f"{number:.1f}"
     return f"{number:g}"

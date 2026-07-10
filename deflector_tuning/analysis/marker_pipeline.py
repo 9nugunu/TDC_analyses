@@ -8,20 +8,36 @@ from pathlib import Path
 import pandas as pd
 
 from deflector_tuning.analysis.cell_iris_response import compare_cell_and_iris_responses
-from deflector_tuning.analysis.coupler_cavity_parameters import build_coupler_cavity_parameter_table
-from deflector_tuning.analysis.kyhl_admittance import POINT_OUTPUT_COLUMNS as KYHL_ADMITTANCE_POINT_COLUMNS
-from deflector_tuning.analysis.kyhl_admittance import OUTPUT_COLUMNS as KYHL_ADMITTANCE_TRANSITION_COLUMNS
+from deflector_tuning.analysis.coupler_cavity_parameters import (
+    build_coupler_cavity_parameter_table,
+)
 from deflector_tuning.analysis.kyhl_admittance import (
+    POINT_OUTPUT_COLUMNS as KYHL_ADMITTANCE_POINT_COLUMNS,
+)
+from deflector_tuning.analysis.kyhl_admittance import (
+    OUTPUT_COLUMNS as KYHL_ADMITTANCE_TRANSITION_COLUMNS,
+)
+from deflector_tuning.analysis.kyhl_admittance import (
+    F2PI3_AUDIT_COLUMNS as KYHL_F2PI3_AUDIT_COLUMNS,
+)
+from deflector_tuning.analysis.kyhl_admittance import (
+    compute_f2pi3_normalized_admittance_audit,
     compute_kyhl_admittance_points,
     compute_kyhl_admittance_transitions,
 )
-from deflector_tuning.analysis.phase_advance import OUTPUT_COLUMNS as PHASE_ADVANCE_COLUMNS
+from deflector_tuning.analysis.phase_advance import (
+    OUTPUT_COLUMNS as PHASE_ADVANCE_COLUMNS,
+)
 from deflector_tuning.analysis.phase_advance import compute_phase_advance
-from deflector_tuning.analysis.phase_summary import OUTPUT_COLUMNS as PHASE_SUMMARY_COLUMNS
+from deflector_tuning.analysis.phase_summary import (
+    OUTPUT_COLUMNS as PHASE_SUMMARY_COLUMNS,
+)
 from deflector_tuning.analysis.phase_summary import summarize_phase_advance
 from deflector_tuning.analysis.nodal_shift import OUTPUT_COLUMNS as NODAL_SHIFT_COLUMNS
 from deflector_tuning.analysis.nodal_shift import compute_nodal_shift_errors
-from deflector_tuning.analysis.geometry_phase_response import compute_geometry_phase_response
+from deflector_tuning.analysis.geometry_phase_response import (
+    compute_geometry_phase_response,
+)
 from deflector_tuning.analysis.grid_rc_line_scan import extract_fixed_width_rc_line_scan
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
@@ -34,6 +50,7 @@ TABLE_FILENAMES: dict[str, str] = {
     "markers": "markers.csv",
     "marker_points": "marker_points.csv",
     "marker_phase_polar": "marker_phase_polar.csv",
+    "kyhl_f2pi3_normalized_admittance_audit": "kyhl_f2pi3_normalized_admittance_audit.csv",
     "kyhl_admittance_points": "kyhl_admittance_points.csv",
     "kyhl_admittance_transitions": "kyhl_admittance_transitions.csv",
     "cell_iris_response_comparison": "cell_iris_response_comparison.csv",
@@ -77,6 +94,7 @@ def build_marker_analysis(
     dispersion_path: str | Path,
     marker_role: str,
     loader: DataLoader | None = None,
+    sparameter_table: pd.DataFrame | None = None,
 ) -> AnalysisTables:
     """Build marker-frequency, marker-point, phase-advance, and summary tables.
 
@@ -84,12 +102,15 @@ def build_marker_analysis(
     batch traversal belongs in a separate wrapper.
     """
 
-    loader = loader or DataLoader()
-    sparameter_table = select_s11_rows(loader.load(sparameter_path))
+    if sparameter_table is None:
+        loader = loader or DataLoader()
+        sparameter_table = loader.load(sparameter_path)
+    sparameter_table = select_s11_rows(sparameter_table)
     markers = extract_marker_frequencies(dispersion_path, marker_role=marker_role)
     marker_points = sample_nearest_markers(sparameter_table, markers)
     marker_phase_polar = build_marker_phase_polar_table(marker_points)
     grid_rc_line_scan = extract_fixed_width_rc_line_scan(marker_phase_polar)
+    kyhl_f2pi3_normalized_admittance_audit = _compute_f2pi3_normalized_admittance_audit_when_supported(marker_points)
     kyhl_admittance_points = _compute_kyhl_admittance_points_when_supported(marker_points)
     kyhl_admittance_transitions = _compute_kyhl_admittance_transitions_when_supported(marker_points)
     cell_iris_response_comparison = (
@@ -107,6 +128,10 @@ def build_marker_analysis(
             ("markers", markers),
             ("marker_points", marker_points),
             ("marker_phase_polar", marker_phase_polar),
+            (
+                "kyhl_f2pi3_normalized_admittance_audit",
+                kyhl_f2pi3_normalized_admittance_audit,
+            ),
             ("kyhl_admittance_points", kyhl_admittance_points),
             ("kyhl_admittance_transitions", kyhl_admittance_transitions),
             ("cell_iris_response_comparison", cell_iris_response_comparison),
@@ -154,7 +179,9 @@ def build_marker_phase_polar_table(marker_points: pd.DataFrame) -> pd.DataFrame:
         .rename(columns=POLAR_PHASE_COLUMNS)
         .reset_index()
     )
-    phase_columns = [POLAR_PHASE_COLUMNS[marker] for marker in POLAR_MARKER_ORDER if POLAR_PHASE_COLUMNS[marker] in wide]
+    phase_columns = [
+        POLAR_PHASE_COLUMNS[marker] for marker in POLAR_MARKER_ORDER if POLAR_PHASE_COLUMNS[marker] in wide
+    ]
     output = wide[[*id_columns, *phase_columns]].copy()
     return _sort_polar_phase_table(output)
 
@@ -165,13 +192,25 @@ def _compute_phase_advance_when_supported(marker_points: pd.DataFrame) -> pd.Dat
     return compute_phase_advance(marker_points)
 
 
-def _compute_kyhl_admittance_points_when_supported(marker_points: pd.DataFrame) -> pd.DataFrame:
+def _compute_kyhl_admittance_points_when_supported(
+    marker_points: pd.DataFrame,
+) -> pd.DataFrame:
     if marker_points.empty or "tune_position" not in marker_points:
         return pd.DataFrame(columns=KYHL_ADMITTANCE_POINT_COLUMNS)
     return compute_kyhl_admittance_points(marker_points)
 
 
-def _compute_kyhl_admittance_transitions_when_supported(marker_points: pd.DataFrame) -> pd.DataFrame:
+def _compute_f2pi3_normalized_admittance_audit_when_supported(
+    marker_points: pd.DataFrame,
+) -> pd.DataFrame:
+    if marker_points.empty or "tune_position" not in marker_points:
+        return pd.DataFrame(columns=KYHL_F2PI3_AUDIT_COLUMNS)
+    return compute_f2pi3_normalized_admittance_audit(marker_points)
+
+
+def _compute_kyhl_admittance_transitions_when_supported(
+    marker_points: pd.DataFrame,
+) -> pd.DataFrame:
     if not _has_phase_advance_axis(marker_points):
         return pd.DataFrame(columns=KYHL_ADMITTANCE_TRANSITION_COLUMNS)
     return compute_kyhl_admittance_transitions(marker_points)
@@ -208,7 +247,10 @@ def _polar_phase_id_columns(table: pd.DataFrame) -> list[str]:
 
 def _polar_phase_output_columns(marker_points: pd.DataFrame) -> list[str]:
     id_columns = _polar_phase_id_columns(marker_points) if not marker_points.empty else []
-    return [*id_columns, *(POLAR_PHASE_COLUMNS[marker] for marker in POLAR_MARKER_ORDER)]
+    return [
+        *id_columns,
+        *(POLAR_PHASE_COLUMNS[marker] for marker in POLAR_MARKER_ORDER),
+    ]
 
 
 def _sort_polar_phase_table(table: pd.DataFrame) -> pd.DataFrame:

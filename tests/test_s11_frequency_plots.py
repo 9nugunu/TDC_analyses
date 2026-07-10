@@ -516,6 +516,21 @@ def test_plot_s11_with_markers_does_not_write_position_nan_when_positions_are_mi
     assert paths["overview"].name == "with_markers.png"
 
 
+def test_plot_s11_with_markers_ignores_unpositioned_reference_trace_for_position_split(tmp_path: Path) -> None:
+    reference_trace = _sparameter_table().query("tune_position == 0.5").assign(
+        source_file="Fullstructure.S2P",
+        tune_position=float("nan"),
+    )
+    sparameter_table = pd.concat([_sparameter_table(), reference_trace], ignore_index=True)
+
+    paths = plot_s11_with_markers(sparameter_table, _marker_points(), tmp_path, config=PlotConfig(dpi=120))
+
+    assert "overview" in paths
+    assert "cell_0p5" in paths
+    assert "cell_1p5" in paths
+    assert all("nan" not in key.lower() for key in paths)
+
+
 def test_plot_s11_with_markers_names_sim_260526_grid_scan_by_cell_or_iris_when_tune_position_exists(tmp_path: Path) -> None:
     sparameter_rows = []
     marker_rows = []

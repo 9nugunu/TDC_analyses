@@ -144,7 +144,8 @@ def plot_s11_with_markers(
             config=config,
         )
     if split_by_position and _has_named_tune_positions(s_table, m_table):
-        position_groups = list(s_table.groupby("tune_position", dropna=False, sort=True))
+        positioned_s_table = s_table[s_table["tune_position"].notna()]
+        position_groups = list(positioned_s_table.groupby("tune_position", sort=True))
         for tune_position, group in progress_iter(
             position_groups,
             desc="Rendering S11 position figures",
