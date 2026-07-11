@@ -23,6 +23,11 @@ from deflector_tuning.visualization.plot_config import (
 )
 from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
+from deflector_tuning.visualization.simulation_grouping import (
+    format_grid_value as _shared_format_grid_value,
+    grid_point_depth_group_columns as _shared_grid_point_depth_group_columns,
+    varying_sim_sweep_columns as _shared_varying_sim_sweep_columns,
+)
 
 REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db", "s_phase_deg")
 REQUIRED_MARKER_COLUMNS: tuple[str, ...] = (
@@ -514,9 +519,7 @@ def _grid_point_title_prefix(family: str, depth_label: str | None, sim_r_c: obje
 
 
 def _grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
-    if "sim_NumDepth" in table and pd.to_numeric(table["sim_NumDepth"], errors="coerce").dropna().nunique() > 1:
-        return ["sim_NumDepth"]
-    return []
+    return _shared_grid_point_depth_group_columns(table)
 
 
 def _has_sim_sweep_groups(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:
@@ -559,16 +562,7 @@ def _sim_sweep_group_columns(table: pd.DataFrame) -> list[str]:
 
 
 def _varying_sim_sweep_columns(table: pd.DataFrame) -> list[str]:
-    columns = []
-    for column in table.columns:
-        if not column.startswith("sim_") or column in {"sim_r_c", "sim_w_c"}:
-            continue
-        metadata_name = column.removeprefix("sim_")
-        if metadata_name.lower().startswith("num"):
-            continue
-        if table[column].dropna().nunique() > 1:
-            columns.append(column)
-    return columns
+    return _shared_varying_sim_sweep_columns(table)
 
 
 def _format_sim_sweep_key(group_columns: list[str], values: tuple[object, ...], group: pd.DataFrame) -> str:
@@ -619,8 +613,4 @@ def _format_grid_point_key(sim_r_c: object, sim_w_c: object) -> str:
 
 
 def _format_grid_value(value: object) -> str:
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError):
-        return str(value)
-    return f"{numeric:g}"
+    return _shared_format_grid_value(value)

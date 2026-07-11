@@ -28,6 +28,11 @@ from deflector_tuning.visualization.plot_config import (
 )
 from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
+from deflector_tuning.visualization.simulation_grouping import (
+    format_grid_value as _shared_format_grid_value,
+    grid_point_depth_group_columns as _shared_grid_point_depth_group_columns,
+    varying_sim_sweep_columns as _shared_varying_sim_sweep_columns,
+)
 
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
 REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "s_phase_deg")
@@ -933,9 +938,7 @@ def _grid_point_family(position_table: pd.DataFrame) -> str | None:
 
 
 def _grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
-    if "sim_NumDepth" in table and pd.to_numeric(table["sim_NumDepth"], errors="coerce").dropna().nunique() > 1:
-        return ["sim_NumDepth"]
-    return []
+    return _shared_grid_point_depth_group_columns(table)
 
 
 def _grid_point_depth_filename_suffix(position_table: pd.DataFrame) -> str:
@@ -997,16 +1000,7 @@ def _sim_sweep_group_columns(table: pd.DataFrame, sweep_columns: list[str]) -> l
 
 
 def _varying_sim_sweep_columns(marker_points: pd.DataFrame) -> list[str]:
-    columns = []
-    for column in marker_points.columns:
-        if not column.startswith("sim_") or column in {"sim_r_c", "sim_w_c"}:
-            continue
-        metadata_name = column.removeprefix("sim_")
-        if metadata_name.lower().startswith("num"):
-            continue
-        if marker_points[column].dropna().nunique() > 1:
-            columns.append(column)
-    return columns
+    return _shared_varying_sim_sweep_columns(marker_points)
 
 
 def _sim_sweep_column_label(column: str) -> str:
@@ -1041,11 +1035,7 @@ def _camel_to_snake(label: str) -> str:
 
 
 def _format_grid_value(value: object) -> str:
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError):
-        return str(value)
-    return f"{numeric:g}"
+    return _shared_format_grid_value(value)
 
 
 def _safe_label(label: str) -> str:
