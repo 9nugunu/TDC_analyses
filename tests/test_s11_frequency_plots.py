@@ -6,7 +6,10 @@ import pytest
 
 import deflector_tuning.visualization.s11_frequency_plots as s11_frequency_plots
 from deflector_tuning.visualization.plot_config import PlotConfig
-from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
+from deflector_tuning.visualization.s11_frequency_plots import (
+    build_s11_plot_plans,
+    plot_s11_with_markers,
+)
 
 
 def _sparameter_table() -> pd.DataFrame:
@@ -81,6 +84,24 @@ def test_thin_trace_for_plot_limits_dense_frequency_traces() -> None:
     assert len(result) == s11_frequency_plots.MAX_TRACE_POINTS_PER_SOURCE
     assert result.iloc[0]["freq_ghz"] == 0
     assert result.iloc[-1]["freq_ghz"] == 100_010
+
+
+def test_build_s11_plot_plans_describes_outputs_before_rendering(tmp_path: Path) -> None:
+    plans = build_s11_plot_plans(
+        _sparameter_table(),
+        _marker_points(),
+        tmp_path,
+        split_by_position=True,
+    )
+
+    assert [plan.key for plan in plans] == ["overview", "cell_0p5", "cell_1p5"]
+    assert [plan.kind for plan in plans] == ["overview", "position", "position"]
+    assert [plan.output_path.name for plan in plans] == [
+        "with_markers.png",
+        "cell_0p5.png",
+        "cell_1p5.png",
+    ]
+    assert all(not plan.output_path.exists() for plan in plans)
 
 
 def _port_side_sparameter_table() -> pd.DataFrame:

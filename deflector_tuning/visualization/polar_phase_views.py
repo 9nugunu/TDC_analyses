@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from dataclasses import dataclass
 from math import ceil
 from pathlib import Path
+from typing import TypeAlias
 
 import matplotlib
 
@@ -48,6 +50,156 @@ KYHL_PHASE_RADIAL_START_ALPHA = 0.50
 KYHL_PHASE_RADIAL_END_ALPHA = 0.50
 
 
+@dataclass(frozen=True)
+class PolarPositionPlan:
+    """Describe one per-position polar output before rendering."""
+
+    key: str
+    output_path: Path
+    position_label: str
+    position_table: pd.DataFrame
+    title: str
+
+    @property
+    def kind(self) -> str:
+        return "position"
+
+
+@dataclass(frozen=True)
+class PolarOverviewPlan:
+    """Describe the multi-position polar overview before rendering."""
+
+    key: str
+    output_path: Path
+    groups: list[tuple[str, pd.DataFrame]]
+    grouping_mode: str
+    title_prefix: str
+
+    @property
+    def kind(self) -> str:
+        return "overview"
+
+
+@dataclass(frozen=True)
+class PolarFamilyOverlayPlan:
+    """Describe a family overlay or marker-specific family overlay."""
+
+    key: str
+    output_path: Path
+    family: str
+    family_table: pd.DataFrame
+    title: str
+    markers: tuple[str, ...] = ()
+
+    @property
+    def kind(self) -> str:
+        return "family_overlay"
+
+
+@dataclass(frozen=True)
+class PolarKyhlPairPlan:
+    """Describe one Kyhl phase-pair overlay before rendering."""
+
+    key: str
+    output_path: Path
+    pair_table: pd.DataFrame
+    pair_label: str
+    title: str
+
+    @property
+    def kind(self) -> str:
+        return "kyhl_pair_overlay"
+
+
+PolarPlotPlan: TypeAlias = (
+    PolarPositionPlan
+    | PolarOverviewPlan
+    | PolarFamilyOverlayPlan
+    | PolarKyhlPairPlan
+)
+
+
+def build_polar_plot_plans(
+    marker_points: pd.DataFrame,
+    output_dir: str | Path,
+    *,
+    title_prefix: str = "Polar phase",
+) -> list[PolarPlotPlan]:
+    """Build polar output plans without creating figures or files."""
+
+    folder = Path(output_dir)
+    grouping_mode = _grouping_mode(marker_points)
+    groups = list(_iter_position_groups(marker_points))
+    plans: list[PolarPlotPlan] = []
+    if len(groups) > 1:
+        for position_label, position_table in groups:
+            plans.append(
+                PolarPositionPlan(
+                    key=position_label,
+                    output_path=folder / f"{_position_output_stem(position_table, position_label, grouping_mode=grouping_mode)}.png",
+                    position_label=position_label,
+                    position_table=position_table,
+                    title=_position_plot_title(
+                        position_label,
+                        position_table,
+                        grouping_mode=grouping_mode,
+                        title_prefix=title_prefix,
+                    ),
+                )
+            )
+
+    if grouping_mode not in {"grid_point", "sim_sweep"}:
+        plans.append(
+            PolarOverviewPlan(
+                key="overview",
+                output_path=folder / "all_positions.png",
+                groups=groups,
+                grouping_mode=grouping_mode,
+                title_prefix=title_prefix,
+            )
+        )
+
+    if grouping_mode == "tune_position":
+        for family, family_table in _iter_family_overlay_groups(marker_points):
+            plans.append(
+                PolarFamilyOverlayPlan(
+                    key=f"{family}_overlay",
+                    output_path=folder / f"{family}_overlay.png",
+                    family=family,
+                    family_table=family_table,
+                    title=f"{family.title()} overlay: {title_prefix}",
+                )
+            )
+            plans.append(
+                PolarFamilyOverlayPlan(
+                    key=f"{family}_f_2pi3_overlay",
+                    output_path=folder / f"{family}_f_2pi3_overlay.png",
+                    family=family,
+                    family_table=family_table,
+                    title=f"{family.title()} {MARKER_LABELS['f_2pi3']} overlay: {title_prefix}",
+                    markers=("f_2pi3",),
+                )
+            )
+
+        kyhl_pair_table = _kyhl_phase_pair_overlay_table(marker_points)
+        if not kyhl_pair_table.empty:
+            for _, pair_table in kyhl_pair_table.groupby("_pair_order", sort=True):
+                pair_label = str(pair_table["_pair_label"].iloc[0])
+                family = str(pair_table["_pair_family"].iloc[0])
+                start = float(pair_table["_pair_start"].iloc[0])
+                end = float(pair_table["_pair_end"].iloc[0])
+                plans.append(
+                    PolarKyhlPairPlan(
+                        key=f"kyhl_phase_{family}_overlay",
+                        output_path=folder / f"kyhl_phase_{family}_overlay.png",
+                        pair_table=pair_table,
+                        pair_label=pair_label,
+                        title=_kyhl_phase_pair_overlay_title(family, start, end),
+                    )
+                )
+    return plans
+
+
 def plot_marker_phase_polar_views(
     marker_points: pd.DataFrame,
     output_dir: str | Path,
@@ -68,79 +220,66 @@ def plot_marker_phase_polar_views(
     require_finite_plot_columns(marker_points, columns=("s_phase_deg",), context="polar marker_points")
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
+    plans = build_polar_plot_plans(
+        marker_points,
+        folder,
+        title_prefix=title_prefix,
+    )
     paths: OrderedDict[str, Path] = OrderedDict()
-    grouping_mode = _grouping_mode(marker_points)
-    groups = list(_iter_position_groups(marker_points))
-    if len(groups) > 1:
-        for position_label, position_table in progress_iter(
-            groups,
-            desc="Rendering polar position figures",
-            total=len(groups),
-        ):
+    for plan in progress_iter(
+        plans,
+        desc="Rendering polar figures",
+        total=len(plans),
+    ):
+        if isinstance(plan, PolarPositionPlan):
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_position(
                 ax,
-                position_table,
-                _position_plot_title(position_label, position_table, grouping_mode=grouping_mode, title_prefix=title_prefix),
+                plan.position_table,
+                plan.title,
                 config=config,
                 guide_angles_deg=config.ideal_phase_guide_angles_deg,
             )
-            output_stem = _position_output_stem(position_table, position_label, grouping_mode=grouping_mode)
-            output_path = folder / f"{output_stem}.png"
-            save_figure(fig, output_path, config)
+            save_figure(fig, plan.output_path, config)
             plt.close(fig)
-            paths[position_label] = output_path
-
-    if grouping_mode not in {"grid_point", "sim_sweep"}:
-        overview_path = folder / "all_positions.png"
-        _save_overview(groups, overview_path, grouping_mode=grouping_mode, title_prefix=title_prefix, config=config)
-        paths["overview"] = overview_path
-    if grouping_mode == "tune_position":
-        family_groups = list(_iter_family_overlay_groups(marker_points))
-        for family, family_table in progress_iter(
-            family_groups,
-            desc="Rendering polar overlays",
-            total=len(family_groups),
-        ):
-            fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
-            _draw_family_overlay(ax, family_table, f"{family.title()} overlay: {title_prefix}", config=config)
-            output_path = folder / f"{family}_overlay.png"
-            save_figure(fig, output_path, config)
-            plt.close(fig)
-            paths[f"{family}_overlay"] = output_path
+            paths[plan.key] = plan.output_path
+        elif isinstance(plan, PolarOverviewPlan):
+            _save_overview(
+                plan.groups,
+                plan.output_path,
+                grouping_mode=plan.grouping_mode,
+                title_prefix=plan.title_prefix,
+                config=config,
+            )
+            paths[plan.key] = plan.output_path
+        elif isinstance(plan, PolarFamilyOverlayPlan):
             fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
             _draw_family_overlay(
                 ax,
-                family_table,
-                f"{family.title()} {MARKER_LABELS['f_2pi3']} overlay: {title_prefix}",
+                plan.family_table,
+                plan.title,
                 config=config,
-                markers=("f_2pi3",),
+                markers=plan.markers,
+                guide_angles_deg=(
+                    config.ideal_phase_guide_angles_deg if plan.markers else ()
+                ),
+            )
+            save_figure(fig, plan.output_path, config)
+            plt.close(fig)
+            paths[plan.key] = plan.output_path
+        else:
+            fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
+            _draw_kyhl_phase_pair_overlay(
+                ax,
+                plan.pair_table,
+                plan.title,
+                plan.pair_label,
+                config=config,
                 guide_angles_deg=config.ideal_phase_guide_angles_deg,
             )
-            output_path = folder / f"{family}_f_2pi3_overlay.png"
-            save_figure(fig, output_path, config)
+            save_figure(fig, plan.output_path, config)
             plt.close(fig)
-            paths[f"{family}_f_2pi3_overlay"] = output_path
-        kyhl_pair_table = _kyhl_phase_pair_overlay_table(marker_points)
-        if not kyhl_pair_table.empty:
-            for _, pair_table in kyhl_pair_table.groupby("_pair_order", sort=True):
-                pair_label = str(pair_table["_pair_label"].iloc[0])
-                family = str(pair_table["_pair_family"].iloc[0])
-                start = float(pair_table["_pair_start"].iloc[0])
-                end = float(pair_table["_pair_end"].iloc[0])
-                fig, ax = plt.subplots(figsize=config.figure_size, subplot_kw={"projection": "polar"})
-                _draw_kyhl_phase_pair_overlay(
-                    ax,
-                    pair_table,
-                    _kyhl_phase_pair_overlay_title(family, start, end),
-                    pair_label,
-                    config=config,
-                    guide_angles_deg=config.ideal_phase_guide_angles_deg,
-                )
-                output_path = folder / f"kyhl_phase_{family}_overlay.png"
-                save_figure(fig, output_path, config)
-                plt.close(fig)
-                paths[f"kyhl_phase_{family}_overlay"] = output_path
+            paths[plan.key] = plan.output_path
     return paths
 
 
@@ -208,13 +347,6 @@ def _grouping_mode(marker_points: pd.DataFrame) -> str:
     if _has_multiple_source_files(marker_points):
         return "source_file"
     return "all"
-
-
-def _is_grid_scan(marker_points: pd.DataFrame) -> bool:
-    if "scan_type" not in marker_points:
-        return False
-    scan_types = set(marker_points["scan_type"].dropna().astype(str).str.lower())
-    return "grid_2d" in scan_types
 
 
 def _has_multiple_tune_positions(marker_points: pd.DataFrame) -> bool:

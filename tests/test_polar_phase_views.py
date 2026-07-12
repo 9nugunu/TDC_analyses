@@ -6,7 +6,10 @@ import pandas as pd
 import pytest
 
 import deflector_tuning.visualization.polar_phase_views as polar_phase_views
-from deflector_tuning.visualization.polar_phase_views import plot_marker_phase_polar_views
+from deflector_tuning.visualization.polar_phase_views import (
+    build_polar_plot_plans,
+    plot_marker_phase_polar_views,
+)
 from deflector_tuning.visualization.plot_config import PlotConfig
 
 
@@ -285,6 +288,30 @@ def test_plot_marker_phase_polar_views_writes_per_position_and_overview_pngs(tmp
     assert paths["iris_overlay"].name == "iris_overlay.png"
     assert paths["iris_f_2pi3_overlay"].name == "iris_f_2pi3_overlay.png"
     assert plt.rcParams["font.sans-serif"][:4] == ["Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans"]
+
+
+def test_build_polar_plot_plans_describes_outputs_before_rendering(tmp_path: Path) -> None:
+    plans = build_polar_plot_plans(_marker_points(), tmp_path)
+
+    assert [plan.key for plan in plans] == [
+        "0.5",
+        "1.0",
+        "overview",
+        "cell_overlay",
+        "cell_f_2pi3_overlay",
+        "iris_overlay",
+        "iris_f_2pi3_overlay",
+    ]
+    assert [plan.kind for plan in plans] == [
+        "position",
+        "position",
+        "overview",
+        "family_overlay",
+        "family_overlay",
+        "family_overlay",
+        "family_overlay",
+    ]
+    assert all(not plan.output_path.exists() for plan in plans)
 
 
 def test_plot_marker_phase_polar_views_writes_separate_kyhl_phase_pair_arc_overlays(

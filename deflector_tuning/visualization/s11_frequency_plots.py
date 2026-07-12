@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
 import re
 
@@ -64,6 +65,98 @@ DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
 )
 
 
+@dataclass(frozen=True)
+class S11PlotPlan:
+    """Describe one S11 output before Matplotlib rendering begins."""
+
+    key: str
+    kind: str
+    output_path: Path
+    title: str
+    s_table: pd.DataFrame
+    marker_points: pd.DataFrame
+
+
+def build_s11_plot_plans(
+    s_table: pd.DataFrame,
+    marker_points: pd.DataFrame,
+    output_dir: str | Path,
+    *,
+    split_by_position: bool = True,
+) -> list[S11PlotPlan]:
+    """Build S11 output plans without creating figures or files.
+
+    Inputs are expected to be S11-only, duplicate-collapsed tables prepared by
+    :func:`plot_s11_with_markers`. The returned plans contain the exact output
+    keys, filenames, titles, and table slices used by the renderer.
+    """
+
+    folder = Path(output_dir)
+    plans: list[S11PlotPlan] = []
+    if _has_grid_point_groups(s_table, marker_points):
+        for family, depth_label, sim_r_c, sim_w_c, group in _iter_grid_point_groups(s_table):
+            marker_group = _select_grid_point_rows(
+                marker_points,
+                family=family,
+                depth_label=depth_label,
+                sim_r_c=sim_r_c,
+                sim_w_c=sim_w_c,
+            )
+            key = _grid_point_output_key(family, depth_label, sim_r_c, sim_w_c)
+            plans.append(
+                S11PlotPlan(
+                    key=key,
+                    kind="grid",
+                    output_path=folder / f"{_grid_point_file_stem(family, depth_label, sim_r_c, sim_w_c)}.png",
+                    title=f"{_grid_point_title_prefix(family, depth_label, sim_r_c, sim_w_c)}: S11 magnitude",
+                    s_table=group,
+                    marker_points=marker_group,
+                )
+            )
+        return plans
+
+    if _has_sim_sweep_groups(s_table, marker_points):
+        for key, group in _iter_sim_sweep_groups(s_table):
+            plans.append(
+                S11PlotPlan(
+                    key=key,
+                    kind="sim_sweep",
+                    output_path=folder / f"{key}.png",
+                    title=f"{key.replace('_', ' ')}: S11 magnitude",
+                    s_table=group,
+                    marker_points=_select_sim_sweep_rows(marker_points, group),
+                )
+            )
+        return plans
+
+    if not _skip_overview_for_port_sides(s_table):
+        plans.append(
+            S11PlotPlan(
+                key="overview",
+                kind="overview",
+                output_path=folder / "with_markers.png",
+                title="S11 magnitude with marker points",
+                s_table=s_table,
+                marker_points=marker_points,
+            )
+        )
+    if split_by_position and _has_named_tune_positions(s_table, marker_points):
+        positioned_s_table = s_table[s_table["tune_position"].notna()]
+        for tune_position, group in positioned_s_table.groupby("tune_position", sort=True):
+            key = _tune_position_output_key(tune_position, group=group)
+            plans.append(
+                S11PlotPlan(
+                    key=key,
+                    kind="position",
+                    output_path=folder / f"{key}.png",
+                    title=f"{_tune_position_title_label(tune_position, group=group)}: S11 magnitude",
+                    s_table=group,
+                    marker_points=marker_points[marker_points["tune_position"] == tune_position],
+                )
+            )
+    return plans
+
+
 def plot_s11_with_markers(
     sparameter_table: pd.DataFrame,
     marker_points: pd.DataFrame,
@@ -98,73 +191,25 @@ def plot_s11_with_markers(
         raise ValueError("sparameter_table has no S11 rows")
     require_finite_plot_columns(s_table, columns=("freq_ghz", "s_db"), context="S11 sparameter_table")
     require_finite_plot_columns(m_table, columns=("freq_ghz", "s_db", "s_phase_deg"), context="S11 marker_points")
+    plans = build_s11_plot_plans(
+        s_table,
+        m_table,
+        folder,
+        split_by_position=split_by_position,
+    )
     paths: OrderedDict[str, Path] = OrderedDict()
-    if _has_grid_point_groups(s_table, m_table):
-        groups = list(_iter_grid_point_groups(s_table))
-        for family, depth_label, sim_r_c, sim_w_c, group in progress_iter(
-            groups,
-            desc="Rendering S11 grid figures",
-            total=len(groups),
-        ):
-            marker_group = _select_grid_point_rows(
-                m_table,
-                family=family,
-                depth_label=depth_label,
-                sim_r_c=sim_r_c,
-                sim_w_c=sim_w_c,
-            )
-            key = _grid_point_output_key(family, depth_label, sim_r_c, sim_w_c)
-            paths[key] = _plot_one(
-                group,
-                marker_group,
-                folder / f"{_grid_point_file_stem(family, depth_label, sim_r_c, sim_w_c)}.png",
-                title=f"{_grid_point_title_prefix(family, depth_label, sim_r_c, sim_w_c)}: S11 magnitude",
-                config=config,
-            )
-        return paths
-
-    if _has_sim_sweep_groups(s_table, m_table):
-        groups = list(_iter_sim_sweep_groups(s_table))
-        for key, group in progress_iter(
-            groups,
-            desc="Rendering S11 sweep figures",
-            total=len(groups),
-        ):
-            marker_group = _select_sim_sweep_rows(m_table, group)
-            paths[key] = _plot_one(
-                group,
-                marker_group,
-                folder / f"{key}.png",
-                title=f"{key.replace('_', ' ')}: S11 magnitude",
-                config=config,
-            )
-        return paths
-
-    if not _skip_overview_for_port_sides(s_table):
-        paths["overview"] = _plot_one(
-            s_table,
-            m_table,
-            folder / "with_markers.png",
-            title="S11 magnitude with marker points",
+    for plan in progress_iter(
+        plans,
+        desc="Rendering S11 figures",
+        total=len(plans),
+    ):
+        paths[plan.key] = _plot_one(
+            plan.s_table,
+            plan.marker_points,
+            plan.output_path,
+            title=plan.title,
             config=config,
         )
-    if split_by_position and _has_named_tune_positions(s_table, m_table):
-        positioned_s_table = s_table[s_table["tune_position"].notna()]
-        position_groups = list(positioned_s_table.groupby("tune_position", sort=True))
-        for tune_position, group in progress_iter(
-            position_groups,
-            desc="Rendering S11 position figures",
-            total=len(position_groups),
-        ):
-            marker_group = m_table[m_table["tune_position"] == tune_position]
-            key = _tune_position_output_key(tune_position, group=group)
-            paths[key] = _plot_one(
-                group,
-                marker_group,
-                folder / f"{key}.png",
-                title=f"{_tune_position_title_label(tune_position, group=group)}: S11 magnitude",
-                config=config,
-            )
     return paths
 
 
