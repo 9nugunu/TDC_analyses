@@ -35,6 +35,7 @@ def test_root_run_folder_analysis_cli_shows_help() -> None:
     assert "--output-dir" in result.stdout
     assert "--marker-role" in result.stdout
     assert "--file-workers" in result.stdout
+    assert "--plot-workers" in result.stdout
     assert "data/sim/sim_dispersion_260505_single_cell_step1" in result.stdout
 
 
@@ -77,6 +78,29 @@ def test_parse_args_infers_defaults_from_positional_input_folder() -> None:
     assert args.marker_role == "exp"
     assert args.data_root == Path("data")
     assert args.file_workers == 1
+    assert args.plot_workers == 1
+
+
+def test_parse_args_accepts_plot_worker_count_and_normalizes_nonpositive_values() -> None:
+    module = _load_runner_module()
+
+    args = module.parse_args(
+        [
+            "prepro/prepro_sweep_260415_sparams_fullbrazing",
+            "--plot-workers",
+            "3",
+        ]
+    )
+    assert args.plot_workers == 3
+
+    normalized = module.parse_args(
+        [
+            "prepro/prepro_sweep_260415_sparams_fullbrazing",
+            "--plot-workers",
+            "0",
+        ]
+    )
+    assert normalized.plot_workers == 1
 
 
 def test_parse_args_resolves_dataset_id_by_searching_data_layers(tmp_path: Path) -> None:

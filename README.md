@@ -31,5 +31,23 @@ new derived product exists, for example:
 - merged metadata tables;
 - any output that should not be confused with the original raw instrument file.
 
-Step 0 only implements source-layer detection. No S-parameter parser or plotting
-is included yet.
+## Run analysis
+
+Run one dataset and render independent S11 figures with separate processes:
+
+```powershell
+python run_folder_analysis.py sim/<dataset> --plot-workers 4
+```
+
+`--plot-workers` applies only to independent S11 figure plans within that one
+dataset. For multiple datasets, use dataset-level multiprocessing instead:
+
+```powershell
+python run_all_folder_analyses.py --workers 4
+```
+
+The batch runner disables nested S11 plot workers so that the two process pools
+do not compete for the same CPU and memory resources.
+
+The repository includes source-layer detection, Touchstone loading, analysis,
+and plotting workflows.

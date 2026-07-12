@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 
@@ -291,6 +292,31 @@ def test_execute_batch_tasks_logs_progress(monkeypatch, caplog) -> None:
     messages = [record.getMessage() for record in caplog.records]
     assert any("[1/2] completed: prepro" in message for message in messages)
     assert any("[2/2] failed: sim" in message for message in messages)
+
+
+def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
+    module = _load_runner_module()
+    task = module.BatchTask(
+        sparameter_path=Path("sim") / "sim_sweep_260519_scan_dataset",
+        dispersion_path=None,
+        output_dir=Path("fig") / "analyses" / "sim_sweep_260519_scan_dataset",
+        marker_role="sim",
+        data_root=Path("data"),
+    )
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(module, "prepare_batch_dispersion_input", lambda *args, **kwargs: None)
+
+    def fake_run_folder_analysis(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(output_dir=task.output_dir)
+
+    monkeypatch.setattr(module, "run_folder_analysis", fake_run_folder_analysis)
+
+    result = module.run_batch_task(task)
+
+    assert result == (task.sparameter_path, task.output_dir)
+    assert captured["plot_workers"] == 1
 
 
 def test_main_passes_worker_count_to_batch_executor(monkeypatch, tmp_path: Path) -> None:

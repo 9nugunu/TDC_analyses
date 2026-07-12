@@ -114,6 +114,7 @@ def run_folder_analysis(
     marker_role: str,
     data_root: str | Path = DEFAULT_DATA_ROOT,
     file_workers: int = 1,
+    plot_workers: int = 1,
     loader: DataLoader | None = None,
     project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
 ) -> RunResult:
@@ -254,6 +255,7 @@ def run_folder_analysis(
                 sparameter_table,
                 tables["marker_points"],
                 figure_root / "s11",
+                render_workers=plot_workers,
                 config=plot_config,
             )
         )

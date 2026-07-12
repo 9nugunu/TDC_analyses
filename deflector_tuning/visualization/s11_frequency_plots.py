@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -26,6 +27,8 @@ from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_L
 from deflector_tuning.progress import progress_iter
 from deflector_tuning.visualization.simulation_grouping import (
     format_grid_value as _shared_format_grid_value,
+    format_simulation_parameter_token as _format_simulation_parameter_token,
+    format_simulation_parameter_value as _format_simulation_parameter_value,
     grid_point_depth_group_columns as _shared_grid_point_depth_group_columns,
     varying_sim_sweep_columns as _shared_varying_sim_sweep_columns,
 )
@@ -164,12 +167,15 @@ def plot_s11_with_markers(
     output_dir: str | Path,
     *,
     split_by_position: bool = True,
+    render_workers: int = 1,
     config: PlotConfig | None = None,
 ) -> OrderedDict[str, Path]:
     """Write S11 frequency plots with marker point overlays.
 
     The style follows the existing KYHL S11 frequency views: a blue S11 trace,
     colored marker vertical guides/points, and compact marker annotations.
+    Independent output plans can be rendered in separate processes with
+    ``render_workers``; one worker keeps the serial behavior.
     """
 
     if sparameter_table.empty:
@@ -198,20 +204,69 @@ def plot_s11_with_markers(
         folder,
         split_by_position=split_by_position,
     )
-    paths: OrderedDict[str, Path] = OrderedDict()
-    for plan in progress_iter(
-        plans,
-        desc="Rendering S11 figures",
-        total=len(plans),
-    ):
-        paths[plan.key] = _plot_one(
-            plan.s_table,
-            plan.marker_points,
-            plan.output_path,
-            title=plan.title,
-            config=config,
+    _validate_unique_plan_output_paths(plans)
+    return _render_s11_plans(plans, config=config, render_workers=render_workers)
+
+
+def _render_s11_plans(
+    plans: list[S11PlotPlan],
+    *,
+    config: PlotConfig,
+    render_workers: int,
+) -> OrderedDict[str, Path]:
+    """Render independent S11 plans serially or in isolated processes."""
+
+    if not plans:
+        return OrderedDict()
+    effective_workers = min(max(int(render_workers), 1), len(plans))
+    if effective_workers == 1:
+        return OrderedDict(
+            (
+                plan.key,
+                _plot_one(
+                    plan.s_table,
+                    plan.marker_points,
+                    plan.output_path,
+                    title=plan.title,
+                    config=config,
+                ),
+            )
+            for plan in progress_iter(plans, desc="Rendering S11 figures", total=len(plans))
         )
-    return paths
+
+    rendered: dict[int, tuple[str, Path]] = {}
+    with ProcessPoolExecutor(max_workers=effective_workers) as executor:
+        future_to_index = {
+            executor.submit(_render_s11_plan, plan, config): index
+            for index, plan in enumerate(plans)
+        }
+        for future in progress_iter(
+            as_completed(future_to_index),
+            desc="Rendering S11 figures",
+            total=len(future_to_index),
+        ):
+            rendered[future_to_index[future]] = future.result()
+
+    return OrderedDict(rendered[index] for index in range(len(plans)))
+
+
+def _render_s11_plan(plan: S11PlotPlan, config: PlotConfig) -> tuple[str, Path]:
+    """Render one S11 plan in a child process with its own Matplotlib state."""
+
+    apply_plot_style(config)
+    return plan.key, _plot_one(
+        plan.s_table,
+        plan.marker_points,
+        plan.output_path,
+        title=plan.title,
+        config=config,
+    )
+
+
+def _validate_unique_plan_output_paths(plans: list[S11PlotPlan]) -> None:
+    output_paths = [plan.output_path for plan in plans]
+    if len(output_paths) != len(set(output_paths)):
+        raise ValueError("duplicate S11 plot output path in plot plans")
 
 
 def _plot_one(
@@ -631,7 +686,7 @@ def _format_sim_sweep_key(group_columns: list[str], values: tuple[object, ...], 
             if label is not None:
                 parts.append(label)
         else:
-            parts.append(f"{_sim_sweep_column_label(column)}_{_format_grid_value(value).replace('.', 'p').replace('-', 'm')}")
+            parts.append(f"{_sim_sweep_column_label(column)}_{_format_simulation_parameter_token(column, value)}")
     return "_".join(parts)
 
 
@@ -655,7 +710,7 @@ def _format_simulation_parameter(column: str, value: object) -> str:
     label = _sim_sweep_column_label(column)
     unit = SIMULATION_PARAMETER_UNITS.get(column)
     suffix = f" {unit}" if unit is not None else ""
-    return f"{label} = {_format_grid_value(value)}{suffix}"
+    return f"{label} = {_format_simulation_parameter_value(column, value)}{suffix}"
 
 
 def _sim_sweep_family(group: pd.DataFrame) -> str:
@@ -687,7 +742,7 @@ def _camel_to_snake(label: str) -> str:
 
 
 def _format_grid_point_key(sim_r_c: object, sim_w_c: object) -> str:
-    return f"r_c_{_format_grid_value(sim_r_c).replace('.', 'p')}_w_c_{_format_grid_value(sim_w_c).replace('.', 'p')}"
+    return f"r_c_{_format_simulation_parameter_token('sim_r_c', sim_r_c)}_w_c_{_format_simulation_parameter_token('sim_w_c', sim_w_c)}"
 
 
 def _format_grid_value(value: object) -> str:

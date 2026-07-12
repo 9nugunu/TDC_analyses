@@ -36,8 +36,8 @@ def test_build_s11_plot_plans_splits_one_dimensional_navigator_points(tmp_path: 
 
     plans = build_s11_plot_plans(s_table, marker_points, tmp_path)
 
-    assert [plan.key for plan in plans] == ["r_c_56p09", "r_c_56p1"]
-    assert [plan.output_path.name for plan in plans] == ["r_c_56p09.png", "r_c_56p1.png"]
+    assert [plan.key for plan in plans] == ["r_c_56p09", "r_c_56p10"]
+    assert [plan.output_path.name for plan in plans] == ["r_c_56p09.png", "r_c_56p10.png"]
     assert [plan.title for plan in plans] == [
         "S11 magnitude | r_c = 56.09 mm",
         "S11 magnitude | r_c = 56.1 mm",

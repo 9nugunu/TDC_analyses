@@ -31,6 +31,7 @@ from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_L
 from deflector_tuning.progress import progress_iter
 from deflector_tuning.visualization.simulation_grouping import (
     format_grid_value as _shared_format_grid_value,
+    format_simulation_parameter_value as _shared_format_simulation_parameter_value,
     grid_point_depth_group_columns as _shared_grid_point_depth_group_columns,
     varying_sim_sweep_columns as _shared_varying_sim_sweep_columns,
 )
@@ -971,9 +972,9 @@ def _format_group_label(group_key: object, group_columns: list[str]) -> str:
         if column == "tune_position":
             parts.append(_format_position(value))
         elif column == "sim_r_c":
-            parts.append(f"r_c={_format_grid_value(value)}")
+            parts.append(f"r_c={_shared_format_simulation_parameter_value('sim_r_c', value)}")
         elif column == "sim_w_c":
-            parts.append(f"w_c={_format_grid_value(value)}")
+            parts.append(f"w_c={_shared_format_simulation_parameter_value('sim_w_c', value)}")
         elif column == "source_file":
             parts.append(Path(str(value)).stem)
         elif column == "s_name":
@@ -1038,7 +1039,10 @@ def _snap_tune_position(value: float) -> float:
 
 
 def _format_grid_label(sim_r_c: object, sim_w_c: object, *, depth_label: str | None = None) -> str:
-    grid_label = f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+    grid_label = (
+        f"r_c={_shared_format_simulation_parameter_value('sim_r_c', sim_r_c)}, "
+        f"w_c={_shared_format_simulation_parameter_value('sim_w_c', sim_w_c)}"
+    )
     if depth_label is None:
         return grid_label
     return f"depth={depth_label.removeprefix('depth_')} {grid_label}"
@@ -1115,6 +1119,11 @@ def _format_sim_sweep_label(sweep_columns: list[str], values: tuple[object, ...]
     for column, value in zip(sweep_columns, values, strict=True):
         if column == "sim_NumDepth":
             parts.append(f"depth={_format_num_depth(value)}")
+        elif column in {"sim_r_c", "sim_w_c"}:
+            parts.append(
+                f"{_sim_sweep_column_label(column)}="
+                f"{_shared_format_simulation_parameter_value(column, value)}"
+            )
         else:
             parts.append(f"{_sim_sweep_column_label(column)}={_format_grid_value(value)}")
     return "_".join(parts)

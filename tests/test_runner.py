@@ -277,6 +277,7 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
         ]
     )
     output_dir = tmp_path / "out"
+    s11_plot_kwargs: dict[str, object] = {}
 
     monkeypatch.setattr(runner, "build_marker_analysis", lambda **_: tables)
     monkeypatch.setattr(runner.DataLoader, "load", lambda self, path: sparameter_table)
@@ -288,6 +289,8 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
 
     def fake_plot(name):
         def _plot(*args, **kwargs):
+            if name == "s11":
+                s11_plot_kwargs.update(kwargs)
             folder = Path(args[2] if name == "s11" else args[1])
             folder.mkdir(parents=True, exist_ok=True)
             path = folder / f"{name}.png"
@@ -312,6 +315,7 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
         dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
         output_dir=output_dir,
         marker_role="sim",
+        plot_workers=3,
     )
 
     assert result.output_dir == output_dir
@@ -325,6 +329,7 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     assert result.figures["polar"]["overview"].exists()
     assert result.figures["grid_scan_spacing"]["overview"].exists()
     assert result.figures["grid_scan_sparameter_phase_r_c_line_scan"]["overview"].exists()
+    assert s11_plot_kwargs["render_workers"] == 3
     manifest = result.manifest_path.read_text(encoding="utf-8")
     assert '"grid_scan_spacing"' in manifest
     assert '"sparameter_data"' not in manifest

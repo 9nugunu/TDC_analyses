@@ -109,10 +109,10 @@ def test_plot_phase_advance_writes_one_file_per_grid_point_and_position_family(t
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
 
     assert list(paths.keys()) == [
-        "cell_r_c_54p5_w_c_18p5",
-        "cell_r_c_54p75_w_c_18p75",
-        "iris_r_c_54p5_w_c_18p5",
-        "iris_r_c_54p75_w_c_18p75",
+        "cell_r_c_54p50_w_c_18p5000",
+        "cell_r_c_54p75_w_c_18p7500",
+        "iris_r_c_54p50_w_c_18p5000",
+        "iris_r_c_54p75_w_c_18p7500",
     ]
     for path in paths.values():
         assert path.exists()

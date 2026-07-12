@@ -71,6 +71,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="Number of per-dataset Touchstone file loading workers. Default: 1.",
     )
+    parser.add_argument(
+        "--plot-workers",
+        type=int,
+        default=1,
+        help="Number of independent S11 figure rendering workers. Default: 1.",
+    )
     return parser
 
 
@@ -86,6 +92,7 @@ def collect_interactive_args() -> argparse.Namespace:
         dispersion_path=None,
         data_root=DEFAULT_DATA_ROOT,
         file_workers=1,
+        plot_workers=1,
     )
     return apply_inferred_defaults(args)
 
@@ -134,6 +141,7 @@ def apply_inferred_defaults(args: argparse.Namespace) -> argparse.Namespace:
     args.dispersion_path = Path(args.dispersion_path) if args.dispersion_path is not None else None
     args.data_root = data_root
     args.file_workers = max(int(getattr(args, "file_workers", 1)), 1)
+    args.plot_workers = max(int(getattr(args, "plot_workers", 1)), 1)
     args.project_config = Path(getattr(args, "project_config", DEFAULT_PROJECT_CONFIG_PATH))
     args.project_defaults = load_project_defaults(args.project_config)
     return args
@@ -239,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
         marker_role=args.marker_role,
         data_root=args.data_root,
         file_workers=args.file_workers,
+        plot_workers=args.plot_workers,
         project_defaults=args.project_defaults,
     )
 

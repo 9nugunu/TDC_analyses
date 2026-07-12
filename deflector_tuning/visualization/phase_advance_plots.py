@@ -20,6 +20,10 @@ from deflector_tuning.visualization.plot_config import (
 )
 from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
+from deflector_tuning.visualization.simulation_grouping import (
+    format_simulation_parameter_token as _format_simulation_parameter_token,
+    format_simulation_parameter_value as _format_simulation_parameter_value,
+)
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
@@ -279,7 +283,9 @@ def _iter_plot_facets(table: pd.DataFrame):
         facet_stem = "_".join(_facet_suffix_part(column, value) for column, value in parts)
         title = ""
         if parts:
-            title = " (" + ", ".join(f"{_facet_label(column)}={value}" for column, value in parts) + ")"
+            title = " (" + ", ".join(
+                f"{_facet_label(column)}={_facet_display_value(column, value)}" for column, value in parts
+            ) + ")"
         yield facet_stem, title, group.copy()
 
 
@@ -304,10 +310,20 @@ def _facet_label(column: str) -> str:
 
 def _facet_suffix_part(column: str, value: object) -> str:
     prefix = {"sim_r_c": "r_c", "sim_w_c": "w_c"}.get(column)
-    label = _safe_label(value)
+    label = (
+        _format_simulation_parameter_token(column, value)
+        if prefix is not None
+        else _safe_label(value)
+    )
     if prefix is None:
         return label
     return f"{prefix}_{label}"
+
+
+def _facet_display_value(column: str, value: object) -> object:
+    if column in {"sim_r_c", "sim_w_c"}:
+        return _format_simulation_parameter_value(column, value)
+    return value
 
 
 def _safe_label(value: object) -> str:

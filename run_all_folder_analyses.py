@@ -292,6 +292,7 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         output_dir=task.output_dir,
         marker_role=task.marker_role,
         data_root=task.data_root,
+        plot_workers=1,
         project_defaults=task.project_defaults,
     )
     return task.sparameter_path, result.output_dir

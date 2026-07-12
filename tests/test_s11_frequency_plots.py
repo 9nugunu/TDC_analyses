@@ -7,6 +7,7 @@ import pytest
 import deflector_tuning.visualization.s11_frequency_plots as s11_frequency_plots
 from deflector_tuning.visualization.plot_config import PlotConfig
 from deflector_tuning.visualization.s11_frequency_plots import (
+    S11PlotPlan,
     build_s11_plot_plans,
     plot_s11_with_markers,
 )
@@ -118,12 +119,70 @@ def test_build_s11_plot_plans_splits_one_dimensional_navigator_points(tmp_path: 
 
     plans = build_s11_plot_plans(s_table, marker_points, tmp_path)
 
-    assert [plan.key for plan in plans] == ["r_c_56p09", "r_c_56p1"]
-    assert [plan.output_path.name for plan in plans] == ["r_c_56p09.png", "r_c_56p1.png"]
+    assert [plan.key for plan in plans] == ["r_c_56p09", "r_c_56p10"]
+    assert [plan.output_path.name for plan in plans] == ["r_c_56p09.png", "r_c_56p10.png"]
     assert [plan.title for plan in plans] == [
         "S11 magnitude | r_c = 56.09 mm",
-        "S11 magnitude | r_c = 56.1 mm",
+        "S11 magnitude | r_c = 56.10 mm",
     ]
+
+
+def test_plot_s11_with_markers_parallel_render_preserves_plan_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plans = [
+        S11PlotPlan(
+            key="first",
+            kind="position",
+            output_path=tmp_path / "first.png",
+            title="first",
+            s_table=_sparameter_table().iloc[:3],
+            marker_points=_marker_points().iloc[:1],
+        ),
+        S11PlotPlan(
+            key="second",
+            kind="position",
+            output_path=tmp_path / "second.png",
+            title="second",
+            s_table=_sparameter_table().iloc[3:],
+            marker_points=_marker_points().iloc[1:],
+        ),
+    ]
+    monkeypatch.setattr(
+        s11_frequency_plots,
+        "build_s11_plot_plans",
+        lambda *args, **kwargs: plans,
+    )
+
+    result = plot_s11_with_markers(
+        _sparameter_table(),
+        _marker_points(),
+        tmp_path,
+        render_workers=2,
+    )
+
+    assert list(result) == ["first", "second"]
+    assert list(result.values()) == [tmp_path / "first.png", tmp_path / "second.png"]
+
+
+def test_plot_s11_with_markers_rejects_duplicate_plan_output_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    duplicate_path = tmp_path / "duplicate.png"
+    plans = [
+        S11PlotPlan("first", "position", duplicate_path, "first", _sparameter_table().iloc[:3], _marker_points().iloc[:1]),
+        S11PlotPlan("second", "position", duplicate_path, "second", _sparameter_table().iloc[3:], _marker_points().iloc[1:]),
+    ]
+    monkeypatch.setattr(
+        s11_frequency_plots,
+        "build_s11_plot_plans",
+        lambda *args, **kwargs: plans,
+    )
+
+    with pytest.raises(ValueError, match="duplicate S11 plot output path"):
+        plot_s11_with_markers(_sparameter_table(), _marker_points(), tmp_path, render_workers=2)
 
 
 def test_build_s11_plot_plans_uses_navigator_values_in_two_dimensional_titles(tmp_path: Path) -> None:
@@ -468,9 +527,9 @@ def test_plot_s11_with_markers_accepts_sim_260526_grid_scan_without_tune_positio
 
     paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["grid_r_c_56p59_w_c_19p32"]
-    assert paths["grid_r_c_56p59_w_c_19p32"].name == "r_c_56p59_w_c_19p32.png"
-    assert paths["grid_r_c_56p59_w_c_19p32"].exists()
+    assert list(paths) == ["grid_r_c_56p59_w_c_19p3200"]
+    assert paths["grid_r_c_56p59_w_c_19p3200"].name == "r_c_56p59_w_c_19p3200.png"
+    assert paths["grid_r_c_56p59_w_c_19p3200"].exists()
 
 
 def test_plot_s11_with_markers_omits_unreadable_large_legends(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -628,9 +687,9 @@ def test_plot_s11_with_markers_names_sim_260526_grid_scan_by_cell_or_iris_when_t
 
     paths = plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["cell_r_c_56p59_w_c_19p32", "iris_r_c_56p59_w_c_19p32"]
-    assert paths["cell_r_c_56p59_w_c_19p32"].name == "cell_r_c_56p59_w_c_19p32.png"
-    assert paths["iris_r_c_56p59_w_c_19p32"].name == "iris_r_c_56p59_w_c_19p32.png"
+    assert list(paths) == ["cell_r_c_56p59_w_c_19p3200", "iris_r_c_56p59_w_c_19p3200"]
+    assert paths["cell_r_c_56p59_w_c_19p3200"].name == "cell_r_c_56p59_w_c_19p3200.png"
+    assert paths["iris_r_c_56p59_w_c_19p3200"].name == "iris_r_c_56p59_w_c_19p3200.png"
 
 
 def test_plot_s11_with_markers_keeps_same_tune_position_grid_points_separate(tmp_path: Path) -> None:

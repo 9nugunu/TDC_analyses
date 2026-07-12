@@ -23,6 +23,10 @@ Use an ASCII-safe filename with values encoded using `p` for decimal points
 and `m` for negative signs. Use a readable title with native parameter names
 and values.
 
+Geometry parameters use fixed precision so lexical order matches numeric
+order: `sim_r_c` has two decimal places and `sim_w_c` has four. Therefore
+`56.10` is written as `56p10`, while `56.01` is written as `56p01`.
+
 ```text
 s11/r_c_56p09.png
 S11 magnitude | r_c = 56.09 mm
