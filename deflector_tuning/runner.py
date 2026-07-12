@@ -23,6 +23,7 @@ from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_path
 from deflector_tuning.data_loading.source_layer import detect_data_layer
+from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS, ProjectDefaults
 from deflector_tuning.dispersion import (
     load_cst_dispersion_txt,
     process_cst_dispersion_txt,
@@ -51,6 +52,7 @@ from deflector_tuning.visualization.polar_phase_views import (
     plot_marker_phase_polar_views,
 )
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
+from deflector_tuning.visualization.plot_config import PlotConfig
 from deflector_tuning.visualization.cell_iris_response_plots import (
     plot_cell_iris_response_comparison,
 )
@@ -83,7 +85,7 @@ from deflector_tuning.workflows.profile import (
 )
 
 DEFAULT_DATA_ROOT = Path("data")
-DEFAULT_DISPERSION_SUBPATH = Path("sim") / "sim_dispersion_260505_single_cell_step1"
+DEFAULT_DISPERSION_SUBPATH = DEFAULT_PROJECT_DEFAULTS.default_dispersion_subpath
 logger = logging.getLogger(__name__)
 
 
@@ -113,6 +115,7 @@ def run_folder_analysis(
     data_root: str | Path = DEFAULT_DATA_ROOT,
     file_workers: int = 1,
     loader: DataLoader | None = None,
+    project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
 ) -> RunResult:
     """Run the standard one-folder marker workflow and write tables/figures.
 
@@ -132,7 +135,9 @@ def run_folder_analysis(
         sparameter_path,
         dispersion_path=dispersion_path,
         data_root=data_root,
+        default_dispersion_subpath=project_defaults.default_dispersion_subpath,
     )
+    plot_config = _plot_config_from_defaults(project_defaults)
     dataset_category = _dataset_category(sparameter_path)
     output_dir = Path(output_dir)
     table_dir = output_dir / "tables"
@@ -246,7 +251,10 @@ def run_folder_analysis(
         logger.info("Rendering S11 figures")
         figures["s11"] = OrderedDict(
             plot_s11_with_markers(
-                sparameter_table, tables["marker_points"], figure_root / "s11"
+                sparameter_table,
+                tables["marker_points"],
+                figure_root / "s11",
+                config=plot_config,
             )
         )
     if _has_rows(tables.get("phase_advance")):
@@ -256,6 +264,7 @@ def run_folder_analysis(
                 tables["phase_advance"],
                 figure_root / "phase_advance",
                 split_by_family=True,
+                config=plot_config,
             )
         )
     else:
@@ -265,7 +274,11 @@ def run_folder_analysis(
     if _has_rows(tables.get("nodal_shift")):
         logger.info("Rendering nodal-shift figures")
         figures["nodal_shift"] = OrderedDict(
-            plot_nodal_shift(tables["nodal_shift"], figure_root / "nodal")
+            plot_nodal_shift(
+                tables["nodal_shift"],
+                figure_root / "nodal",
+                config=plot_config,
+            )
         )
     else:
         logger.info(
@@ -277,6 +290,7 @@ def run_folder_analysis(
             plot_cell_iris_response_comparison(
                 tables["cell_iris_response_comparison"],
                 figure_root / "cell_iris_response",
+                config=plot_config,
             )
         )
     else:
@@ -289,6 +303,7 @@ def run_folder_analysis(
             plot_coupler_cavity_parameters(
                 tables["coupler_cavity_parameter_estimates"],
                 figure_root / "coupler_cavity_parameters",
+                config=plot_config,
             )
         )
     else:
@@ -301,6 +316,7 @@ def run_folder_analysis(
             plot_geometry_phase_response(
                 tables["geometry_phase_response"],
                 figure_root / "geometry_phase_response",
+                config=plot_config,
             )
         )
     else:
@@ -311,7 +327,7 @@ def run_folder_analysis(
         logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
             plot_marker_phase_polar_views(
-                tables["marker_points"], figure_root / "polar"
+                tables["marker_points"], figure_root / "polar", config=plot_config
             )
         )
     else:
@@ -324,6 +340,7 @@ def run_folder_analysis(
             plot_f2pi3_normalized_admittance_view(
                 tables["kyhl_f2pi3_normalized_admittance_audit"],
                 figure_root / "kyhl_normalized_admittance",
+                config=plot_config,
             )
         )
     else:
@@ -340,7 +357,9 @@ def run_folder_analysis(
         )
         figures["grid_scan_spacing"] = OrderedDict(
             plot_grid_scan_spacing_error_maps(
-                spacing_summary, figure_root / "grid_scan_spacing"
+                spacing_summary,
+                figure_root / "grid_scan_spacing",
+                config=plot_config,
             )
         )
         logger.info("Rendering grid-scan S-parameter phase r_c line scan")
@@ -348,6 +367,7 @@ def run_folder_analysis(
             plot_grid_scan_sparameter_phase_r_c_line_scan(
                 tables["marker_points"],
                 figure_root / "grid_scan_sparameter_phase_r_c_line_scan",
+                config=plot_config,
             )
         )
     else:
@@ -420,18 +440,26 @@ def resolve_input_paths(
     *,
     dispersion_path: str | Path | None = None,
     data_root: str | Path = DEFAULT_DATA_ROOT,
+    default_dispersion_subpath: str | Path = DEFAULT_DISPERSION_SUBPATH,
 ) -> tuple[Path, Path]:
     """Resolve data-relative inputs and default dispersion folder."""
 
     data_root = Path(data_root)
     resolved_sparameter_path = _data_relative_path(sparameter_path, data_root=data_root)
     if dispersion_path is None:
-        resolved_dispersion_path = data_root / DEFAULT_DISPERSION_SUBPATH
+        resolved_dispersion_path = data_root / default_dispersion_subpath
     else:
         resolved_dispersion_path = _data_relative_path(
             dispersion_path, data_root=data_root
         )
     return resolved_sparameter_path, resolved_dispersion_path
+
+
+def _plot_config_from_defaults(defaults: ProjectDefaults) -> PlotConfig:
+    return PlotConfig(
+        design_point_by_axis=dict(defaults.design_point_by_axis),
+        ideal_phase_guide_angles_deg=defaults.ideal_phase_guide_angles_deg,
+    )
 
 
 def _data_relative_path(path: str | Path, *, data_root: Path) -> Path:

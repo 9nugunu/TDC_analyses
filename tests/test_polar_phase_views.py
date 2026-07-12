@@ -514,6 +514,31 @@ def test_plot_marker_phase_polar_views_adds_ideal_guides_to_per_position_tune_pl
         assert guide_labels == {"0°", "180°", "60°", "-60°"}
 
 
+def test_plot_marker_phase_polar_views_uses_configured_guide_angles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    saved_figures: dict[str, matplotlib.figure.Figure] = {}
+
+    def _capture_figure(fig: matplotlib.figure.Figure, output_path: str | Path, config: PlotConfig | None = None) -> Path:
+        path = Path(output_path)
+        saved_figures[path.name] = fig
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"png")
+        return path
+
+    monkeypatch.setattr(polar_phase_views, "save_figure", _capture_figure)
+
+    plot_marker_phase_polar_views(
+        _marker_points(),
+        tmp_path,
+        config=PlotConfig(dpi=120, ideal_phase_guide_angles_deg=(0.0, 90.0)),
+    )
+
+    axis = next(axis for axis in saved_figures["cell_0p5.png"].axes if axis.get_visible())
+    guide_labels = {text.get_text() for text in axis.texts if text.get_text() in {"0°", "90°"}}
+    assert guide_labels == {"0°", "90°"}
+
+
 def test_plot_marker_phase_polar_views_adds_ideal_guides_to_sim_260526_grid_scan_plots(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

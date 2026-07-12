@@ -11,6 +11,7 @@ from deflector_tuning.visualization.plot_config import (
     BEST_MARKER_COLOR,
     DEFAULT_DESIGN_POINT_BY_AXIS,
     DESIGN_REFERENCE_LINEWIDTH,
+    PlotConfig,
     REFERENCE_GUIDE_COLOR,
     REFERENCE_GUIDE_LINESTYLE,
 )
@@ -242,3 +243,9 @@ def test_grid_scan_spacing_error_maps_use_requested_visual_reference_points() ->
     assert DEFAULT_DESIGN_POINT_BY_AXIS == {"sim_r_c": 56.59, "sim_w_c": 19.3224}
     assert _default_design_point("sim_r_c", "sim_w_c") == (56.59, 19.3224)
     assert _default_design_point("custom_x", "sim_w_c") is None
+
+
+def test_default_design_point_uses_plot_config_override() -> None:
+    config = PlotConfig(design_point_by_axis={"sim_r_c": 57.0, "sim_w_c": 20.0})
+
+    assert _default_design_point("sim_r_c", "sim_w_c", config=config) == (57.0, 20.0)

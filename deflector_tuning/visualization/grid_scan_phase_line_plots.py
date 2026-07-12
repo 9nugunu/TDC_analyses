@@ -17,7 +17,6 @@ from deflector_tuning.analysis.grid_rc_line_scan import (
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.visualization.plot_config import (
-    DEFAULT_DESIGN_POINT_BY_AXIS,
     DESIGN_REFERENCE_LINEWIDTH,
     PlotConfig,
     REFERENCE_GUIDE_ALPHA,
@@ -130,7 +129,7 @@ def _plot_sparameter_phase_line_scan(
             color=MARKER_COLORS.get(marker_key, "#444444"),
             label=MARKER_LABELS.get(marker_key, marker_key),
         )
-    design_r_c = DEFAULT_DESIGN_POINT_BY_AXIS.get("sim_r_c")
+    design_r_c = config.design_point_by_axis.get("sim_r_c")
     if design_r_c is not None:
         ax.axvline(
             design_r_c,
@@ -142,7 +141,7 @@ def _plot_sparameter_phase_line_scan(
         _annotate_design_phase_values(ax, line_scan, design_r_c=design_r_c, config=config)
     apply_axis_text_style(
         ax,
-        xlabel=rf"$r_c$ [mm]",
+        xlabel=r"$r_c$ [mm]",
         ylabel="S-parameter phase [deg]",
         title=rf"S-parameter phase vs $r_c$ ($w_c={fixed_w_c:g}$ mm)",
         config=config,

@@ -1,0 +1,9 @@
+[analysis]
+default_dispersion_subpath = "sim/sim_dispersion_260505_single_cell_step1"
+
+[visualization]
+ideal_phase_guide_angles_deg = [0.0, 180.0, 60.0, -60.0]
+
+[visualization.design_point_by_axis]
+sim_r_c = 56.59
+sim_w_c = 19.3224

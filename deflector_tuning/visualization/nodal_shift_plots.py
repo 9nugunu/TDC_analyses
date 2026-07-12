@@ -468,7 +468,7 @@ def _plot_grid_map(
         cf = ax.scatter(table[x_column], table[y_column], c=table[value_column], cmap=config.contour_error_cmap, s=90, edgecolor="black")
     best = table.loc[table[value_column].idxmin()]
     ax.scatter([best[x_column]], [best[y_column]], marker="*", s=190, c=BEST_MARKER_COLOR, edgecolor="black", linewidth=0.8, zorder=6)
-    design_point = _default_design_point(x_column, y_column)
+    design_point = _default_design_point(x_column, y_column, config=config)
     if design_point is not None:
         _draw_design_crosshair(ax, design_point)
     apply_axis_text_style(ax, xlabel=r"$r_c$ [mm]", ylabel=r"$w_c$ [mm]", title=value_label, config=config)

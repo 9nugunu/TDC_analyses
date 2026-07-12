@@ -17,7 +17,6 @@ import pandas as pd
 
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.plot_config import (
-    IDEAL_PHASE_GUIDE_ANGLES_DEG,
     REFERENCE_GUIDE_ALPHA,
     REFERENCE_GUIDE_COLOR,
     REFERENCE_GUIDE_LABEL_COLOR,
@@ -84,7 +83,7 @@ def plot_marker_phase_polar_views(
                 position_table,
                 _position_plot_title(position_label, position_table, grouping_mode=grouping_mode, title_prefix=title_prefix),
                 config=config,
-                guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
+                guide_angles_deg=config.ideal_phase_guide_angles_deg,
             )
             output_stem = _position_output_stem(position_table, position_label, grouping_mode=grouping_mode)
             output_path = folder / f"{output_stem}.png"
@@ -116,7 +115,7 @@ def plot_marker_phase_polar_views(
                 f"{family.title()} {MARKER_LABELS['f_2pi3']} overlay: {title_prefix}",
                 config=config,
                 markers=("f_2pi3",),
-                guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
+                guide_angles_deg=config.ideal_phase_guide_angles_deg,
             )
             output_path = folder / f"{family}_f_2pi3_overlay.png"
             save_figure(fig, output_path, config)
@@ -136,7 +135,7 @@ def plot_marker_phase_polar_views(
                     _kyhl_phase_pair_overlay_title(family, start, end),
                     pair_label,
                     config=config,
-                    guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
+                    guide_angles_deg=config.ideal_phase_guide_angles_deg,
                 )
                 output_path = folder / f"kyhl_phase_{family}_overlay.png"
                 save_figure(fig, output_path, config)
@@ -289,7 +288,7 @@ def _save_overview(
             _position_plot_title(position_label, position_table, grouping_mode=grouping_mode, title_prefix=title_prefix),
             compact=False,
             config=config,
-            guide_angles_deg=IDEAL_PHASE_GUIDE_ANGLES_DEG,
+            guide_angles_deg=config.ideal_phase_guide_angles_deg,
         )
     for ax in flat_axes[len(groups) :]:
         ax.set_visible(False)

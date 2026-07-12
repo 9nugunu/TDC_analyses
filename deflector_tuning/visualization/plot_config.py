@@ -4,23 +4,26 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Mapping
 
 import numpy as np
 from matplotlib import colormaps
 import matplotlib.pyplot as plt
 
+from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS
+
 MATPLOTLIB_MATHTEXT_LOGGER = "matplotlib.mathtext"
 
 BEST_MARKER_COLOR = "#c51b7d"
-DEFAULT_DESIGN_POINT_BY_AXIS = {"sim_r_c": 56.59, "sim_w_c": 19.3224}
+DEFAULT_DESIGN_POINT_BY_AXIS = DEFAULT_PROJECT_DEFAULTS.design_point_by_axis
 REFERENCE_GUIDE_ALPHA = 0.85
 REFERENCE_GUIDE_COLOR = "0.45"
 REFERENCE_GUIDE_LABEL_COLOR = "0.35"
 REFERENCE_GUIDE_LINESTYLE = "--"
 DESIGN_REFERENCE_LINEWIDTH = 0.9
-IDEAL_PHASE_GUIDE_ANGLES_DEG: tuple[float, ...] = (0.0, 180.0, 60.0, -60.0)
+IDEAL_PHASE_GUIDE_ANGLES_DEG = DEFAULT_PROJECT_DEFAULTS.ideal_phase_guide_angles_deg
 
 
 @dataclass(frozen=True)
@@ -61,6 +64,8 @@ class PlotConfig:
     font_family: tuple[str, ...] = ("Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans")
     save_bbox_inches: str | None = "tight"
     save_pad_inches: float = 0.1
+    design_point_by_axis: Mapping[str, float] = field(default_factory=lambda: dict(DEFAULT_DESIGN_POINT_BY_AXIS))
+    ideal_phase_guide_angles_deg: tuple[float, ...] = IDEAL_PHASE_GUIDE_ANGLES_DEG
 
 
 def apply_plot_style(config: PlotConfig | None = None) -> None:

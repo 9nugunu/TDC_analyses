@@ -18,6 +18,12 @@ from run_folder_analysis import (
 )
 from deflector_tuning.data_loading.dataset_naming import parse_dataset_id
 from deflector_tuning.dispersion import process_cst_dispersion_txt
+from deflector_tuning.project_defaults import (
+    DEFAULT_PROJECT_CONFIG_PATH,
+    DEFAULT_PROJECT_DEFAULTS,
+    ProjectDefaults,
+    load_project_defaults,
+)
 from deflector_tuning.progress import progress_iter
 
 
@@ -36,12 +42,14 @@ class BatchTask:
         output_dir: Path,
         marker_role: str,
         data_root: Path,
+        project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
     ) -> None:
         self.sparameter_path = sparameter_path
         self.dispersion_path = dispersion_path
         self.output_dir = output_dir
         self.marker_role = marker_role
         self.data_root = data_root
+        self.project_defaults = project_defaults
 
 
 def default_worker_count() -> int:
@@ -59,6 +67,12 @@ def build_parser() -> argparse.ArgumentParser:
         "dataset_ids",
         nargs="*",
         help="Optional dataset ids to restrict the batch. Default: discover all datasets under data/{prepro,raw,sim}.",
+    )
+    parser.add_argument(
+        "--project-config",
+        type=Path,
+        default=DEFAULT_PROJECT_CONFIG_PATH,
+        help="Scientific defaults TOML. Default: config/project_defaults.toml.",
     )
     parser.add_argument(
         "--data-root",
@@ -134,6 +148,7 @@ def build_batch_tasks(
     marker_role: str | None,
     dispersion_path: Path | None,
     data_root: Path,
+    project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
 ) -> list[BatchTask]:
     """Resolve all per-dataset runtime arguments for the batch runner."""
 
@@ -161,6 +176,7 @@ def build_batch_tasks(
                 output_dir=output_dir,
                 marker_role=str(dataset_args.marker_role),
                 data_root=Path(dataset_args.data_root),
+                project_defaults=project_defaults,
             )
         )
     return tasks
@@ -276,6 +292,7 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         output_dir=task.output_dir,
         marker_role=task.marker_role,
         data_root=task.data_root,
+        project_defaults=task.project_defaults,
     )
     return task.sparameter_path, result.output_dir
 
@@ -340,6 +357,7 @@ def main(argv: list[str] | None = None) -> int:
         marker_role=args.marker_role,
         dispersion_path=args.dispersion_path,
         data_root=Path(args.data_root),
+        project_defaults=load_project_defaults(args.project_config),
     )
     logger.info("Resolved %d dataset(s) for batch analysis with workers=%d", len(tasks), workers)
     successes, failures = execute_batch_tasks(tasks, workers=workers)

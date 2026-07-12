@@ -19,7 +19,6 @@ from deflector_tuning.analysis.grid_rc_line_scan import (
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.plot_config import (
     BEST_MARKER_COLOR,
-    DEFAULT_DESIGN_POINT_BY_AXIS,
     DESIGN_REFERENCE_LINEWIDTH,
     REFERENCE_GUIDE_ALPHA,
     REFERENCE_GUIDE_COLOR,
@@ -92,7 +91,7 @@ def plot_grid_scan_spacing_error_maps(
             column,
             label,
             config,
-            design_point=design_point or _default_design_point(x_column, y_column),
+            design_point=design_point or _default_design_point(x_column, y_column, config=config),
         )
     return paths
 
@@ -148,7 +147,7 @@ def plot_grid_scan_phase_sensitivity_maps(
                 column,
                 f"{_marker_label(marker_name)} {label}",
                 config,
-                design_point=design_point or _default_design_point(x_column, y_column),
+                design_point=design_point or _default_design_point(x_column, y_column, config=config),
                 cmap=cmap,
                 draw_best=False,
             )
@@ -252,10 +251,16 @@ def _marker_label(value: object) -> str:
     return MARKER_LABELS.get(str(value), str(value).replace("_", r"\_"))
 
 
-def _default_design_point(x_column: str, y_column: str) -> tuple[float, float] | None:
-    if x_column not in DEFAULT_DESIGN_POINT_BY_AXIS or y_column not in DEFAULT_DESIGN_POINT_BY_AXIS:
+def _default_design_point(
+    x_column: str,
+    y_column: str,
+    *,
+    config: PlotConfig | None = None,
+) -> tuple[float, float] | None:
+    design_point_by_axis = (config or PlotConfig()).design_point_by_axis
+    if x_column not in design_point_by_axis or y_column not in design_point_by_axis:
         return None
-    return (DEFAULT_DESIGN_POINT_BY_AXIS[x_column], DEFAULT_DESIGN_POINT_BY_AXIS[y_column])
+    return (design_point_by_axis[x_column], design_point_by_axis[y_column])
 
 
 def _draw_design_crosshair(ax: plt.Axes, design_point: tuple[float, float]) -> None:

@@ -9,6 +9,11 @@ from pathlib import Path, PurePath
 
 from deflector_tuning.data_loading.source_layer import DataLayer
 from deflector_tuning.data_loading.dataset_naming import validate_dataset_id
+from deflector_tuning.project_defaults import (
+    DEFAULT_PROJECT_CONFIG_PATH,
+    DEFAULT_PROJECT_DEFAULTS,
+    load_project_defaults,
+)
 from deflector_tuning.runner import run_folder_analysis
 
 
@@ -43,7 +48,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--dispersion-path",
         type=Path,
         default=None,
-        help="Advanced override. Defaults to data/sim/sim_dispersion_260505_single_cell_step1.",
+        help=(
+            "Advanced override. Default: data/"
+            f"{DEFAULT_PROJECT_DEFAULTS.default_dispersion_subpath.as_posix()}."
+        ),
+    )
+    parser.add_argument(
+        "--project-config",
+        type=Path,
+        default=DEFAULT_PROJECT_CONFIG_PATH,
+        help="Scientific defaults TOML. Default: config/project_defaults.toml.",
     )
     parser.add_argument(
         "--data-root",
@@ -120,6 +134,8 @@ def apply_inferred_defaults(args: argparse.Namespace) -> argparse.Namespace:
     args.dispersion_path = Path(args.dispersion_path) if args.dispersion_path is not None else None
     args.data_root = data_root
     args.file_workers = max(int(getattr(args, "file_workers", 1)), 1)
+    args.project_config = Path(getattr(args, "project_config", DEFAULT_PROJECT_CONFIG_PATH))
+    args.project_defaults = load_project_defaults(args.project_config)
     return args
 
 
@@ -223,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
         marker_role=args.marker_role,
         data_root=args.data_root,
         file_workers=args.file_workers,
+        project_defaults=args.project_defaults,
     )
 
     print(f"input_folder: {args.input_folder}")

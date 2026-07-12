@@ -35,6 +35,7 @@ def test_root_run_folder_analysis_cli_shows_help() -> None:
     assert "--output-dir" in result.stdout
     assert "--marker-role" in result.stdout
     assert "--file-workers" in result.stdout
+    assert "data/sim/sim_dispersion_260505_single_cell_step1" in result.stdout
 
 
 def test_root_run_folder_analysis_cli_supports_import_without_running_analysis() -> None:
@@ -137,3 +138,38 @@ def test_parse_args_keeps_advanced_overrides_when_provided() -> None:
     assert args.marker_role == "sim"
     assert args.data_root == Path("custom_data")
     assert args.file_workers == 3
+
+
+def test_parse_args_loads_scientific_defaults_from_project_config(tmp_path: Path) -> None:
+    module = _load_runner_module()
+    config_path = tmp_path / "custom_defaults.toml"
+    config_path.write_text(
+        """
+[analysis]
+default_dispersion_subpath = "sim/custom_dispersion"
+
+[visualization]
+ideal_phase_guide_angles_deg = [15.0, 195.0]
+
+[visualization.design_point_by_axis]
+sim_r_c = 57.0
+sim_w_c = 20.0
+""".strip(),
+        encoding="utf-8",
+    )
+
+    args = module.parse_args(
+        [
+            "sim/sim_sweep_260527_iris_line",
+            "--project-config",
+            str(config_path),
+        ]
+    )
+
+    assert args.project_config == config_path
+    assert args.project_defaults.default_dispersion_subpath == Path("sim/custom_dispersion")
+    assert args.project_defaults.design_point_by_axis == {
+        "sim_r_c": 57.0,
+        "sim_w_c": 20.0,
+    }
+    assert args.project_defaults.ideal_phase_guide_angles_deg == (15.0, 195.0)

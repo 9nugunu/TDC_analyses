@@ -98,6 +98,59 @@ def test_build_batch_tasks_infers_output_and_marker_role(tmp_path: Path) -> None
     assert [task.marker_role for task in tasks] == ["exp", "sim"]
 
 
+def test_main_passes_custom_project_defaults_to_every_batch_task(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_runner_module()
+    config_path = tmp_path / "custom_defaults.toml"
+    config_path.write_text(
+        """
+[analysis]
+default_dispersion_subpath = "sim/custom_dispersion"
+
+[visualization]
+ideal_phase_guide_angles_deg = [30.0, 210.0]
+
+[visualization.design_point_by_axis]
+sim_r_c = 58.0
+sim_w_c = 21.0
+""".strip(),
+        encoding="utf-8",
+    )
+    captured_tasks: list[object] = []
+    monkeypatch.setattr(
+        module,
+        "resolve_batch_inputs",
+        lambda dataset_ids, data_root: [
+            Path("sim") / "sim_sweep_260519_scan_dataset"
+        ],
+    )
+
+    def fake_execute_batch_tasks(tasks, workers):
+        captured_tasks.extend(tasks)
+        return ([(tasks[0].sparameter_path, tasks[0].output_dir)], [])
+
+    monkeypatch.setattr(module, "execute_batch_tasks", fake_execute_batch_tasks)
+
+    exit_code = module.main(
+        [
+            "--data-root",
+            str(tmp_path / "data"),
+            "--output-root",
+            str(tmp_path / "analyses"),
+            "--project-config",
+            str(config_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert len(captured_tasks) == 1
+    defaults = captured_tasks[0].project_defaults
+    assert defaults.default_dispersion_subpath == Path("sim/custom_dispersion")
+    assert defaults.design_point_by_axis == {"sim_r_c": 58.0, "sim_w_c": 21.0}
+    assert defaults.ideal_phase_guide_angles_deg == (30.0, 210.0)
+
+
 def test_prepare_batch_dispersion_input_processes_explicit_txt(tmp_path: Path) -> None:
     module = _load_runner_module()
     source = tmp_path / "data" / "sim" / "sim_dispersion_260505_case" / "dispersion.txt"

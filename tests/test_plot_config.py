@@ -34,6 +34,16 @@ def test_plot_config_defaults_use_larger_readable_typography() -> None:
     assert config.save_bbox_inches == "tight"
 
 
+def test_plot_config_allows_scientific_reference_overrides() -> None:
+    config = PlotConfig(
+        design_point_by_axis={"sim_r_c": 57.0, "sim_w_c": 20.0},
+        ideal_phase_guide_angles_deg=(0.0, 120.0),
+    )
+
+    assert config.design_point_by_axis == {"sim_r_c": 57.0, "sim_w_c": 20.0}
+    assert config.ideal_phase_guide_angles_deg == (0.0, 120.0)
+
+
 def test_bold_math_wraps_math_expressions_for_bold_labels() -> None:
     assert bold_math(r"$S_{11}$") == r"$\mathbf{S}_{\mathbf{11}}$"
     assert bold_math(r"$f_{2\pi/3}$") == r"$\mathbf{f}_{\mathbf{2}\mathbf{\pi}/\mathbf{3}}$"

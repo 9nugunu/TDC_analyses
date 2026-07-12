@@ -566,6 +566,16 @@ def test_resolve_input_paths_uses_data_root_and_default_dispersion(
     assert dispersion_path == tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
 
 
+def test_resolve_input_paths_accepts_configured_default_dispersion(tmp_path: Path) -> None:
+    _, dispersion_path = runner.resolve_input_paths(
+        "sim/sim_sweep_260519_scan_dataset",
+        data_root=tmp_path / "data",
+        default_dispersion_subpath=Path("sim") / "custom_dispersion",
+    )
+
+    assert dispersion_path == tmp_path / "data" / "sim" / "custom_dispersion"
+
+
 def test_run_folder_analysis_uses_short_dispersion_figure_names(tmp_path: Path, monkeypatch) -> None:
     dispersion_folder = tmp_path / "data" / "sim" / "sim_dispersion_260505_case"
     dispersion_folder.mkdir(parents=True)
