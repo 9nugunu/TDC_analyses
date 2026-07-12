@@ -45,6 +45,7 @@ PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
 }
 DEFAULT_TRACE_STYLE: dict[str, object] = {"color": "#1565c0", "linestyle": "-"}
 MARKER_Y_OFFSETS: dict[str, int] = {"f_2pi3": 20, "f_mean": -34, "f_pi2": 50}
+SIMULATION_PARAMETER_UNITS: dict[str, str] = {"sim_r_c": "mm", "sim_w_c": "mm"}
 MAX_LEGEND_ENTRIES: int = 30
 MAX_TRACE_POINTS_PER_SOURCE: int = 5000
 DUPLICATE_ID_COLUMNS: tuple[str, ...] = (
@@ -108,7 +109,7 @@ def build_s11_plot_plans(
                     key=key,
                     kind="grid",
                     output_path=folder / f"{_grid_point_file_stem(family, depth_label, sim_r_c, sim_w_c)}.png",
-                    title=f"{_grid_point_title_prefix(family, depth_label, sim_r_c, sim_w_c)}: S11 magnitude",
+                    title=f"S11 magnitude | {_grid_point_title_prefix(family, depth_label, sim_r_c, sim_w_c)}",
                     s_table=group,
                     marker_points=marker_group,
                 )
@@ -116,15 +117,15 @@ def build_s11_plot_plans(
         return plans
 
     if _has_sim_sweep_groups(s_table, marker_points):
-        for key, group in _iter_sim_sweep_groups(s_table):
+        for group_columns, key, group in _iter_sim_sweep_groups(s_table):
             plans.append(
                 S11PlotPlan(
                     key=key,
                     kind="sim_sweep",
                     output_path=folder / f"{key}.png",
-                    title=f"{key.replace('_', ' ')}: S11 magnitude",
+                    title=f"S11 magnitude | {_sim_sweep_title(group_columns, group)}",
                     s_table=group,
-                    marker_points=_select_sim_sweep_rows(marker_points, group),
+                    marker_points=_select_sim_sweep_rows(marker_points, group_columns, group),
                 )
             )
         return plans
@@ -555,12 +556,17 @@ def _grid_point_file_stem(family: str, depth_label: str | None, sim_r_c: object,
 
 
 def _grid_point_title_prefix(family: str, depth_label: str | None, sim_r_c: object, sim_w_c: object) -> str:
-    grid_label = f"r_c={_format_grid_value(sim_r_c)}, w_c={_format_grid_value(sim_w_c)}"
+    grid_label = "; ".join(
+        (
+            _format_simulation_parameter("sim_r_c", sim_r_c),
+            _format_simulation_parameter("sim_w_c", sim_w_c),
+        )
+    )
     if depth_label is not None:
-        grid_label = f"{depth_label.replace('_', ' ')} {grid_label}"
+        grid_label = f"{depth_label.replace('_', ' ')}; {grid_label}"
     if family in {"grid", "unknown"}:
         return grid_label
-    return f"{family} {grid_label}"
+    return f"{family}; {grid_label}"
 
 
 def _grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
@@ -581,14 +587,18 @@ def _iter_sim_sweep_groups(s_table: pd.DataFrame):
     for values, group in table.groupby(group_columns, sort=False, dropna=False):
         if len(group_columns) == 1 and not isinstance(values, tuple):
             values = (values,)
-        yield _format_sim_sweep_key(group_columns, values, group), group
+        yield group_columns, _format_sim_sweep_key(group_columns, values, group), group
 
 
-def _select_sim_sweep_rows(table: pd.DataFrame, s_group: pd.DataFrame) -> pd.DataFrame:
+def _select_sim_sweep_rows(
+    table: pd.DataFrame,
+    group_columns: list[str],
+    s_group: pd.DataFrame,
+) -> pd.DataFrame:
     if table.empty:
         return table.copy()
     mask = pd.Series(True, index=table.index)
-    for column in _sim_sweep_group_columns(s_group):
+    for column in group_columns:
         if column not in table:
             return table.iloc[0:0].copy()
         values = s_group[column].dropna().unique()
@@ -623,6 +633,29 @@ def _format_sim_sweep_key(group_columns: list[str], values: tuple[object, ...], 
         else:
             parts.append(f"{_sim_sweep_column_label(column)}_{_format_grid_value(value).replace('.', 'p').replace('-', 'm')}")
     return "_".join(parts)
+
+
+def _sim_sweep_title(group_columns: list[str], group: pd.DataFrame) -> str:
+    parts = []
+    family = _sim_sweep_family(group)
+    if family:
+        parts.append(family)
+    for column in group_columns:
+        values = group[column].dropna().unique()
+        if len(values) != 1:
+            continue
+        if column == "sim_NumDepth":
+            parts.append(f"depth = {_format_grid_value(values[0])}")
+        else:
+            parts.append(_format_simulation_parameter(column, values[0]))
+    return "; ".join(parts)
+
+
+def _format_simulation_parameter(column: str, value: object) -> str:
+    label = _sim_sweep_column_label(column)
+    unit = SIMULATION_PARAMETER_UNITS.get(column)
+    suffix = f" {unit}" if unit is not None else ""
+    return f"{label} = {_format_grid_value(value)}{suffix}"
 
 
 def _sim_sweep_family(group: pd.DataFrame) -> str:

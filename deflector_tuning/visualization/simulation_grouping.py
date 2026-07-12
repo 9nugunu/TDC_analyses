@@ -14,7 +14,7 @@ def grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
 def varying_sim_sweep_columns(table: pd.DataFrame) -> list[str]:
     columns = []
     for column in table.columns:
-        if not column.startswith("sim_") or column in {"sim_r_c", "sim_w_c"}:
+        if not column.startswith("sim_"):
             continue
         metadata_name = column.removeprefix("sim_")
         if metadata_name.lower().startswith("num"):

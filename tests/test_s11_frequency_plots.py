@@ -104,6 +104,48 @@ def test_build_s11_plot_plans_describes_outputs_before_rendering(tmp_path: Path)
     assert all(not plan.output_path.exists() for plan in plans)
 
 
+def test_build_s11_plot_plans_splits_one_dimensional_navigator_points(tmp_path: Path) -> None:
+    s_table = _sparameter_table().assign(
+        source_file=["run_001.s1p"] * 3 + ["run_002.s1p"] * 3,
+        tune_position=pd.NA,
+        sim_r_c=[56.09] * 3 + [56.10] * 3,
+    )
+    marker_points = _marker_points().assign(
+        source_file=["run_001.s1p", "run_002.s1p"],
+        tune_position=pd.NA,
+        sim_r_c=[56.09, 56.10],
+    )
+
+    plans = build_s11_plot_plans(s_table, marker_points, tmp_path)
+
+    assert [plan.key for plan in plans] == ["r_c_56p09", "r_c_56p1"]
+    assert [plan.output_path.name for plan in plans] == ["r_c_56p09.png", "r_c_56p1.png"]
+    assert [plan.title for plan in plans] == [
+        "S11 magnitude | r_c = 56.09 mm",
+        "S11 magnitude | r_c = 56.1 mm",
+    ]
+
+
+def test_build_s11_plot_plans_uses_navigator_values_in_two_dimensional_titles(tmp_path: Path) -> None:
+    s_table = _sparameter_table().assign(
+        source_file=["run_001.s1p"] * 3 + ["run_002.s1p"] * 3,
+        tune_position=pd.NA,
+        sim_r_c=[56.09] * 3 + [56.10] * 3,
+        sim_w_c=[19.0224] * 3 + [19.1224] * 3,
+    )
+    marker_points = _marker_points().assign(
+        source_file=["run_001.s1p", "run_002.s1p"],
+        tune_position=pd.NA,
+        sim_r_c=[56.09, 56.10],
+        sim_w_c=[19.0224, 19.1224],
+    )
+
+    plan = build_s11_plot_plans(s_table, marker_points, tmp_path)[0]
+
+    assert plan.output_path.name == "r_c_56p09_w_c_19p0224.png"
+    assert plan.title == "S11 magnitude | r_c = 56.09 mm; w_c = 19.0224 mm"
+
+
 def _port_side_sparameter_table() -> pd.DataFrame:
     rows = []
     for source_file, port_side, tune_position, phase_offset in [
