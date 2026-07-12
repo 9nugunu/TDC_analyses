@@ -102,8 +102,10 @@ def _strip_inline_comment(line: str) -> str:
 
 def _value_count_from_suffix(path: Path) -> int:
     suffix = path.suffix.lower()
-    if not suffix.startswith(".s") or not suffix.endswith("p"):
-        raise ValueError(f"Expected Touchstone extension like .s1p or .s2p; got {path.name}")
+    if not suffix.startswith((".s", ".y")) or not suffix.endswith("p"):
+        raise ValueError(
+            f"Expected Touchstone extension like .s1p, .s2p, or .y1p; got {path.name}"
+        )
     port_count = int(suffix[2:-1])
     return port_count * port_count
 

@@ -20,6 +20,12 @@ from deflector_tuning.analysis.marker_pipeline import (
     save_marker_analysis,
 )
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
+from deflector_tuning.data_loading.admittance import (
+    extract_y11_marker_frequencies,
+    is_y11_touchstone_folder,
+    load_y11_touchstone_folder,
+    sample_y11_markers,
+)
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_path
 from deflector_tuning.data_loading.source_layer import detect_data_layer
@@ -52,6 +58,7 @@ from deflector_tuning.visualization.polar_phase_views import (
     plot_marker_phase_polar_views,
 )
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
+from deflector_tuning.visualization.admittance_sweep_plots import plot_y11_marker_sweep
 from deflector_tuning.visualization.plot_config import PlotConfig
 from deflector_tuning.visualization.cell_iris_response_plots import (
     plot_cell_iris_response_comparison,
@@ -202,6 +209,17 @@ def run_folder_analysis(
             sparameter_path=sparameter_path,
             dispersion_path=dispersion_path,
             marker_role=marker_role,
+        )
+
+    if is_y11_touchstone_folder(sparameter_path):
+        return _run_y11_admittance_analysis_from_runner(
+            sparameter_path=sparameter_path,
+            dispersion_path=dispersion_path,
+            output_dir=output_dir,
+            table_dir=table_dir,
+            figure_root=figure_root,
+            marker_role=marker_role,
+            plot_config=plot_config,
         )
 
     loader = _RunScopedDataLoader(
@@ -427,6 +445,69 @@ def _run_profile_only_analysis_from_runner(
     )
     logger.info("Profile-only analysis completed successfully")
     return result
+
+
+def _run_y11_admittance_analysis_from_runner(
+    *,
+    sparameter_path: Path,
+    dispersion_path: Path,
+    output_dir: Path,
+    table_dir: Path,
+    figure_root: Path,
+    marker_role: str,
+    plot_config: PlotConfig,
+) -> RunResult:
+    """Run the direct-Y11 workflow without entering the S11 marker pipeline."""
+
+    logger.info("Detected direct CST Y11 Touchstone exports; running admittance-only analysis")
+    y11_table = load_y11_touchstone_folder(sparameter_path)
+    markers = extract_y11_marker_frequencies(dispersion_path, marker_role=marker_role)
+    marker_points = sample_y11_markers(y11_table, markers)
+    table_dir.mkdir(parents=True, exist_ok=True)
+    marker_path = table_dir / "markers.csv"
+    point_path = table_dir / "y11_marker_points.csv"
+    markers.to_csv(marker_path, index=False)
+    marker_points.to_csv(point_path, index=False)
+    tables = AnalysisPaths(
+        OrderedDict(
+            (("markers", marker_path), ("y11_marker_points", point_path))
+        )
+    )
+
+    figure_path = plot_y11_marker_sweep(
+        marker_points,
+        figure_root / "y11_complex" / "y11_marker_sweep.png",
+        config=plot_config,
+    )
+    figures: FigurePaths = OrderedDict(
+        (("y11_complex", OrderedDict((("marker_sweep", figure_path),))),)
+    )
+    modes = ("y11_admittance",)
+    detection = {
+        "y11_admittance": {
+            "enabled": True,
+            "reason": "direct CST Touchstone Y11 files detected",
+        }
+    }
+    manifest_path = output_dir / "manifest.json"
+    _write_manifest(
+        manifest_path,
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role=marker_role,
+        modes=modes,
+        detection=detection,
+        tables=tables,
+        figures=figures,
+    )
+    logger.info("Direct Y11 admittance analysis completed successfully")
+    return RunResult(
+        output_dir=output_dir,
+        tables=tables,
+        figures=figures,
+        analysis_modes=modes,
+        manifest_path=manifest_path,
+    )
 
 
 def find_cst_profile_inputs(path: str | Path) -> tuple[Path, ...]:
