@@ -14,39 +14,39 @@ def _parameter_table() -> pd.DataFrame:
             {
                 "source_file": "run_1.s1p",
                 "tune_position": 0.5,
-                "coupler_transition_pair": "0.5_to_1.5",
-                "coupler_position_basis": "cell_center",
-                "coupler_pair_start_tune_position": 0.5,
-                "coupler_pair_end_tune_position": 1.5,
-                "coupler_frequency_ghz": 2.860,
-                "matching_frequency_ghz": 2.856,
-                "delta_frequency_mhz": 4.0,
-                "external_quality_factor": 85.0,
-                "target_external_quality_factor": 92.0,
+                "cpl_pair": "0.5_to_1.5",
+                "cpl_pos_basis": "cell_center",
+                "cpl_pos_from": 0.5,
+                "cpl_pos_to": 1.5,
+                "coupler_freq_ghz": 2.860,
+                "match_freq_ghz": 2.856,
+                "freq_delta_mhz": 4.0,
+                "q_ext": 85.0,
+                "q_ext_target": 92.0,
                 "coupling_k": 0.025,
-                "coupling_k_source": "marker_frequency_ratio_abs",
-                "coupling_beta": 0.92,
-                "coupling_beta_status": "ok",
-                "operation_mode_deg": 120.0,
+                "k_source": "marker_frequency_ratio_abs",
+                "beta": 0.92,
+                "beta_status": "ok",
+                "op_mode_deg": 120.0,
                 "is_valid": True,
             },
             {
                 "source_file": "run_2.s1p",
                 "tune_position": 1.5,
-                "coupler_transition_pair": "0.5_to_1.5",
-                "coupler_position_basis": "cell_center",
-                "coupler_pair_start_tune_position": 0.5,
-                "coupler_pair_end_tune_position": 1.5,
-                "coupler_frequency_ghz": 2.854,
-                "matching_frequency_ghz": 2.856,
-                "delta_frequency_mhz": -2.0,
-                "external_quality_factor": 98.0,
-                "target_external_quality_factor": 92.0,
+                "cpl_pair": "0.5_to_1.5",
+                "cpl_pos_basis": "cell_center",
+                "cpl_pos_from": 0.5,
+                "cpl_pos_to": 1.5,
+                "coupler_freq_ghz": 2.854,
+                "match_freq_ghz": 2.856,
+                "freq_delta_mhz": -2.0,
+                "q_ext": 98.0,
+                "q_ext_target": 92.0,
                 "coupling_k": 0.025,
-                "coupling_k_source": "marker_frequency_ratio_abs",
-                "coupling_beta": 1.05,
-                "coupling_beta_status": "ok",
-                "operation_mode_deg": 120.0,
+                "k_source": "marker_frequency_ratio_abs",
+                "beta": 1.05,
+                "beta_status": "ok",
+                "op_mode_deg": 120.0,
                 "is_valid": True,
             },
         ]
@@ -57,7 +57,7 @@ def _radius_sweep_parameter_table() -> pd.DataFrame:
     table = _parameter_table().copy()
     table["sim_r_c"] = [54.0, 55.0]
     table["sim_w_c"] = [19.3224, 19.3224]
-    table["coupler_position_basis"] = "geometry_sweep"
+    table["cpl_pos_basis"] = "geometry_sweep"
     return table
 
 
@@ -89,7 +89,7 @@ def test_plot_coupler_cavity_parameters_writes_beta_vs_radius_for_geometry_sweep
 
 
 def test_plot_coupler_cavity_parameters_rejects_missing_columns(tmp_path: Path) -> None:
-    table = _parameter_table().drop(columns=["delta_frequency_mhz"])
+    table = _parameter_table().drop(columns=["freq_delta_mhz"])
 
     with pytest.raises(ValueError, match="coupler_cavity_parameter_estimates is missing required columns"):
         plot_coupler_cavity_parameters(table, tmp_path)

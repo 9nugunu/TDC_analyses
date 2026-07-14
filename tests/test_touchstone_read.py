@@ -61,3 +61,14 @@ def test_read_s1p_db_file_converts_db_phase_to_complex_values(tmp_path: Path) ->
     assert data.frequency == [2.6]
     assert data.s_values[0][0].real == pytest.approx(0.0)
     assert data.s_values[0][0].imag == pytest.approx(10 ** (-6 / 20))
+
+
+def test_read_z1p_ri_file_preserves_impedance_value(tmp_path: Path) -> None:
+    path = tmp_path / "case.z1p"
+    path.write_text("# GHz Z RI R 50\n2.85 12.0 -3.0\n", encoding="utf-8")
+
+    data = read_touchstone(path)
+
+    assert data.header.parameter == "Z"
+    assert data.frequency == [2.85]
+    assert data.s_values == [[complex(12.0, -3.0)]]

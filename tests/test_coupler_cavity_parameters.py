@@ -15,11 +15,11 @@ from deflector_tuning.analysis.coupler_cavity_parameters import (
 )
 
 
-def _reflection_phase_deg(frequency_ghz: float, *, coupler_frequency_ghz: float, external_q: float) -> float:
+def _reflection_phase_deg(frequency_ghz: float, *, coupler_freq_ghz: float, external_q: float) -> float:
     tangent = (
-        coupler_frequency_ghz
+        coupler_freq_ghz
         * frequency_ghz
-        / (external_q * (frequency_ghz**2 - coupler_frequency_ghz**2))
+        / (external_q * (frequency_ghz**2 - coupler_freq_ghz**2))
     )
     return math.degrees(2.0 * math.atan(tangent))
 
@@ -28,8 +28,8 @@ def _marker_rows(
     *,
     source_file: str,
     tune_position: float,
-    reference_frequency_ghz: float = 10.0,
-    operation_frequency_ghz: float = 12.0,
+    ref_freq_ghz: float = 10.0,
+    op_freq_ghz: float = 12.0,
     reference_phase_deg: float = -12.0,
     operation_phase_deg: float = 13.0,
 ) -> list[dict[str, object]]:
@@ -43,8 +43,8 @@ def _marker_rows(
             "s_name": "S11",
             "marker_role": "sim",
             "marker_name": "f_pi2",
-            "target_freq_ghz": reference_frequency_ghz,
-            "freq_ghz": reference_frequency_ghz,
+            "freq_target_ghz": ref_freq_ghz,
+            "freq_ghz": ref_freq_ghz,
             "s_phase_deg": reference_phase_deg,
             "sim_w_c": 18.0,
         },
@@ -57,8 +57,8 @@ def _marker_rows(
             "s_name": "S11",
             "marker_role": "sim",
             "marker_name": "f_2pi3",
-            "target_freq_ghz": operation_frequency_ghz,
-            "freq_ghz": operation_frequency_ghz,
+            "freq_target_ghz": op_freq_ghz,
+            "freq_ghz": op_freq_ghz,
             "s_phase_deg": operation_phase_deg,
             "sim_w_c": 18.0,
         },
@@ -71,8 +71,8 @@ def _marker_rows(
             "s_name": "S11",
             "marker_role": "sim",
             "marker_name": "f_mean",
-            "target_freq_ghz": (reference_frequency_ghz + operation_frequency_ghz) / 2.0,
-            "freq_ghz": (reference_frequency_ghz + operation_frequency_ghz) / 2.0,
+            "freq_target_ghz": (ref_freq_ghz + op_freq_ghz) / 2.0,
+            "freq_ghz": (ref_freq_ghz + op_freq_ghz) / 2.0,
             "s_phase_deg": 0.0,
             "sim_w_c": 18.0,
         },
@@ -98,19 +98,19 @@ def test_tan_half_phase_uses_degrees() -> None:
     assert tan_half_phase(60.0) == pytest.approx(1.0 / math.sqrt(3.0))
 
 
-def test_coupler_frequency_and_external_quality_factor_recover_known_cavity() -> None:
+def test_coupler_frequency_and_q_ext_recover_known_cavity() -> None:
     frequency_1_ghz = 10.0
     frequency_2_ghz = 12.0
-    coupler_frequency_ghz = 11.0
+    coupler_freq_ghz = 11.0
     external_q = 50.0
     phase_1_deg = _reflection_phase_deg(
         frequency_1_ghz,
-        coupler_frequency_ghz=coupler_frequency_ghz,
+        coupler_freq_ghz=coupler_freq_ghz,
         external_q=external_q,
     )
     phase_2_deg = _reflection_phase_deg(
         frequency_2_ghz,
-        coupler_frequency_ghz=coupler_frequency_ghz,
+        coupler_freq_ghz=coupler_freq_ghz,
         external_q=external_q,
     )
 
@@ -119,7 +119,7 @@ def test_coupler_frequency_and_external_quality_factor_recover_known_cavity() ->
         phase_1_deg,
         frequency_2_ghz,
         phase_2_deg,
-    ) == pytest.approx(coupler_frequency_ghz)
+    ) == pytest.approx(coupler_freq_ghz)
     assert calculate_external_quality_factor(
         frequency_1_ghz,
         phase_1_deg,
@@ -128,19 +128,19 @@ def test_coupler_frequency_and_external_quality_factor_recover_known_cavity() ->
     ) == pytest.approx(external_q)
 
 
-def test_coupling_beta_uses_kyhl_half_phase_tangent_formula() -> None:
+def test_beta_uses_kyhl_half_phase_tangent_formula() -> None:
     frequency_1_ghz = 10.0
     frequency_2_ghz = 12.0
     phase_1_deg = -12.0
     phase_2_deg = 13.0
     coupling_k = 0.04
     pi_over_two_frequency_ghz = 10.0
-    operation_mode_deg = 120.0
+    op_mode_deg = 120.0
     t1 = tan_half_phase(phase_1_deg)
     t2 = tan_half_phase(phase_2_deg)
     expected = (
         1.0
-        / ((coupling_k / 2.0) * pi_over_two_frequency_ghz * math.sin(math.radians(operation_mode_deg)))
+        / ((coupling_k / 2.0) * pi_over_two_frequency_ghz * math.sin(math.radians(op_mode_deg)))
         * (t1 * t2 * (frequency_1_ghz**2 - frequency_2_ghz**2))
         / (t2 * frequency_1_ghz - t1 * frequency_2_ghz)
     )
@@ -151,12 +151,12 @@ def test_coupling_beta_uses_kyhl_half_phase_tangent_formula() -> None:
         frequency_2_ghz,
         phase_2_deg,
         pi_over_two_frequency_ghz=pi_over_two_frequency_ghz,
-        operation_mode_deg=operation_mode_deg,
+        operation_mode_deg=op_mode_deg,
         coupling_k=coupling_k,
     ) == pytest.approx(expected)
 
 
-def test_matching_frequency_and_target_external_quality_factor_follow_zheng_targets() -> None:
+def test_matching_frequency_and_target_q_ext_follow_zheng_targets() -> None:
     assert calculate_matching_frequency_ghz(10.0, 12.0) == pytest.approx(11.0)
     assert calculate_target_external_quality_factor(120.0, coupling_k=0.04) == pytest.approx(
         2.0 / (0.04 * math.sin(math.radians(120.0)))
@@ -179,23 +179,23 @@ def test_estimate_coupling_k_from_marker_frequency_ratio_uses_operation_mode_cos
 def test_build_coupler_cavity_parameter_table_pairs_pi2_and_operation_markers() -> None:
     frequency_1_ghz = 10.0
     frequency_2_ghz = 12.0
-    phase_1_deg = _reflection_phase_deg(frequency_1_ghz, coupler_frequency_ghz=11.0, external_q=50.0)
-    phase_2_deg = _reflection_phase_deg(frequency_2_ghz, coupler_frequency_ghz=11.0, external_q=50.0)
+    phase_1_deg = _reflection_phase_deg(frequency_1_ghz, coupler_freq_ghz=11.0, external_q=50.0)
+    phase_2_deg = _reflection_phase_deg(frequency_2_ghz, coupler_freq_ghz=11.0, external_q=50.0)
     marker_points = pd.DataFrame(
         [
             *_marker_rows(
                 source_file="run_0p5.s1p",
                 tune_position=0.5,
-                reference_frequency_ghz=frequency_1_ghz,
-                operation_frequency_ghz=frequency_2_ghz,
+                ref_freq_ghz=frequency_1_ghz,
+                op_freq_ghz=frequency_2_ghz,
                 reference_phase_deg=phase_1_deg,
                 operation_phase_deg=phase_2_deg,
             ),
             *_marker_rows(
                 source_file="run_1p5.s1p",
                 tune_position=1.5,
-                reference_frequency_ghz=frequency_1_ghz,
-                operation_frequency_ghz=frequency_2_ghz,
+                ref_freq_ghz=frequency_1_ghz,
+                op_freq_ghz=frequency_2_ghz,
                 reference_phase_deg=phase_1_deg,
                 operation_phase_deg=phase_2_deg,
             ),
@@ -213,25 +213,25 @@ def test_build_coupler_cavity_parameter_table_pairs_pi2_and_operation_markers() 
 
     assert len(result) == 2
     assert result["tune_position"].tolist() == [0.5, 1.5]
-    assert result["coupler_transition_pair"].unique().tolist() == ["0.5_to_1.5"]
-    assert result["coupler_position_basis"].unique().tolist() == ["cell_center"]
+    assert result["cpl_pair"].unique().tolist() == ["0.5_to_1.5"]
+    assert result["cpl_pos_basis"].unique().tolist() == ["cell_center"]
     row = result[result["tune_position"] == 0.5].iloc[0]
     assert row["source_file"] == "run_0p5.s1p"
-    assert row["reference_marker_name"] == "f_pi2"
-    assert row["operation_marker_name"] == "f_2pi3"
-    assert row["reference_frequency_ghz"] == pytest.approx(10.0)
-    assert row["operation_frequency_ghz"] == pytest.approx(12.0)
-    assert row["coupler_frequency_ghz"] == pytest.approx(11.0)
-    assert row["external_quality_factor"] == pytest.approx(50.0)
-    assert row["matching_frequency_ghz"] == pytest.approx(11.0)
-    assert row["delta_frequency_mhz"] == pytest.approx(0.0)
+    assert row["ref_marker"] == "f_pi2"
+    assert row["op_marker"] == "f_2pi3"
+    assert row["ref_freq_ghz"] == pytest.approx(10.0)
+    assert row["op_freq_ghz"] == pytest.approx(12.0)
+    assert row["coupler_freq_ghz"] == pytest.approx(11.0)
+    assert row["q_ext"] == pytest.approx(50.0)
+    assert row["match_freq_ghz"] == pytest.approx(11.0)
+    assert row["freq_delta_mhz"] == pytest.approx(0.0)
     assert row["coupling_k"] == pytest.approx(0.04)
-    assert row["coupling_k_source"] == "explicit_column"
-    assert math.isfinite(row["coupling_beta"])
-    assert math.isfinite(row["target_external_quality_factor"])
+    assert row["k_source"] == "explicit_column"
+    assert math.isfinite(row["beta"])
+    assert math.isfinite(row["q_ext_target"])
     assert row["is_valid"] is True
     assert row["invalid_reason"] == ""
-    assert row["phase_input_convention"] == "raw_s11_reflection_phase_deg"
+    assert row["phase_convention"] == "raw_s11_reflection_phase_deg"
 
 
 def test_build_coupler_cavity_parameter_table_derives_k_from_marker_frequency_ratio() -> None:
@@ -252,8 +252,8 @@ def test_build_coupler_cavity_parameter_table_derives_k_from_marker_frequency_ra
 
     assert len(result) == 2
     row = result[result["tune_position"] == 0.5].iloc[0]
-    assert math.isfinite(row["coupler_frequency_ghz"])
-    assert math.isfinite(row["external_quality_factor"])
+    assert math.isfinite(row["coupler_freq_ghz"])
+    assert math.isfinite(row["q_ext"])
     assert row["coupling_k"] == pytest.approx(
         estimate_coupling_k_from_marker_frequencies(
             pi_over_two_frequency_ghz=10.0,
@@ -261,10 +261,10 @@ def test_build_coupler_cavity_parameter_table_derives_k_from_marker_frequency_ra
             operation_mode_deg=120.0,
         )
     )
-    assert row["coupling_k_source"] == "marker_frequency_ratio_abs"
-    assert math.isfinite(row["coupling_beta"])
-    assert math.isfinite(row["target_external_quality_factor"])
-    assert row["coupling_beta_status"] == "ok"
+    assert row["k_source"] == "marker_frequency_ratio_abs"
+    assert math.isfinite(row["beta"])
+    assert math.isfinite(row["q_ext_target"])
+    assert row["beta_status"] == "ok"
 
 
 def test_build_coupler_cavity_parameter_table_uses_only_complete_coupler_endpoint_pair() -> None:
@@ -280,10 +280,10 @@ def test_build_coupler_cavity_parameter_table_uses_only_complete_coupler_endpoin
     result = build_coupler_cavity_parameter_table(marker_points)
 
     assert result["tune_position"].tolist() == [0.5, 1.5]
-    assert result["coupler_transition_pair"].tolist() == ["0.5_to_1.5", "0.5_to_1.5"]
-    assert result["coupler_position_basis"].tolist() == ["cell_center", "cell_center"]
-    assert result["coupler_pair_start_tune_position"].tolist() == [0.5, 0.5]
-    assert result["coupler_pair_end_tune_position"].tolist() == [1.5, 1.5]
+    assert result["cpl_pair"].tolist() == ["0.5_to_1.5", "0.5_to_1.5"]
+    assert result["cpl_pos_basis"].tolist() == ["cell_center", "cell_center"]
+    assert result["cpl_pos_from"].tolist() == [0.5, 0.5]
+    assert result["cpl_pos_to"].tolist() == [1.5, 1.5]
 
 
 def test_build_coupler_cavity_parameter_table_supports_iris_center_pair() -> None:
@@ -298,10 +298,10 @@ def test_build_coupler_cavity_parameter_table_supports_iris_center_pair() -> Non
     result = build_coupler_cavity_parameter_table(marker_points)
 
     assert result["tune_position"].tolist() == [1.0, 2.0]
-    assert result["coupler_transition_pair"].tolist() == ["1_to_2", "1_to_2"]
-    assert result["coupler_position_basis"].tolist() == ["iris_center", "iris_center"]
-    assert result["coupler_pair_start_tune_position"].tolist() == [1.0, 1.0]
-    assert result["coupler_pair_end_tune_position"].tolist() == [2.0, 2.0]
+    assert result["cpl_pair"].tolist() == ["1_to_2", "1_to_2"]
+    assert result["cpl_pos_basis"].tolist() == ["iris_center", "iris_center"]
+    assert result["cpl_pos_from"].tolist() == [1.0, 1.0]
+    assert result["cpl_pos_to"].tolist() == [2.0, 2.0]
 
 
 def test_build_coupler_cavity_parameter_table_requires_complete_allowed_pair() -> None:
@@ -326,6 +326,6 @@ def test_build_coupler_cavity_parameter_table_supports_geometry_radius_sweep_wit
     assert result["source_file"].tolist() == ["rc_54.s1p", "rc_55.s1p"]
     assert result["sim_r_c"].tolist() == [54.0, 55.0]
     assert result["sim_w_c"].tolist() == [19.3224, 19.3224]
-    assert result["coupler_position_basis"].tolist() == ["geometry_sweep", "geometry_sweep"]
-    assert result["coupler_transition_pair"].isna().all()
-    assert result["coupling_beta_status"].tolist() == ["ok", "ok"]
+    assert result["cpl_pos_basis"].tolist() == ["geometry_sweep", "geometry_sweep"]
+    assert result["cpl_pair"].isna().all()
+    assert result["beta_status"].tolist() == ["ok", "ok"]

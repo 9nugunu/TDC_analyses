@@ -31,12 +31,12 @@ def _nodal_shift_table() -> pd.DataFrame:
                     "dataset_id": "scan",
                     "marker_name": marker_name,
                     "position_family": "cell",
-                    "from_tune_position": from_position,
-                    "to_tune_position": to_position,
-                    "phase_advance_0to360_deg": target + error,
-                    "target_phase_advance_deg": target,
-                    "phase_error_from_target_deg": error,
-                    "abs_phase_error_from_target_deg": abs(error),
+                    "pos_from": from_position,
+                    "pos_to": to_position,
+                    "phase_adv_deg": target + error,
+                    "phase_target_deg": target,
+                    "phase_err_deg": error,
+                    "phase_err_abs_deg": abs(error),
                     "sim_r_c": r_c,
                     "sim_w_c": w_c,
                 }
@@ -60,12 +60,12 @@ def _iris_nodal_shift_table() -> pd.DataFrame:
                     "dataset_id": "raw_sweep_260604_iris_portE",
                     "marker_name": marker_name,
                     "position_family": "iris",
-                    "from_tune_position": from_position,
-                    "to_tune_position": to_position,
-                    "phase_advance_0to360_deg": target + error,
-                    "target_phase_advance_deg": target,
-                    "phase_error_from_target_deg": error,
-                    "abs_phase_error_from_target_deg": abs(error),
+                    "pos_from": from_position,
+                    "pos_to": to_position,
+                    "phase_adv_deg": target + error,
+                    "phase_target_deg": target,
+                    "phase_err_deg": error,
+                    "phase_err_abs_deg": abs(error),
                 }
             )
     return pd.DataFrame(rows)
@@ -91,8 +91,8 @@ def test_plot_nodal_shift_writes_bar_and_grid_objective_pngs(tmp_path: Path) -> 
         assert path.stat().st_size > 0
     assert (tmp_path / "nodal_shift_grid_objective.csv").exists()
     regular = pd.read_csv(tmp_path / "regular_cell_nodal_shift.csv")
-    assert set(regular["from_tune_position"]) == {1.5}
-    assert set(regular["to_tune_position"]) == {2.5}
+    assert set(regular["pos_from"]) == {1.5}
+    assert set(regular["pos_to"]) == {2.5}
 
 
 def test_plot_nodal_shift_writes_regular_iris_outputs(tmp_path: Path) -> None:
@@ -120,8 +120,8 @@ def test_plot_nodal_shift_writes_regular_iris_outputs(tmp_path: Path) -> None:
         assert paths[key].exists()
         assert paths[key].stat().st_size > 0
     regular = pd.read_csv(tmp_path / "regular_iris_nodal_shift.csv")
-    assert set(regular["from_tune_position"]) == {1.0}
-    assert set(regular["to_tune_position"]) == {2.0}
+    assert set(regular["pos_from"]) == {1.0}
+    assert set(regular["pos_to"]) == {2.0}
 
 
 def test_regular_phase_movement_plots_phase_advance_with_target_lines(tmp_path: Path, monkeypatch) -> None:
@@ -152,17 +152,17 @@ def test_regular_phase_movement_plots_phase_advance_with_target_lines(tmp_path: 
     plot_nodal_shift(_iris_nodal_shift_table(), tmp_path, config=PlotConfig(dpi=120))
 
     assert calls["regular_iris_f_2pi3_signed_error.png"] == (
-        "phase_error_from_target_deg",
+        "phase_err_deg",
         "Phase error from target [deg]",
         0.0,
     )
     assert calls["regular_iris_f_2pi3_phase_movement.png"] == (
-        "phase_advance_0to360_deg",
+        "phase_adv_deg",
         "Phase movement [deg]",
         240.0,
     )
     assert calls["regular_iris_f_pi2_phase_movement.png"] == (
-        "phase_advance_0to360_deg",
+        "phase_adv_deg",
         "Phase movement [deg]",
         180.0,
     )
@@ -174,8 +174,8 @@ def test_cumulative_phase_table_accumulates_measured_and_target_phase() -> None:
             "transition_label": ["1.0->2.0", "2.0->3.0", "3.0->4.0"],
             "_from_sort": [1.0, 2.0, 3.0],
             "_to_sort": [2.0, 3.0, 4.0],
-            "phase_advance_0to360_deg": [250.0, 230.0, 245.0],
-            "target_phase_advance_deg": [240.0, 240.0, 240.0],
+            "phase_adv_deg": [250.0, 230.0, 245.0],
+            "phase_target_deg": [240.0, 240.0, 240.0],
         }
     )
 

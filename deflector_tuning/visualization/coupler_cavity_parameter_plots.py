@@ -24,18 +24,18 @@ from deflector_tuning.visualization.plot_config import (
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "source_file",
-    "coupler_frequency_ghz",
-    "matching_frequency_ghz",
-    "delta_frequency_mhz",
-    "external_quality_factor",
-    "target_external_quality_factor",
-    "coupling_beta",
-    "coupling_beta_status",
+    "coupler_freq_ghz",
+    "match_freq_ghz",
+    "freq_delta_mhz",
+    "q_ext",
+    "q_ext_target",
+    "beta",
+    "beta_status",
     "is_valid",
 )
-FREQUENCY_COLUMNS: tuple[str, ...] = ("coupler_frequency_ghz", "matching_frequency_ghz", "delta_frequency_mhz")
-EXTERNAL_Q_COLUMNS: tuple[str, ...] = ("external_quality_factor",)
-BETA_COLUMNS: tuple[str, ...] = ("coupling_beta",)
+FREQUENCY_COLUMNS: tuple[str, ...] = ("coupler_freq_ghz", "match_freq_ghz", "freq_delta_mhz")
+EXTERNAL_Q_COLUMNS: tuple[str, ...] = ("q_ext",)
+BETA_COLUMNS: tuple[str, ...] = ("beta",)
 
 
 def plot_coupler_cavity_parameters(
@@ -120,7 +120,7 @@ def _finite_rows(table: pd.DataFrame, columns: tuple[str, ...]) -> pd.DataFrame:
 def _plot_frequency_shift(table: pd.DataFrame, output_path: Path, *, config: PlotConfig) -> Path:
     fig, ax = plt.subplots(figsize=_figure_size(table))
     x_values = np.arange(len(table))
-    shift_mhz = table["delta_frequency_mhz"].astype(float).to_numpy()
+    shift_mhz = table["freq_delta_mhz"].astype(float).to_numpy()
     colors = np.where(shift_mhz >= 0.0, "#4c78a8", "#f58518")
     ax.bar(
         x_values,
@@ -152,7 +152,7 @@ def _plot_frequency_shift(table: pd.DataFrame, output_path: Path, *, config: Plo
 def _plot_external_quality_factor(table: pd.DataFrame, output_path: Path, *, config: PlotConfig) -> Path:
     fig, ax = plt.subplots(figsize=_figure_size(table))
     x_values = np.arange(len(table))
-    external_q = table["external_quality_factor"].astype(float)
+    external_q = table["q_ext"].astype(float)
     ax.plot(
         x_values,
         external_q,
@@ -162,7 +162,7 @@ def _plot_external_quality_factor(table: pd.DataFrame, output_path: Path, *, con
         color="#4c78a8",
         label=r"estimated $Q_{ec}$",
     )
-    target_q = pd.to_numeric(table["target_external_quality_factor"], errors="coerce")
+    target_q = pd.to_numeric(table["q_ext_target"], errors="coerce")
     if np.isfinite(target_q.to_numpy(dtype=float)).any():
         ax.plot(
             x_values,
@@ -202,7 +202,7 @@ def _plot_coupling_beta(table: pd.DataFrame, output_path: Path, *, config: PlotC
     )
     fig, ax = plt.subplots(figsize=_figure_size(table))
     x_values = np.arange(len(table))
-    beta = table["coupling_beta"].astype(float)
+    beta = table["beta"].astype(float)
     colors = np.where(beta.to_numpy() >= 1.0, "#4c78a8", "#f58518")
     ax.bar(
         x_values,
@@ -274,15 +274,15 @@ def _plot_coupler_beta_vs_geometry_axis(
     plot_table = plot_table.sort_values("_geometry_value", kind="mergesort")
     fig, ax = plt.subplots(figsize=(9.2, 5.4))
     if series_column not in plot_table or pd.to_numeric(plot_table[series_column], errors="coerce").nunique() < 2:
-        group_columns = ["coupler_position_basis"]
+        group_columns = ["cpl_pos_basis"]
     else:
-        group_columns = ["coupler_position_basis", series_column]
+        group_columns = ["cpl_pos_basis", series_column]
     plot_table = _average_duplicate_geometry_points(plot_table, group_columns)
     for group_values, group in plot_table.groupby(group_columns, dropna=False, sort=False):
         label = _format_geometry_legend_label(group_values, group_columns)
         ax.plot(
             group["_geometry_value"].astype(float),
-            group["coupling_beta"].astype(float),
+            group["beta"].astype(float),
             marker="o",
             linewidth=2.0,
             label=label,
@@ -309,7 +309,7 @@ def _average_duplicate_geometry_points(table: pd.DataFrame, group_columns: list[
     columns = [*group_columns, "_geometry_value"]
     aggregated = (
         table.groupby(columns, dropna=False, as_index=False)
-        .agg({"coupling_beta": "mean"})
+        .agg({"beta": "mean"})
         .sort_values([*group_columns, "_geometry_value"], kind="mergesort")
     )
     return aggregated
@@ -336,9 +336,9 @@ def _figure_size(table: pd.DataFrame) -> tuple[float, float]:
 
 
 def _row_label(row: pd.Series) -> str:
-    if "coupler_position_basis" in row and pd.notna(row["coupler_position_basis"]):
+    if "cpl_pos_basis" in row and pd.notna(row["cpl_pos_basis"]):
         basis = ""
-        basis = str(row["coupler_position_basis"]).replace("_", " ")
+        basis = str(row["cpl_pos_basis"]).replace("_", " ")
         if "tune_position" in row and pd.notna(row["tune_position"]):
             return f"{basis}\nposition {_format_number(row['tune_position'])}"
         return basis
@@ -363,7 +363,7 @@ def _format_geometry_legend_label(group_values: object, group_columns: list[str]
         if column == "sim_r_c":
             return rf"radius $r_c$ = {_format_number(value)}"
     for column, value in zip(group_columns, values, strict=True):
-        if column == "coupler_position_basis":
+        if column == "cpl_pos_basis":
             return _format_basis_label(value)
     return "geometry sweep"
 

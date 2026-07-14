@@ -29,10 +29,10 @@ from deflector_tuning.progress import progress_iter
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
-    "from_tune_position",
-    "to_tune_position",
-    "phase_error_from_target_deg",
-    "abs_phase_error_from_target_deg",
+    "pos_from",
+    "pos_to",
+    "phase_err_deg",
+    "phase_err_abs_deg",
 )
 REGULAR_NODAL_FAMILIES: tuple[str, ...] = ("cell", "iris")
 
@@ -87,7 +87,7 @@ def plot_nodal_shift(
                 folder / f"regular_{regular_family}_{marker}_signed_error.png",
                 marker=marker,
                 family=regular_family,
-                value_column="phase_error_from_target_deg",
+                value_column="phase_err_deg",
                 ylabel="Phase error from target [deg]",
                 title=f"Regular-{regular_family} {MARKER_LABELS.get(marker, marker)} nodal-shift error",
                 reference_line=0.0,
@@ -98,7 +98,7 @@ def plot_nodal_shift(
                 folder / f"regular_{regular_family}_{marker}_phase_movement.png",
                 marker=marker,
                 family=regular_family,
-                value_column="phase_advance_0to360_deg",
+                value_column="phase_adv_deg",
                 ylabel="Phase movement [deg]",
                 title=f"Regular-{regular_family} {MARKER_LABELS.get(marker, marker)} phase movement",
                 reference_line=_target_phase_advance(marker_table),
@@ -142,11 +142,11 @@ def plot_nodal_shift(
 def _prepare_table(nodal_shift: pd.DataFrame) -> pd.DataFrame:
     table = nodal_shift[nodal_shift["marker_name"].isin(MARKER_ORDER)].copy()
     if "position_family" not in table:
-        table["position_family"] = table["from_tune_position"].map(_position_family)
-    table["_from_sort"] = pd.to_numeric(table["from_tune_position"], errors="coerce")
-    table["_to_sort"] = pd.to_numeric(table["to_tune_position"], errors="coerce")
+        table["position_family"] = table["pos_from"].map(_position_family)
+    table["_from_sort"] = pd.to_numeric(table["pos_from"], errors="coerce")
+    table["_to_sort"] = pd.to_numeric(table["pos_to"], errors="coerce")
     table["transition_label"] = table.apply(
-        lambda row: f"{_format_position(row['from_tune_position'])}->{_format_position(row['to_tune_position'])}",
+        lambda row: f"{_format_position(row['pos_from'])}->{_format_position(row['pos_to'])}",
         axis=1,
     )
     return table.sort_values(["position_family", "_from_sort", "_to_sort", "marker_name"], kind="mergesort")
@@ -162,13 +162,13 @@ def _plot_family_bar(table: pd.DataFrame, output_path: Path, *, family: str, con
     for marker_index, marker in enumerate(marker_order):
         marker_table = (
             table[table["marker_name"] == marker]
-            .groupby("transition_label", sort=False, as_index=False)["phase_error_from_target_deg"]
+            .groupby("transition_label", sort=False, as_index=False)["phase_err_deg"]
             .mean()
         )
         values_by_label = dict(
             zip(
                 marker_table["transition_label"],
-                marker_table["phase_error_from_target_deg"],
+                marker_table["phase_err_deg"],
                 strict=True,
             )
         )
@@ -370,7 +370,7 @@ def _cumulative_phase_table(table: pd.DataFrame) -> pd.DataFrame:
     grouped = (
         table.groupby("transition_label", sort=False, as_index=False)
         .agg(
-            phase_advance_0to360_deg=("phase_advance_0to360_deg", "mean"),
+            phase_adv_deg=("phase_adv_deg", "mean"),
             _from_sort=("_from_sort", "min"),
             _to_sort=("_to_sort", "min"),
         )
@@ -378,7 +378,7 @@ def _cumulative_phase_table(table: pd.DataFrame) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     grouped["step_index"] = np.arange(1, len(grouped) + 1, dtype=int)
-    grouped["measured_cumulative_phase_deg"] = grouped["phase_advance_0to360_deg"].astype(float).cumsum()
+    grouped["measured_cumulative_phase_deg"] = grouped["phase_adv_deg"].astype(float).cumsum()
     target = _target_phase_advance(table)
     if target is not None:
         grouped["target_cumulative_phase_deg"] = grouped["step_index"].astype(float) * target
@@ -389,34 +389,34 @@ def _cumulative_phase_table(table: pd.DataFrame) -> pd.DataFrame:
 
 
 def _target_phase_advance(table: pd.DataFrame) -> float | None:
-    if "target_phase_advance_deg" not in table:
+    if "phase_target_deg" not in table:
         return None
-    targets = pd.to_numeric(table["target_phase_advance_deg"], errors="coerce").dropna().unique()
+    targets = pd.to_numeric(table["phase_target_deg"], errors="coerce").dropna().unique()
     if len(targets) == 0:
         return None
     return float(targets[0])
 
 
 def _grid_objective_table(table: pd.DataFrame) -> pd.DataFrame:
-    required = ("sim_r_c", "sim_w_c", "abs_phase_error_from_target_deg")
+    required = ("sim_r_c", "sim_w_c", "phase_err_abs_deg")
     if any(column not in table for column in required):
         return pd.DataFrame()
     require_finite_plot_columns(
         table,
-        columns=("sim_r_c", "sim_w_c", "abs_phase_error_from_target_deg"),
+        columns=("sim_r_c", "sim_w_c", "phase_err_abs_deg"),
         context="nodal_shift",
-        id_columns=("dataset_id", "source_file", "from_source_file", "to_source_file", "sim_r_c", "sim_w_c"),
+        id_columns=("dataset_id", "source_file", "file_from", "file_to", "sim_r_c", "sim_w_c"),
     )
     grouped = (
         table.groupby(["sim_r_c", "sim_w_c", "marker_name"], dropna=False, as_index=False)[
-            "abs_phase_error_from_target_deg"
+            "phase_err_abs_deg"
         ]
         .mean()
     )
     pivot = grouped.pivot_table(
         index=["sim_r_c", "sim_w_c"],
         columns="marker_name",
-        values="abs_phase_error_from_target_deg",
+        values="phase_err_abs_deg",
         aggfunc="mean",
     )
     rows = pivot.reset_index()

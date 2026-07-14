@@ -27,8 +27,8 @@ REQUIRED_COLUMNS: tuple[str, ...] = (
     "sweep_value",
     "cell_phase_deg",
     "iris_phase_deg",
-    "cell_phase_shift_from_baseline_deg",
-    "iris_phase_shift_from_baseline_deg",
+    "cell_phase_shift_deg",
+    "iris_phase_shift_deg",
 )
 def plot_geometry_phase_response(
     response: pd.DataFrame,
@@ -49,8 +49,8 @@ def plot_geometry_phase_response(
             "sweep_value",
             "cell_phase_deg",
             "iris_phase_deg",
-            "cell_phase_shift_from_baseline_deg",
-            "iris_phase_shift_from_baseline_deg",
+            "cell_phase_shift_deg",
+            "iris_phase_shift_deg",
         ),
         context="geometry_phase_response",
     )
@@ -122,7 +122,7 @@ def _plot_family_phase_pickup(table: pd.DataFrame, output_path: Path, *, xlabel:
     _plot_family_lines(
         ax,
         table,
-        value_columns=("cell_phase_shift_from_baseline_deg", "iris_phase_shift_from_baseline_deg"),
+        value_columns=("cell_phase_shift_deg", "iris_phase_shift_deg"),
         value_labels=("cell", "iris"),
     )
     ax.axhline(0.0, color="0.35", linestyle="--", linewidth=1.0)

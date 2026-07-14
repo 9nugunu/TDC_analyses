@@ -16,19 +16,19 @@ def test_compare_cell_and_iris_responses_pairs_matching_transition_indices() -> 
                 "port_side": pd.NA,
                 "s_name": "S11",
                 "position_family": "cell",
-                "from_source_file": "cell_0p5.s1p",
-                "to_source_file": "cell_1p5.s1p",
-                "from_tune_position": 0.5,
-                "to_tune_position": 1.5,
-                "target_freq_ghz": 2.856,
-                "operation_mode_deg": 120.0,
-                "operation_axes_deg": "60;180;300",
-                "delta_operation_scaled_admittance_real": 3.0,
-                "delta_operation_scaled_admittance_imag": 4.0,
-                "operation_axis_error_deg": 15.0,
-                "abs_operation_axis_error_deg": 15.0,
-                "raw_signed_phase_step_deg": -100.0,
-                "raw_phase_advance_0to360_deg": 260.0,
+                "file_from": "cell_0p5.s1p",
+                "file_to": "cell_1p5.s1p",
+                "pos_from": 0.5,
+                "pos_to": 1.5,
+                "freq_target_ghz": 2.856,
+                "op_mode_deg": 120.0,
+                "op_admit_axes_deg": "60;180;300",
+                "op_admit_delta_re": 3.0,
+                "op_admit_delta_im": 4.0,
+                "op_admit_axis_err_deg": 15.0,
+                "op_admit_axis_err_abs_deg": 15.0,
+                "phase_step_deg": -100.0,
+                "phase_adv_deg": 260.0,
             },
             {
                 "dataset_id": "dataset",
@@ -39,19 +39,19 @@ def test_compare_cell_and_iris_responses_pairs_matching_transition_indices() -> 
                 "port_side": pd.NA,
                 "s_name": "S11",
                 "position_family": "iris",
-                "from_source_file": "iris_1p0.s1p",
-                "to_source_file": "iris_2p0.s1p",
-                "from_tune_position": 1.0,
-                "to_tune_position": 2.0,
-                "target_freq_ghz": 2.856,
-                "operation_mode_deg": 120.0,
-                "operation_axes_deg": "60;180;300",
-                "delta_operation_scaled_admittance_real": 6.0,
-                "delta_operation_scaled_admittance_imag": 8.0,
-                "operation_axis_error_deg": 5.0,
-                "abs_operation_axis_error_deg": 5.0,
-                "raw_signed_phase_step_deg": -150.0,
-                "raw_phase_advance_0to360_deg": 245.0,
+                "file_from": "iris_1p0.s1p",
+                "file_to": "iris_2p0.s1p",
+                "pos_from": 1.0,
+                "pos_to": 2.0,
+                "freq_target_ghz": 2.856,
+                "op_mode_deg": 120.0,
+                "op_admit_axes_deg": "60;180;300",
+                "op_admit_delta_re": 6.0,
+                "op_admit_delta_im": 8.0,
+                "op_admit_axis_err_deg": 5.0,
+                "op_admit_axis_err_abs_deg": 5.0,
+                "phase_step_deg": -150.0,
+                "phase_adv_deg": 245.0,
             },
             {
                 "dataset_id": "dataset",
@@ -62,19 +62,19 @@ def test_compare_cell_and_iris_responses_pairs_matching_transition_indices() -> 
                 "port_side": pd.NA,
                 "s_name": "S11",
                 "position_family": "cell",
-                "from_source_file": "cell_9p5.s1p",
-                "to_source_file": "cell_10p5.s1p",
-                "from_tune_position": 9.5,
-                "to_tune_position": 10.5,
-                "target_freq_ghz": 2.856,
-                "operation_mode_deg": 120.0,
-                "operation_axes_deg": "60;180;300",
-                "delta_operation_scaled_admittance_real": 30.0,
-                "delta_operation_scaled_admittance_imag": 40.0,
-                "operation_axis_error_deg": 1.0,
-                "abs_operation_axis_error_deg": 1.0,
-                "raw_signed_phase_step_deg": -120.0,
-                "raw_phase_advance_0to360_deg": 240.0,
+                "file_from": "cell_9p5.s1p",
+                "file_to": "cell_10p5.s1p",
+                "pos_from": 9.5,
+                "pos_to": 10.5,
+                "freq_target_ghz": 2.856,
+                "op_mode_deg": 120.0,
+                "op_admit_axes_deg": "60;180;300",
+                "op_admit_delta_re": 30.0,
+                "op_admit_delta_im": 40.0,
+                "op_admit_axis_err_deg": 1.0,
+                "op_admit_axis_err_abs_deg": 1.0,
+                "phase_step_deg": -120.0,
+                "phase_adv_deg": 240.0,
             },
             {
                 "dataset_id": "dataset",
@@ -85,19 +85,19 @@ def test_compare_cell_and_iris_responses_pairs_matching_transition_indices() -> 
                 "port_side": pd.NA,
                 "s_name": "S11",
                 "position_family": "iris",
-                "from_source_file": "iris_10p0.s1p",
-                "to_source_file": "iris_11p0.s1p",
-                "from_tune_position": 10.0,
-                "to_tune_position": 11.0,
-                "target_freq_ghz": 2.856,
-                "operation_mode_deg": 120.0,
-                "operation_axes_deg": "60;180;300",
-                "delta_operation_scaled_admittance_real": 60.0,
-                "delta_operation_scaled_admittance_imag": 80.0,
-                "operation_axis_error_deg": 1.0,
-                "abs_operation_axis_error_deg": 1.0,
-                "raw_signed_phase_step_deg": -120.0,
-                "raw_phase_advance_0to360_deg": 240.0,
+                "file_from": "iris_10p0.s1p",
+                "file_to": "iris_11p0.s1p",
+                "pos_from": 10.0,
+                "pos_to": 11.0,
+                "freq_target_ghz": 2.856,
+                "op_mode_deg": 120.0,
+                "op_admit_axes_deg": "60;180;300",
+                "op_admit_delta_re": 60.0,
+                "op_admit_delta_im": 80.0,
+                "op_admit_axis_err_deg": 1.0,
+                "op_admit_axis_err_abs_deg": 1.0,
+                "phase_step_deg": -120.0,
+                "phase_adv_deg": 240.0,
             },
         ]
     )
@@ -106,15 +106,15 @@ def test_compare_cell_and_iris_responses_pairs_matching_transition_indices() -> 
 
     assert len(result) == 1
     row = result.iloc[0]
-    assert row["transition_pair_index"] == 1
-    assert row["cell_from_tune_position"] == pytest.approx(0.5)
-    assert row["iris_from_tune_position"] == pytest.approx(1.0)
-    assert row["cell_operation_scaled_admittance_delta_abs"] == pytest.approx(5.0)
-    assert row["iris_operation_scaled_admittance_delta_abs"] == pytest.approx(10.0)
-    assert row["operation_scaled_admittance_response_ratio_iris_over_cell"] == pytest.approx(2.0)
-    assert row["phase_step_response_ratio_iris_over_cell"] == pytest.approx(1.5)
-    assert row["cell_phase_residual_from_target_deg"] == pytest.approx(20.0)
-    assert row["iris_phase_residual_from_target_deg"] == pytest.approx(5.0)
-    assert row["supports_iris_larger_admittance_response"] is True
-    assert row["supports_iris_better_branch_alignment"] is True
-    assert row["supports_iris_lower_phase_residual"] is True
+    assert row["pair_index"] == 1
+    assert row["cell_pos_from"] == pytest.approx(0.5)
+    assert row["iris_pos_from"] == pytest.approx(1.0)
+    assert row["cell_admit_delta_mag"] == pytest.approx(5.0)
+    assert row["iris_admit_delta_mag"] == pytest.approx(10.0)
+    assert row["admit_ratio_iris_cell"] == pytest.approx(2.0)
+    assert row["phase_ratio_iris_cell"] == pytest.approx(1.5)
+    assert row["cell_phase_err_deg"] == pytest.approx(20.0)
+    assert row["iris_phase_err_deg"] == pytest.approx(5.0)
+    assert row["supports_iris_admit"] is True
+    assert row["supports_iris_axis"] is True
+    assert row["supports_iris_phase"] is True

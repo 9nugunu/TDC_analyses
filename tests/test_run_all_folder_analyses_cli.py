@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from types import SimpleNamespace
 from pathlib import Path
+
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +55,7 @@ def test_root_run_all_folder_analyses_cli_shows_help() -> None:
     assert "dataset_ids" in result.stdout
     assert "--output-root" in result.stdout
     assert "--workers" in result.stdout
+    assert "--tables-only" in result.stdout
     assert "os.cpu_count() - 2" in result.stdout
 
 
@@ -90,6 +94,7 @@ def test_build_batch_tasks_infers_output_and_marker_role(tmp_path: Path) -> None
         marker_role=None,
         dispersion_path=None,
         data_root=tmp_path / "data",
+        tables_only=True,
     )
 
     assert [task.output_dir for task in tasks] == [
@@ -97,6 +102,7 @@ def test_build_batch_tasks_infers_output_and_marker_role(tmp_path: Path) -> None
         tmp_path / "analyses" / "sim_sweep_260519_scan_dataset",
     ]
     assert [task.marker_role for task in tasks] == ["exp", "sim"]
+    assert [task.tables_only for task in tasks] == [True, True]
 
 
 def test_main_passes_custom_project_defaults_to_every_batch_task(
@@ -302,21 +308,168 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
         output_dir=Path("fig") / "analyses" / "sim_sweep_260519_scan_dataset",
         marker_role="sim",
         data_root=Path("data"),
+        tables_only=True,
     )
     captured: dict[str, object] = {}
+    verified: list[tuple[Path, Path]] = []
 
     monkeypatch.setattr(module, "prepare_batch_dispersion_input", lambda *args, **kwargs: None)
 
     def fake_run_folder_analysis(**kwargs):
         captured.update(kwargs)
-        return SimpleNamespace(output_dir=task.output_dir)
+        return SimpleNamespace(
+            output_dir=task.output_dir,
+            manifest_path=task.output_dir / "manifest.json",
+        )
 
     monkeypatch.setattr(module, "run_folder_analysis", fake_run_folder_analysis)
+    monkeypatch.setattr(
+        module,
+        "verify_table_contract_outputs",
+        lambda output_dir, manifest_path: verified.append((output_dir, manifest_path)),
+    )
 
     result = module.run_batch_task(task)
 
     assert result == (task.sparameter_path, task.output_dir)
     assert captured["plot_workers"] == 1
+    assert captured["tables_only"] is True
+    assert verified == [(task.output_dir, task.output_dir / "manifest.json")]
+
+
+def test_verify_standard_table_outputs_rejects_leftover_legacy_file(tmp_path: Path) -> None:
+    module = _load_runner_module()
+    output_dir = tmp_path / "analysis"
+    table_dir = output_dir / "tables"
+    table_dir.mkdir(parents=True)
+    manifest_tables: dict[str, str] = {}
+    for key, spec in module.STANDARD_TABLE_SPECS.items():
+        path = table_dir / spec.filename
+        path.write_text("dataset_id,value\ncase,1\n", encoding="utf-8")
+        manifest_tables[key] = str(path)
+    leftover = table_dir / "marker_points.csv"
+    leftover.write_text("dataset_id,value\ncase,1\n", encoding="utf-8")
+    manifest_path = output_dir / "manifest.json"
+    manifest_path.write_text(
+        __import__("json").dumps(
+            {
+                "table_contract": "standard",
+                "table_schema_version": 2,
+                "outputs": {"tables": manifest_tables},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        module.verify_standard_table_outputs(output_dir, manifest_path)
+    except ValueError as exc:
+        assert "legacy table was not removed" in str(exc)
+    else:
+        raise AssertionError("Expected leftover legacy table verification to fail")
+
+
+@pytest.mark.parametrize(
+    ("contract", "point_key"),
+    (("y11", "y11_pts"), ("z11", "z11_pts")),
+)
+def test_verify_table_contract_outputs_accepts_direct_lane(
+    tmp_path: Path,
+    contract: str,
+    point_key: str,
+) -> None:
+    module = _load_runner_module()
+    output_dir = tmp_path / contract
+    table_dir = output_dir / "tables"
+    table_dir.mkdir(parents=True)
+    manifest_tables: dict[str, str] = {}
+    for key, spec in module.TABLE_CONTRACTS[contract].items():
+        path = table_dir / spec.filename
+        path.write_text("dataset_id,value\ncase,1\n", encoding="utf-8")
+        manifest_tables[key] = str(path)
+    manifest_path = output_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "table_contract": contract,
+                "table_schema_version": 2,
+                "outputs": {"tables": manifest_tables},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    module.verify_table_contract_outputs(output_dir, manifest_path)
+
+    assert point_key in manifest_tables
+
+
+def test_verify_table_contract_outputs_rejects_wrong_declared_contract(
+    tmp_path: Path,
+) -> None:
+    module = _load_runner_module()
+    output_dir = tmp_path / "analysis"
+    table_dir = output_dir / "tables"
+    table_dir.mkdir(parents=True)
+    marker_path = table_dir / "markers.csv"
+    z11_path = table_dir / "z11_pts.csv"
+    marker_path.write_text("dataset_id\ncase\n", encoding="utf-8")
+    z11_path.write_text("dataset_id,z_re_ohm\ncase,12\n", encoding="utf-8")
+    manifest_path = output_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "table_contract": "y11",
+                "table_schema_version": 2,
+                "outputs": {
+                    "tables": {
+                        "markers": str(marker_path),
+                        "z11_pts": str(z11_path),
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        module.verify_table_contract_outputs(output_dir, manifest_path)
+    except ValueError as exc:
+        assert "manifest table keys" in str(exc)
+    else:
+        raise AssertionError("Expected mismatched contract verification to fail")
+
+
+def test_verify_table_contract_outputs_rejects_other_contract_canonical_file(
+    tmp_path: Path,
+) -> None:
+    module = _load_runner_module()
+    output_dir = tmp_path / "analysis"
+    table_dir = output_dir / "tables"
+    table_dir.mkdir(parents=True)
+    manifest_tables: dict[str, str] = {}
+    for key, spec in module.TABLE_CONTRACTS["y11"].items():
+        path = table_dir / spec.filename
+        path.write_text("dataset_id,value\ncase,1\n", encoding="utf-8")
+        manifest_tables[key] = str(path)
+    (table_dir / "z11_pts.csv").write_text(
+        "dataset_id,z_re_ohm\ncase,12\n",
+        encoding="utf-8",
+    )
+    manifest_path = output_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "table_contract": "y11",
+                "table_schema_version": 2,
+                "outputs": {"tables": manifest_tables},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unexpected canonical table"):
+        module.verify_table_contract_outputs(output_dir, manifest_path)
 
 
 def test_main_passes_worker_count_to_batch_executor(monkeypatch, tmp_path: Path) -> None:

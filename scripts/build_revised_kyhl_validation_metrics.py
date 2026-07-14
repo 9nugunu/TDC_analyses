@@ -27,9 +27,9 @@ from deflector_tuning.visualization.em_field_structure_plots import (
 
 
 DEFAULT_PROFILE_DIR = Path("data/sim/sim_profile_260618_PhaseDistribution")
-DEFAULT_NODAL_SWEEP_TABLE = Path("fig/analyses/sim_sweep_260618_Nodalshift/tables/phase_summary.csv")
+DEFAULT_NODAL_SWEEP_TABLE = Path("fig/analyses/sim_sweep_260618_Nodalshift/tables/phase_stats.csv")
 DEFAULT_FULL_SWEEP_PHASE_ADVANCE = Path(
-    "fig/analyses/sim_sweep_260620_FullstructureSweep_ports_swapped/tables/phase_advance.csv"
+    "fig/analyses/sim_sweep_260620_FullstructureSweep_ports_swapped/tables/phase_adv.csv"
 )
 DEFAULT_OUTPUT_DIR = Path("outputs/revised_kyhl_validation")
 TARGET_COUPLER_PHASE_DEG = 240.0
@@ -272,8 +272,8 @@ def build_phase_correction_proxy(path: Path) -> pd.DataFrame:
         by_family = group.set_index("position_family")
         if not {"iris", "cell"}.issubset(set(by_family.index)):
             continue
-        iris_error = float(by_family.loc["iris", "rms_phase_error_deg"])
-        cell_error = float(by_family.loc["cell", "rms_phase_error_deg"])
+        iris_error = float(by_family.loc["iris", "phase_err_rms_deg"])
+        cell_error = float(by_family.loc["cell", "phase_err_rms_deg"])
         rows.append(
             {
                 "dataset_id": str(group["dataset_id"].iloc[0]),
@@ -294,7 +294,7 @@ def build_full_sweep_rms_comparison(phase_advance: pd.DataFrame) -> pd.DataFrame
 
     table = phase_advance.copy()
     table["wrapped_phase_error_from_240_deg"] = wrap_deg(
-        table["phase_advance_0to360_deg"].astype(float).to_numpy() - TARGET_COUPLER_PHASE_DEG
+        table["phase_adv_deg"].astype(float).to_numpy() - TARGET_COUPLER_PHASE_DEG
     )
     rows = []
     for marker_name, marker_group in table.groupby("marker_name", sort=False):
@@ -335,10 +335,10 @@ def build_full_sweep_phase_response_ratio(phase_advance: pd.DataFrame) -> pd.Dat
     """Compute iris/cell phase response ratios from full-structure transitions."""
 
     table = phase_advance.copy()
-    table["signed_response_abs_deg"] = table["signed_phase_step_deg"].astype(float).abs()
-    table["advance_response_abs_deg"] = table["phase_advance_0to360_deg"].astype(float).abs()
+    table["signed_response_abs_deg"] = table["phase_step_deg"].astype(float).abs()
+    table["advance_response_abs_deg"] = table["phase_adv_deg"].astype(float).abs()
     table["target_residual_abs_deg"] = wrap_deg(
-        table["phase_advance_0to360_deg"].astype(float).to_numpy() - TARGET_COUPLER_PHASE_DEG
+        table["phase_adv_deg"].astype(float).to_numpy() - TARGET_COUPLER_PHASE_DEG
     )
     table["target_residual_abs_deg"] = table["target_residual_abs_deg"].abs()
 
@@ -349,8 +349,8 @@ def build_full_sweep_phase_response_ratio(phase_advance: pd.DataFrame) -> pd.Dat
             metrics[family] = {
                 "transition_count": int(len(group)),
                 "mean_abs_signed_phase_step_deg": float(group["signed_response_abs_deg"].mean()),
-                "rms_signed_phase_step_deg": rms(group["signed_phase_step_deg"]),
-                "mean_phase_advance_0to360_deg": float(group["phase_advance_0to360_deg"].mean()),
+                "rms_signed_phase_step_deg": rms(group["phase_step_deg"]),
+                "mean_phase_advance_0to360_deg": float(group["phase_adv_deg"].mean()),
                 "mean_abs_target_residual_deg": float(group["target_residual_abs_deg"].mean()),
                 "rms_target_residual_deg": rms(group["target_residual_abs_deg"]),
             }
@@ -404,19 +404,19 @@ def build_coupler_to_first_error(phase_advance: pd.DataFrame) -> pd.DataFrame:
 
     table = phase_advance.copy()
     table["wrapped_error_from_240_deg"] = wrap_deg(
-        table["phase_advance_0to360_deg"].astype(float).to_numpy() - TARGET_COUPLER_PHASE_DEG
+        table["phase_adv_deg"].astype(float).to_numpy() - TARGET_COUPLER_PHASE_DEG
     )
     rows = []
     for (marker_name, family), group in table.groupby(["marker_name", "position_family"], sort=False):
-        first = group.sort_values(["from_tune_position", "to_tune_position"]).iloc[0]
+        first = group.sort_values(["pos_from", "pos_to"]).iloc[0]
         rows.append(
             {
                 "dataset_id": first["dataset_id"],
                 "marker_name": marker_name,
                 "position_family": family,
-                "from_tune_position": float(first["from_tune_position"]),
-                "to_tune_position": float(first["to_tune_position"]),
-                "phase_advance_0to360_deg": float(first["phase_advance_0to360_deg"]),
+                "from_tune_position": float(first["pos_from"]),
+                "to_tune_position": float(first["pos_to"]),
+                "phase_advance_0to360_deg": float(first["phase_adv_deg"]),
                 "target_phase_advance_deg": TARGET_COUPLER_PHASE_DEG,
                 "wrapped_error_from_240_deg": float(first["wrapped_error_from_240_deg"]),
                 "abs_error_from_240_deg": abs(float(first["wrapped_error_from_240_deg"])),

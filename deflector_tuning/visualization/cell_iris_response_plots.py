@@ -26,24 +26,24 @@ from deflector_tuning.visualization.plot_config import (
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
     "transition_pair_index",
-    "cell_from_tune_position",
-    "cell_to_tune_position",
-    "iris_from_tune_position",
-    "iris_to_tune_position",
-    "operation_scaled_admittance_response_ratio_iris_over_cell",
-    "phase_step_response_ratio_iris_over_cell",
-    "cell_phase_residual_from_target_deg",
-    "iris_phase_residual_from_target_deg",
-    "cell_abs_operation_axis_error_deg",
-    "iris_abs_operation_axis_error_deg",
+    "cell_pos_from",
+    "cell_pos_to",
+    "iris_pos_from",
+    "iris_pos_to",
+    "admit_ratio_iris_cell",
+    "phase_ratio_iris_cell",
+    "cell_phase_err_deg",
+    "iris_phase_err_deg",
+    "cell_admit_axis_err_abs_deg",
+    "iris_admit_axis_err_abs_deg",
 )
 FINITE_COLUMNS: tuple[str, ...] = (
-    "operation_scaled_admittance_response_ratio_iris_over_cell",
-    "phase_step_response_ratio_iris_over_cell",
-    "cell_phase_residual_from_target_deg",
-    "iris_phase_residual_from_target_deg",
-    "cell_abs_operation_axis_error_deg",
-    "iris_abs_operation_axis_error_deg",
+    "admit_ratio_iris_cell",
+    "phase_ratio_iris_cell",
+    "cell_phase_err_deg",
+    "iris_phase_err_deg",
+    "cell_admit_axis_err_abs_deg",
+    "iris_admit_axis_err_abs_deg",
 )
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
 MARKER_TICK_LABELS: dict[str, str] = {"f_2pi3": "f_2pi/3", "f_mean": "f_mean", "f_pi2": "f_pi/2"}
@@ -80,7 +80,7 @@ def plot_cell_iris_response_comparison(
     paths["iris_over_cell_admittance_response_ratio"] = _plot_response_ratio(
         table,
         folder / "iris_over_cell_admittance_response_ratio.png",
-        value_column="operation_scaled_admittance_response_ratio_iris_over_cell",
+        value_column="admit_ratio_iris_cell",
         ylabel="Iris / cell admittance response",
         title="Iris-over-cell admittance response ratio",
         config=config,
@@ -88,7 +88,7 @@ def plot_cell_iris_response_comparison(
     paths["iris_over_cell_phase_step_ratio"] = _plot_response_ratio(
         table,
         folder / "iris_over_cell_phase_step_ratio.png",
-        value_column="phase_step_response_ratio_iris_over_cell",
+        value_column="phase_ratio_iris_cell",
         ylabel="Iris / cell phase-step response",
         title="Iris-over-cell phase-step response ratio",
         config=config,
@@ -96,8 +96,8 @@ def plot_cell_iris_response_comparison(
     paths["cell_vs_iris_phase_residual"] = _plot_cell_iris_bars(
         table,
         folder / "cell_vs_iris_phase_residual.png",
-        cell_column="cell_phase_residual_from_target_deg",
-        iris_column="iris_phase_residual_from_target_deg",
+        cell_column="cell_phase_err_deg",
+        iris_column="iris_phase_err_deg",
         ylabel="Absolute residual from target phase [deg]",
         title="Cell vs iris target-phase residual",
         config=config,
@@ -105,8 +105,8 @@ def plot_cell_iris_response_comparison(
     paths["cell_vs_iris_operation_axis_error"] = _plot_cell_iris_bars(
         table,
         folder / "cell_vs_iris_operation_axis_error.png",
-        cell_column="cell_abs_operation_axis_error_deg",
-        iris_column="iris_abs_operation_axis_error_deg",
+        cell_column="cell_admit_axis_err_abs_deg",
+        iris_column="iris_admit_axis_err_abs_deg",
         ylabel="Absolute operation-axis error [deg]",
         title="Cell vs iris operation-axis error",
         config=config,
@@ -118,8 +118,8 @@ def _prepare_table(comparison: pd.DataFrame) -> pd.DataFrame:
     table = comparison.copy()
     table["_marker_order"] = table["marker_name"].map(_marker_sort_key)
     table["_pair_sort"] = pd.to_numeric(table["transition_pair_index"], errors="coerce")
-    table["_cell_from_sort"] = pd.to_numeric(table["cell_from_tune_position"], errors="coerce")
-    table["_iris_from_sort"] = pd.to_numeric(table["iris_from_tune_position"], errors="coerce")
+    table["_cell_from_sort"] = pd.to_numeric(table["cell_pos_from"], errors="coerce")
+    table["_iris_from_sort"] = pd.to_numeric(table["iris_pos_from"], errors="coerce")
     table["comparison_label"] = table.apply(_comparison_label, axis=1)
     return table.sort_values(
         ["_marker_order", "marker_name", "_pair_sort", "_cell_from_sort", "_iris_from_sort"],
@@ -213,8 +213,8 @@ def _comparison_label(row: pd.Series) -> str:
     marker = str(row["marker_name"])
     marker_label = MARKER_TICK_LABELS.get(marker, marker)
     pair = _format_position(row["transition_pair_index"])
-    cell = f"C {_format_position(row['cell_from_tune_position'])}->{_format_position(row['cell_to_tune_position'])}"
-    iris = f"I {_format_position(row['iris_from_tune_position'])}->{_format_position(row['iris_to_tune_position'])}"
+    cell = f"C {_format_position(row['cell_pos_from'])}->{_format_position(row['cell_pos_to'])}"
+    iris = f"I {_format_position(row['iris_pos_from'])}->{_format_position(row['iris_pos_to'])}"
     return f"{marker_label} pair {pair}\n{cell} | {iris}"
 
 

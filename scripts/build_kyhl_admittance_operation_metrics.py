@@ -101,14 +101,14 @@ def build_coupler_to_first_check(transitions: pd.DataFrame) -> pd.DataFrame:
         return transitions.copy()
     rows = []
     for (_marker_name, _family), group in transitions.groupby(["marker_name", "position_family"], sort=False):
-        rows.append(group.sort_values(["from_tune_position", "to_tune_position"], kind="mergesort").iloc[0])
+        rows.append(group.sort_values(["pos_from", "pos_to"], kind="mergesort").iloc[0])
     return pd.DataFrame(rows).reset_index(drop=True)
 
 
 def _sample_one_marker_with_complex(sparameter_table: pd.DataFrame, marker: pd.Series) -> pd.DataFrame:
     target_freq_ghz = float(marker["freq_ghz"])
     table = sparameter_table.copy()
-    table["target_freq_ghz"] = target_freq_ghz
+    table["freq_target_ghz"] = target_freq_ghz
     table["freq_error_ghz"] = table["freq_ghz"] - target_freq_ghz
     table["_abs_freq_error_ghz"] = table["freq_error_ghz"].abs()
     for column in ["source_file", "s_name", "tune_position", "port_side"]:

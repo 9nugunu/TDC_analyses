@@ -40,23 +40,23 @@ def detection_report(
     *,
     dataset_category: str | None = None,
 ) -> DetectionReport:
-    marker_points = tables.get("marker_points")
+    marker_points = tables.get("marker_pts")
     grid_enabled, grid_reason = _is_simulation_grid_scan(
         marker_points,
         dataset_category=dataset_category,
     )
     coupler_enabled, coupler_reason = _has_rows(
-        tables.get("coupler_cavity_parameter_estimates"),
+        tables.get("coupler_params"),
         "coupler_cavity_parameter_estimates",
         "estimate",
     )
     cell_enabled, cell_reason = _has_rows(
-        tables.get("cell_iris_response_comparison"),
+        tables.get("cell_iris_cmp"),
         "cell_iris_response_comparison",
         "matched transition",
     )
     response_enabled, response_reason = _has_geometry_phase_response(
-        tables.get("geometry_phase_response")
+        tables.get("geom_phase")
     )
     return {
         "coupler_cavity_parameters": {

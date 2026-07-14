@@ -85,28 +85,28 @@ def _tables() -> dict[str, pd.DataFrame]:
     )
     return {
         "markers": pd.DataFrame([{"marker_name": "f_2pi3", "freq_ghz": 2.856}]),
-        "marker_points": marker_points,
-        "phase_advance": pd.DataFrame(
+        "marker_pts": marker_points,
+        "phase_adv": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "from_tune_position": 0.5,
-                    "to_tune_position": 1.5,
-                    "phase_advance_0to360_deg": 240.0,
-                    "phase_error_from_240_deg": 0.0,
+                    "pos_from": 0.5,
+                    "pos_to": 1.5,
+                    "phase_adv_deg": 240.0,
+                    "phase_err_240_deg": 0.0,
                 }
             ]
         ),
-        "phase_summary": pd.DataFrame([{"marker_name": "f_2pi3", "transition_count": 1}]),
+        "phase_stats": pd.DataFrame([{"marker_name": "f_2pi3", "n_steps": 1}]),
         "nodal_shift": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "from_tune_position": 0.5,
-                    "to_tune_position": 1.5,
+                    "pos_from": 0.5,
+                    "pos_to": 1.5,
                     "position_family": "cell",
-                    "phase_error_from_target_deg": 0.0,
-                    "abs_phase_error_from_target_deg": 0.0,
+                    "phase_err_deg": 0.0,
+                    "phase_err_abs_deg": 0.0,
                 }
             ]
         ),
@@ -167,21 +167,21 @@ def _cell_iris_response_comparison_table() -> pd.DataFrame:
         [
             {
                 "marker_name": "f_2pi3",
-                "transition_pair_index": 1,
-                "cell_from_tune_position": 0.5,
-                "cell_to_tune_position": 1.5,
-                "iris_from_tune_position": 1.0,
-                "iris_to_tune_position": 2.0,
-                "cell_operation_scaled_admittance_delta_abs": 5.0,
-                "iris_operation_scaled_admittance_delta_abs": 10.0,
-                "operation_scaled_admittance_response_ratio_iris_over_cell": 2.0,
-                "cell_signed_phase_step_deg": -100.0,
-                "iris_signed_phase_step_deg": -150.0,
-                "phase_step_response_ratio_iris_over_cell": 1.5,
-                "cell_phase_residual_from_target_deg": 20.0,
-                "iris_phase_residual_from_target_deg": 5.0,
-                "cell_abs_operation_axis_error_deg": 15.0,
-                "iris_abs_operation_axis_error_deg": 5.0,
+                "pair_index": 1,
+                "cell_pos_from": 0.5,
+                "cell_pos_to": 1.5,
+                "iris_pos_from": 1.0,
+                "iris_pos_to": 2.0,
+                "cell_admit_delta_mag": 5.0,
+                "iris_admit_delta_mag": 10.0,
+                "admit_ratio_iris_cell": 2.0,
+                "cell_phase_step_deg": -100.0,
+                "iris_phase_step_deg": -150.0,
+                "phase_ratio_iris_cell": 1.5,
+                "cell_phase_err_deg": 20.0,
+                "iris_phase_err_deg": 5.0,
+                "cell_admit_axis_err_abs_deg": 15.0,
+                "iris_admit_axis_err_abs_deg": 5.0,
             }
         ]
     )
@@ -192,10 +192,10 @@ def _coupler_cavity_parameter_estimates_table() -> pd.DataFrame:
         [
             {
                 "source_file": "run1.s2p",
-                "coupler_frequency_ghz": 2.866,
-                "external_quality_factor": 50.0,
-                "coupling_beta": 0.95,
-                "target_external_quality_factor": 57.7,
+                "coupler_freq_ghz": 2.866,
+                "q_ext": 50.0,
+                "beta": 0.95,
+                "q_ext_target": 57.7,
                 "is_valid": True,
             }
         ]
@@ -209,13 +209,13 @@ def _kyhl_admittance_points_table() -> pd.DataFrame:
                 "marker_name": "f_2pi3",
                 "source_file": "run1.s2p",
                 "tune_position": 0.5,
-                "admittance_real": 1.0,
-                "admittance_imag": 0.5,
-                "operation_mode_deg": 120.0,
-                "operation_axes_deg": "60;180;300",
-                "kyhl_operation_angle_deg": 60.0,
-                "nearest_operation_axis_deg": 60.0,
-                "operation_axis_error_deg": 0.0,
+                "op_admit_re": 1.0,
+                "op_admit_im": 0.5,
+                "op_mode_deg": 120.0,
+                "op_admit_axes_deg": "60;180;300",
+                "op_admit_ang_deg": 60.0,
+                "op_admit_axis_deg": 60.0,
+                "op_admit_axis_err_deg": 0.0,
             }
         ]
     )
@@ -228,12 +228,12 @@ def _kyhl_f2pi3_normalized_admittance_audit_table() -> pd.DataFrame:
                 "marker_name": "f_2pi3",
                 "source_file": "run1.s2p",
                 "tune_position": 0.5,
-                "mode_normalized_admittance_real": 0.2,
-                "mode_normalized_admittance_imag": -1.7,
-                "mode_reflection_real": -0.5,
-                "mode_reflection_imag": -0.8660254,
-                "mode_reflection_abs": 1.0,
-                "mode_reflection_angle_deg": 240.0,
+                "mode_admit_re": 0.2,
+                "mode_admit_im": -1.7,
+                "mode_gamma_re": -0.5,
+                "mode_gamma_im": -0.8660254,
+                "mode_gamma_mag": 1.0,
+                "mode_gamma_ang_deg": 240.0,
             }
         ]
     )
@@ -245,17 +245,15 @@ def _kyhl_admittance_transitions_table() -> pd.DataFrame:
             {
                 "marker_name": "f_2pi3",
                 "position_family": "cell",
-                "from_tune_position": 0.5,
-                "to_tune_position": 1.5,
-                "from_admittance_real": 1.0,
-                "from_admittance_imag": 0.5,
-                "to_admittance_real": 1.5,
-                "to_admittance_imag": -0.5,
-                "operation_mode_deg": 120.0,
-                "operation_axes_deg": "60;180;300",
-                "kyhl_operation_angle_deg": 60.0,
-                "nearest_operation_axis_deg": 60.0,
-                "operation_axis_error_deg": 0.0,
+                "pos_from": 0.5,
+                "pos_to": 1.5,
+                "op_admit_delta_re": 0.5,
+                "op_admit_delta_im": -1.0,
+                "op_mode_deg": 120.0,
+                "op_admit_axes_deg": "60;180;300",
+                "op_admit_ang_deg": 60.0,
+                "op_admit_axis_deg": 60.0,
+                "op_admit_axis_err_deg": 0.0,
             }
         ]
     )
@@ -334,11 +332,74 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     assert '"grid_scan_spacing"' in manifest
     assert '"sparameter_data"' not in manifest
     assert '"enabled": true' in manifest
+    manifest_data = json.loads(manifest)
+    assert manifest_data["table_schema_version"] == 2
+    assert manifest_data["table_contract"] == "standard"
+    assert manifest_data["table_constants"] == {}
+
+
+def test_run_folder_analysis_tables_only_skips_plots_and_preserves_existing_figures(
+    tmp_path: Path, monkeypatch
+) -> None:
+    tables = _tables()
+    output_dir = tmp_path / "out"
+    valid_figure = output_dir / "figures" / "s11" / "overview.png"
+    valid_figure.parent.mkdir(parents=True)
+    valid_figure.write_text("existing", encoding="utf-8")
+    missing_figure = output_dir / "figures" / "polar" / "missing.png"
+    manifest_path = output_dir / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "outputs": {
+                    "figures": {
+                        "s11": {"overview": str(valid_figure)},
+                        "polar": {"missing": str(missing_figure)},
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(runner, "build_marker_analysis", lambda **_: tables)
+    monkeypatch.setattr(
+        runner,
+        "save_marker_analysis",
+        lambda analysis_tables, output: {
+            name: Path(output) / f"{name}.csv" for name in analysis_tables
+        },
+    )
+
+    def fail_plot(*args, **kwargs):
+        raise AssertionError("tables-only mode must not render figures")
+
+    monkeypatch.setattr(runner, "_load_s11_table_for_figures", fail_plot)
+    monkeypatch.setattr(runner, "plot_s11_with_markers", fail_plot)
+    monkeypatch.setattr(runner, "plot_phase_advance", fail_plot)
+    monkeypatch.setattr(runner, "plot_nodal_shift", fail_plot)
+    monkeypatch.setattr(runner, "plot_marker_phase_polar_views", fail_plot)
+
+    result = runner.run_folder_analysis(
+        sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
+        dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
+        output_dir=output_dir,
+        marker_role="sim",
+        tables_only=True,
+    )
+
+    assert result.figures == {"s11": {"overview": valid_figure}}
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["outputs"]["figures"] == {
+        "s11": {"overview": str(valid_figure)}
+    }
+    assert manifest["table_schema_version"] == 2
+    assert manifest["table_contract"] == "standard"
 
 
 def test_detect_analysis_modes_skips_sim_260526_grid_scan_for_experiment_marker_points() -> None:
     tables = _tables()
-    tables["marker_points"] = tables["marker_points"].assign(data_kind="experiment")
+    tables["marker_pts"] = tables["marker_pts"].assign(data_kind="experiment")
 
     detected = runner.detect_analysis_modes(tables)
 
@@ -353,7 +414,7 @@ def test_detect_analysis_modes_uses_dataset_category_as_grid_gate() -> None:
 
 def test_detect_analysis_modes_enables_geometry_phase_response_when_table_has_rows() -> None:
     tables = _tables()
-    tables["geometry_phase_response"] = pd.DataFrame(
+    tables["geom_phase"] = pd.DataFrame(
         [
             {
                 "marker_name": "f_2pi3",
@@ -372,7 +433,7 @@ def test_detect_analysis_modes_enables_geometry_phase_response_when_table_has_ro
 
 def test_detect_analysis_modes_enables_cell_iris_response_when_comparison_table_has_rows() -> None:
     tables = _tables()
-    tables["cell_iris_response_comparison"] = _cell_iris_response_comparison_table()
+    tables["cell_iris_cmp"] = _cell_iris_response_comparison_table()
 
     detected = runner.detect_analysis_modes(tables, dataset_category="sweep")
 
@@ -382,7 +443,7 @@ def test_detect_analysis_modes_enables_cell_iris_response_when_comparison_table_
 
 def test_detect_analysis_modes_enables_coupler_cavity_parameters_when_table_has_rows() -> None:
     tables = _tables()
-    tables["coupler_cavity_parameter_estimates"] = _coupler_cavity_parameter_estimates_table()
+    tables["coupler_params"] = _coupler_cavity_parameter_estimates_table()
 
     detected = runner.detect_analysis_modes(tables, dataset_category="sweep")
 
@@ -392,7 +453,7 @@ def test_detect_analysis_modes_enables_coupler_cavity_parameters_when_table_has_
 
 def test_run_folder_analysis_renders_coupler_cavity_parameters_when_available(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
-    tables["coupler_cavity_parameter_estimates"] = _coupler_cavity_parameter_estimates_table()
+    tables["coupler_params"] = _coupler_cavity_parameter_estimates_table()
     sparameter_table = pd.DataFrame(
         [
             {
@@ -445,7 +506,7 @@ def test_run_folder_analysis_renders_coupler_cavity_parameters_when_available(tm
 
 def test_run_folder_analysis_renders_cell_iris_response_when_available(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
-    tables["cell_iris_response_comparison"] = _cell_iris_response_comparison_table()
+    tables["cell_iris_cmp"] = _cell_iris_response_comparison_table()
     sparameter_table = pd.DataFrame(
         [
             {
@@ -498,7 +559,7 @@ def test_run_folder_analysis_renders_cell_iris_response_when_available(tmp_path:
 
 def test_run_folder_analysis_renders_f2pi3_normalized_admittance_when_available(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
-    tables["kyhl_f2pi3_normalized_admittance_audit"] = _kyhl_f2pi3_normalized_admittance_audit_table()
+    tables["kyhl_admit_audit"] = _kyhl_f2pi3_normalized_admittance_audit_table()
     sparameter_table = pd.DataFrame(
         [
             {
@@ -815,7 +876,7 @@ def test_run_folder_analysis_detects_legacy_named_cst_z_profiles(tmp_path: Path,
 
 def test_run_folder_analysis_skips_phase_plot_when_phase_table_is_empty(tmp_path: Path, monkeypatch) -> None:
     tables = _tables()
-    tables["phase_advance"] = tables["phase_advance"].iloc[0:0]
+    tables["phase_adv"] = tables["phase_adv"].iloc[0:0]
     tables["nodal_shift"] = tables["nodal_shift"].iloc[0:0]
     sparameter_table = pd.DataFrame(
         [
@@ -937,8 +998,8 @@ def test_run_folder_analysis_reuses_loaded_table_when_grid_cache_becomes_invalid
     monkeypatch,
 ) -> None:
     tables = _tables()
-    tables["marker_points"] = tables["marker_points"].iloc[0:0]
-    tables["phase_advance"] = tables["phase_advance"].iloc[0:0]
+    tables["marker_pts"] = tables["marker_pts"].iloc[0:0]
+    tables["phase_adv"] = tables["phase_adv"].iloc[0:0]
     tables["nodal_shift"] = tables["nodal_shift"].iloc[0:0]
     output_dir = tmp_path / "out"
     cached_s11 = output_dir / "figures" / "s11" / "s11_cached.png"

@@ -81,49 +81,49 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(
 
     assert list(result.keys()) == [
         "markers",
-        "marker_points",
-        "marker_phase_polar",
-        "kyhl_f2pi3_normalized_admittance_audit",
-        "kyhl_admittance_points",
-        "kyhl_admittance_transitions",
-        "cell_iris_response_comparison",
-        "coupler_cavity_parameter_estimates",
-        "grid_rc_line_scan",
-        "phase_advance",
-        "phase_summary",
+        "marker_pts",
+        "phase_polar",
+        "kyhl_admit_audit",
+        "kyhl_admit_pts",
+        "kyhl_admit_steps",
+        "cell_iris_cmp",
+        "coupler_params",
+        "rc_line",
+        "phase_adv",
+        "phase_stats",
         "nodal_shift",
-        "geometry_phase_response",
+        "geom_phase",
     ]
     assert len(result["markers"]) == 3
-    assert len(result["marker_points"]) == 6
-    assert len(result["kyhl_f2pi3_normalized_admittance_audit"]) == 2
-    assert result["kyhl_f2pi3_normalized_admittance_audit"]["marker_name"].unique().tolist() == ["f_2pi3"]
-    assert "line_normalized_admittance_real" in result["kyhl_f2pi3_normalized_admittance_audit"]
-    assert "mode_reflection_angle_deg" in result["kyhl_f2pi3_normalized_admittance_audit"]
-    assert len(result["kyhl_admittance_points"]) == 6
-    assert len(result["kyhl_admittance_transitions"]) == 3
-    assert result["cell_iris_response_comparison"].empty
-    assert len(result["coupler_cavity_parameter_estimates"]) == 2
-    assert result["coupler_cavity_parameter_estimates"]["coupling_beta_status"].unique().tolist() == ["ok"]
-    assert result["coupler_cavity_parameter_estimates"]["coupling_k_source"].unique().tolist() == [
+    assert len(result["marker_pts"]) == 6
+    assert len(result["kyhl_admit_audit"]) == 2
+    assert result["kyhl_admit_audit"]["marker_name"].unique().tolist() == ["f_2pi3"]
+    assert "line_admit_re" in result["kyhl_admit_audit"]
+    assert "mode_gamma_ang_deg" in result["kyhl_admit_audit"]
+    assert len(result["kyhl_admit_pts"]) == 6
+    assert len(result["kyhl_admit_steps"]) == 3
+    assert result["cell_iris_cmp"].empty
+    assert len(result["coupler_params"]) == 2
+    assert result["coupler_params"]["beta_status"].unique().tolist() == ["ok"]
+    assert result["coupler_params"]["k_source"].unique().tolist() == [
         "marker_frequency_ratio_abs"
     ]
-    assert result["grid_rc_line_scan"].empty
-    assert len(result["phase_advance"]) == 3
-    assert len(result["phase_summary"]) == 3
+    assert result["rc_line"].empty
+    assert len(result["phase_adv"]) == 3
+    assert len(result["phase_stats"]) == 3
     assert len(result["nodal_shift"]) == 2
-    assert result["geometry_phase_response"].empty
-    assert set(result["marker_points"]["source_file"]) == {
+    assert result["geom_phase"].empty
+    assert set(result["marker_pts"]["source_file"]) == {
         "0.5_processed.csv",
         "1.5_processed.csv",
     }
-    assert "s_phase_deg" in result["marker_points"].columns
-    assert result["marker_phase_polar"]["f_2pi3_phase_deg"].tolist() == [10.0, -110.0]
-    assert result["marker_phase_polar"]["f_mean_phase_deg"].tolist() == [20.0, -100.0]
-    assert result["marker_phase_polar"]["f_pi2_phase_deg"].tolist() == [30.0, -90.0]
-    first_phase = result["phase_advance"].sort_values("marker_name").iloc[0]
-    assert first_phase["from_tune_position"] == 0.5
-    assert first_phase["to_tune_position"] == 1.5
+    assert "s_phase_deg" in result["marker_pts"].columns
+    assert result["phase_polar"]["f_2pi3_phase_deg"].tolist() == [10.0, -110.0]
+    assert result["phase_polar"]["f_mean_phase_deg"].tolist() == [20.0, -100.0]
+    assert result["phase_polar"]["f_pi2_phase_deg"].tolist() == [30.0, -90.0]
+    first_phase = result["phase_adv"].sort_values("marker_name").iloc[0]
+    assert first_phase["pos_from"] == 0.5
+    assert first_phase["pos_to"] == 1.5
     assert first_phase["position_family"] == "cell"
 
 
@@ -141,17 +141,17 @@ def test_build_marker_analysis_skips_transition_phase_advance_for_sim_260526_gri
         marker_role="sim",
     )
 
-    assert result["marker_points"]["scan_type"].unique().tolist() == ["grid_2d"]
-    assert result["marker_points"]["sim_r_c"].dropna().nunique() == 2
-    assert result["phase_advance"].empty
-    assert result["kyhl_admittance_transitions"].empty
-    assert result["cell_iris_response_comparison"].empty
-    assert result["coupler_cavity_parameter_estimates"].empty
-    assert result["phase_summary"].empty
+    assert result["marker_pts"]["scan_type"].unique().tolist() == ["grid_2d"]
+    assert result["marker_pts"]["sim_r_c"].dropna().nunique() == 2
+    assert result["phase_adv"].empty
+    assert result["kyhl_admit_steps"].empty
+    assert result["cell_iris_cmp"].empty
+    assert result["coupler_params"].empty
+    assert result["phase_stats"].empty
     assert result["nodal_shift"].empty
-    assert "phase_advance_0to360_deg" in result["phase_advance"].columns
-    assert "transition_count" in result["phase_summary"].columns
-    assert "phase_error_from_target_deg" in result["nodal_shift"].columns
+    assert "phase_adv_deg" in result["phase_adv"].columns
+    assert "n_steps" in result["phase_stats"].columns
+    assert "phase_err_deg" in result["nodal_shift"].columns
 
 
 def test_build_marker_analysis_extracts_fixed_width_rc_line_scan_for_grid_scan(
@@ -168,7 +168,7 @@ def test_build_marker_analysis_extracts_fixed_width_rc_line_scan_for_grid_scan(
         marker_role="sim",
     )
 
-    line_scan = result["grid_rc_line_scan"]
+    line_scan = result["rc_line"]
     assert line_scan["sim_w_c"].tolist() == [19.3224, 19.3224]
     assert line_scan["sim_r_c"].tolist() == [54.59, 55.59]
     assert line_scan["source_file"].tolist() == ["run_2.s1p", "run_1.s1p"]
@@ -228,7 +228,7 @@ def test_build_marker_phase_polar_table_preserves_offset_cell_sweep_column() -> 
 def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
     result = {
         "markers": pd.DataFrame([{"marker_name": "f_2pi3", "freq_ghz": 2.856}]),
-        "marker_points": pd.DataFrame(
+        "marker_pts": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
@@ -238,75 +238,75 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
                 }
             ]
         ),
-        "marker_phase_polar": pd.DataFrame([{"source_file": "run1.s2p", "f_2pi3_phase_deg": 10.0}]),
-        "kyhl_f2pi3_normalized_admittance_audit": pd.DataFrame(
+        "phase_polar": pd.DataFrame([{"source_file": "run1.s2p", "f_2pi3_phase_deg": 10.0}]),
+        "kyhl_admit_audit": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "line_normalized_admittance_real": 1.0,
-                    "mode_reflection_angle_deg": 240.0,
+                    "line_admit_re": 1.0,
+                    "mode_gamma_ang_deg": 240.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
             ]
         ),
-        "kyhl_admittance_points": pd.DataFrame(
+        "kyhl_admit_pts": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "operation_scaled_admittance_angle_deg": 60.0,
+                        "op_admit_ang_deg": 60.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
             ]
         ),
-        "kyhl_admittance_transitions": pd.DataFrame(
+        "kyhl_admit_steps": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "operation_scaled_admittance_angle_deg": 60.0,
+                        "op_admit_ang_deg": 60.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
             ]
         ),
-        "cell_iris_response_comparison": pd.DataFrame(
+        "cell_iris_cmp": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "operation_scaled_admittance_response_ratio_iris_over_cell": 2.0,
+                        "admit_ratio_iris_cell": 2.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
             ]
         ),
-        "coupler_cavity_parameter_estimates": pd.DataFrame(
+        "coupler_params": pd.DataFrame(
             [
                 {
                     "source_file": "run1.s2p",
-                    "coupler_frequency_ghz": 2.866,
-                    "external_quality_factor": 50.0,
+                        "coupler_freq_ghz": 2.866,
+                        "q_ext": 50.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
             ]
         ),
-        "grid_rc_line_scan": pd.DataFrame([{"source_file": "run2.s2p", "sim_r_c": 55.59, "sim_w_c": 19.3224}]),
-        "phase_advance": pd.DataFrame(
+        "rc_line": pd.DataFrame([{"source_file": "run2.s2p", "sim_r_c": 55.59, "sim_w_c": 19.3224}]),
+        "phase_adv": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "phase_error_from_240_deg": 0.0,
+                        "phase_err_240_deg": 0.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
             ]
         ),
-        "phase_summary": pd.DataFrame(
+        "phase_stats": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
-                    "transition_count": 1,
+                    "n_steps": 1,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
@@ -316,19 +316,19 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
             [
                 {
                     "marker_name": "f_2pi3",
-                    "phase_error_from_target_deg": 0.0,
+                        "phase_err_deg": 0.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
             ]
         ),
-        "geometry_phase_response": pd.DataFrame(
+        "geom_phase": pd.DataFrame(
             [
                 {
                     "marker_name": "f_2pi3",
                     "sweep_axis": "sim_offset_cell_03",
                     "sweep_value": 0.0,
-                    "phase_delta_shift_from_baseline_deg": 0.0,
+                        "cell_iris_delta_shift_deg": 0.0,
                     "data_kind": "experiment",
                     "port_side": pd.NA,
                 }
@@ -337,40 +337,42 @@ def test_save_marker_analysis_writes_csv_tables(tmp_path: Path) -> None:
     }
     output_dir = tmp_path / "analysis_outputs"
 
-    paths = save_marker_analysis(result, output_dir)
+    save_result = save_marker_analysis(result, output_dir)
+    paths = save_result.paths
 
     assert list(paths.keys()) == [
         "markers",
-        "marker_points",
-        "marker_phase_polar",
-        "kyhl_f2pi3_normalized_admittance_audit",
-        "kyhl_admittance_points",
-        "kyhl_admittance_transitions",
-        "cell_iris_response_comparison",
-        "coupler_cavity_parameter_estimates",
-        "grid_rc_line_scan",
-        "phase_advance",
-        "phase_summary",
+        "marker_pts",
+        "phase_polar",
+        "kyhl_admit_audit",
+        "kyhl_admit_pts",
+        "kyhl_admit_steps",
+        "cell_iris_cmp",
+        "coupler_params",
+        "rc_line",
+        "phase_adv",
+        "phase_stats",
         "nodal_shift",
-        "geometry_phase_response",
+        "geom_phase",
     ]
     for path in paths.values():
         assert path.exists()
-    saved_marker_points = pd.read_csv(paths["marker_points"])
+    saved_marker_points = pd.read_csv(paths["marker_pts"])
     assert saved_marker_points.loc[0, "s_phase_deg"] == 10.0
+    assert save_result.constants["marker_pts"]["data_kind"] == "experiment"
     for table_name in [
-        "marker_points",
-        "marker_phase_polar",
-        "kyhl_f2pi3_normalized_admittance_audit",
-        "kyhl_admittance_points",
-        "kyhl_admittance_transitions",
-        "cell_iris_response_comparison",
-        "coupler_cavity_parameter_estimates",
-        "grid_rc_line_scan",
-        "phase_advance",
-        "phase_summary",
+        "marker_pts",
+        "phase_polar",
+        "kyhl_admit_audit",
+        "kyhl_admit_pts",
+        "kyhl_admit_steps",
+        "cell_iris_cmp",
+        "coupler_params",
+        "rc_line",
+        "phase_adv",
+        "phase_stats",
         "nodal_shift",
-        "geometry_phase_response",
+        "geom_phase",
     ]:
         saved = pd.read_csv(paths[table_name])
         assert "data_kind" not in saved.columns
@@ -460,7 +462,7 @@ def test_build_marker_analysis_samples_only_s11_rows(monkeypatch, tmp_path: Path
                     "s_name": "S11",
                     "marker_name": "f_2pi3",
                     "marker_role": "exp",
-                    "target_freq_ghz": 2.856,
+                    "freq_target_ghz": 2.856,
                     "freq_ghz": 2.856,
                     "s_db": -1.0,
                     "s_phase_deg": 10.0,
@@ -475,7 +477,7 @@ def test_build_marker_analysis_samples_only_s11_rows(monkeypatch, tmp_path: Path
                     "s_name": "S11",
                     "marker_name": "f_2pi3",
                     "marker_role": "exp",
-                    "target_freq_ghz": 2.856,
+                    "freq_target_ghz": 2.856,
                     "freq_ghz": 2.856,
                     "s_db": -2.0,
                     "s_phase_deg": -110.0,

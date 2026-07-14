@@ -25,17 +25,17 @@ OUTPUT_COLUMNS: list[str] = [
     "s_name",
     "sweep_axis",
     "sweep_value",
-    "baseline_sweep_value",
-    "cell_source_file",
-    "iris_source_file",
-    "cell_tune_position",
-    "iris_tune_position",
+    "sweep_base",
+    "cell_file",
+    "iris_file",
+    "cell_pos",
+    "iris_pos",
     "cell_phase_deg",
     "iris_phase_deg",
-    "cell_phase_shift_from_baseline_deg",
-    "iris_phase_shift_from_baseline_deg",
-    "phase_delta_cell_to_iris_deg",
-    "phase_delta_shift_from_baseline_deg",
+    "cell_phase_shift_deg",
+    "iris_phase_shift_deg",
+    "cell_iris_phase_delta_deg",
+    "cell_iris_delta_shift_deg",
 ]
 
 
@@ -109,13 +109,13 @@ def _response_rows_for_group(
                 **group_metadata,
                 "sweep_axis": sweep_axis,
                 "sweep_value": float(sweep_value),
-                "cell_source_file": cell.get("source_file", pd.NA),
-                "iris_source_file": iris.get("source_file", pd.NA),
-                "cell_tune_position": cell["tune_position"],
-                "iris_tune_position": iris["tune_position"],
+                "cell_file": cell.get("source_file", pd.NA),
+                "iris_file": iris.get("source_file", pd.NA),
+                "cell_pos": cell["tune_position"],
+                "iris_pos": iris["tune_position"],
                 "cell_phase_deg": float(cell["s_phase_deg"]),
                 "iris_phase_deg": float(iris["s_phase_deg"]),
-                "phase_delta_cell_to_iris_deg": _wrap180(float(iris["s_phase_deg"]) - float(cell["s_phase_deg"])),
+                "cell_iris_phase_delta_deg": _wrap180(float(iris["s_phase_deg"]) - float(cell["s_phase_deg"])),
             }
         )
     if not pair_rows:
@@ -125,13 +125,13 @@ def _response_rows_for_group(
     baseline_sweep = float(baseline["sweep_value"])
     baseline_cell_phase = float(baseline["cell_phase_deg"])
     baseline_iris_phase = float(baseline["iris_phase_deg"])
-    baseline_delta = float(baseline["phase_delta_cell_to_iris_deg"])
+    baseline_delta = float(baseline["cell_iris_phase_delta_deg"])
     for row in pair_rows:
-        row["baseline_sweep_value"] = baseline_sweep
-        row["cell_phase_shift_from_baseline_deg"] = _wrap180(float(row["cell_phase_deg"]) - baseline_cell_phase)
-        row["iris_phase_shift_from_baseline_deg"] = _wrap180(float(row["iris_phase_deg"]) - baseline_iris_phase)
-        row["phase_delta_shift_from_baseline_deg"] = _wrap180(
-            float(row["phase_delta_cell_to_iris_deg"]) - baseline_delta
+        row["sweep_base"] = baseline_sweep
+        row["cell_phase_shift_deg"] = _wrap180(float(row["cell_phase_deg"]) - baseline_cell_phase)
+        row["iris_phase_shift_deg"] = _wrap180(float(row["iris_phase_deg"]) - baseline_iris_phase)
+        row["cell_iris_delta_shift_deg"] = _wrap180(
+            float(row["cell_iris_phase_delta_deg"]) - baseline_delta
         )
     return pair_rows
 

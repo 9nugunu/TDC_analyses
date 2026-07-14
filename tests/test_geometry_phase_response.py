@@ -45,11 +45,11 @@ def test_compute_geometry_phase_response_pairs_cell_and_iris_by_sweep_axis() -> 
 
     assert f_2pi3["sweep_axis"].unique().tolist() == ["sim_offset_cell_03"]
     assert f_2pi3["sweep_value"].tolist() == [-1.0, 0.0, 1.0]
-    assert f_2pi3["baseline_sweep_value"].unique().tolist() == [0.0]
-    assert f_2pi3["phase_delta_cell_to_iris_deg"].tolist() == pytest.approx([100.0, 120.0, 140.0])
-    assert f_2pi3["phase_delta_shift_from_baseline_deg"].tolist() == pytest.approx([-20.0, 0.0, 20.0])
-    assert f_2pi3["cell_phase_shift_from_baseline_deg"].tolist() == pytest.approx([-10.0, 0.0, 10.0])
-    assert f_2pi3["iris_phase_shift_from_baseline_deg"].tolist() == pytest.approx([-30.0, 0.0, 30.0])
+    assert f_2pi3["sweep_base"].unique().tolist() == [0.0]
+    assert f_2pi3["cell_iris_phase_delta_deg"].tolist() == pytest.approx([100.0, 120.0, 140.0])
+    assert f_2pi3["cell_iris_delta_shift_deg"].tolist() == pytest.approx([-20.0, 0.0, 20.0])
+    assert f_2pi3["cell_phase_shift_deg"].tolist() == pytest.approx([-10.0, 0.0, 10.0])
+    assert f_2pi3["iris_phase_shift_deg"].tolist() == pytest.approx([-30.0, 0.0, 30.0])
 
 
 def test_compute_geometry_phase_response_returns_empty_when_sweep_axis_is_ambiguous() -> None:

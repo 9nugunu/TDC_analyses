@@ -19,12 +19,12 @@ def _phase_advance_table() -> pd.DataFrame:
                 "marker_role": "exp",
                 "port_side": None,
                 "s_name": "S11",
-                "from_source_file": "0.5_processed.csv",
-                "to_source_file": "1.0_processed.csv",
-                "from_tune_position": 0.5,
-                "to_tune_position": 1.0,
-                "phase_advance_0to360_deg": 240.0,
-                "phase_error_from_240_deg": 0.0,
+                "file_from": "0.5_processed.csv",
+                "file_to": "1.0_processed.csv",
+                "pos_from": 0.5,
+                "pos_to": 1.0,
+                "phase_adv_deg": 240.0,
+                "phase_err_240_deg": 0.0,
             },
             {
                 "dataset_id": "sample_dataset",
@@ -34,12 +34,12 @@ def _phase_advance_table() -> pd.DataFrame:
                 "marker_role": "exp",
                 "port_side": None,
                 "s_name": "S11",
-                "from_source_file": "1.0_processed.csv",
-                "to_source_file": "1.5_processed.csv",
-                "from_tune_position": 1.0,
-                "to_tune_position": 1.5,
-                "phase_advance_0to360_deg": 260.0,
-                "phase_error_from_240_deg": 20.0,
+                "file_from": "1.0_processed.csv",
+                "file_to": "1.5_processed.csv",
+                "pos_from": 1.0,
+                "pos_to": 1.5,
+                "phase_adv_deg": 260.0,
+                "phase_err_240_deg": 20.0,
             },
             {
                 "dataset_id": "sample_dataset",
@@ -49,12 +49,12 @@ def _phase_advance_table() -> pd.DataFrame:
                 "marker_role": "exp",
                 "port_side": None,
                 "s_name": "S11",
-                "from_source_file": "0.5_processed.csv",
-                "to_source_file": "1.0_processed.csv",
-                "from_tune_position": 0.5,
-                "to_tune_position": 1.0,
-                "phase_advance_0to360_deg": 230.0,
-                "phase_error_from_240_deg": -10.0,
+                "file_from": "0.5_processed.csv",
+                "file_to": "1.0_processed.csv",
+                "pos_from": 0.5,
+                "pos_to": 1.0,
+                "phase_adv_deg": 230.0,
+                "phase_err_240_deg": -10.0,
             },
             {
                 "dataset_id": "sample_dataset",
@@ -64,12 +64,12 @@ def _phase_advance_table() -> pd.DataFrame:
                 "marker_role": "exp",
                 "port_side": None,
                 "s_name": "S11",
-                "from_source_file": "1.0_processed.csv",
-                "to_source_file": "1.5_processed.csv",
-                "from_tune_position": 1.0,
-                "to_tune_position": 1.5,
-                "phase_advance_0to360_deg": 210.0,
-                "phase_error_from_240_deg": -30.0,
+                "file_from": "1.0_processed.csv",
+                "file_to": "1.5_processed.csv",
+                "pos_from": 1.0,
+                "pos_to": 1.5,
+                "phase_adv_deg": 210.0,
+                "phase_err_240_deg": -30.0,
             },
         ]
     )
@@ -103,7 +103,7 @@ def test_plot_phase_advance_writes_one_file_per_grid_point_and_position_family(t
     second_grid_point = _phase_advance_table().assign(position_family=["cell", "cell", "iris", "iris"])
     second_grid_point["sim_r_c"] = 54.75
     second_grid_point["sim_w_c"] = 18.75
-    second_grid_point["phase_advance_0to360_deg"] = second_grid_point["phase_advance_0to360_deg"] - 5.0
+    second_grid_point["phase_adv_deg"] = second_grid_point["phase_adv_deg"] - 5.0
     table = pd.concat([first_grid_point, second_grid_point], ignore_index=True)
 
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
@@ -124,7 +124,7 @@ def test_plot_phase_advance_uses_only_s11_when_multiple_sparameters_exist(tmp_pa
     s11_table["position_family"] = "cell"
     s21_table = s11_table.copy()
     s21_table["s_name"] = "S21"
-    s21_table["phase_advance_0to360_deg"] = s21_table["phase_advance_0to360_deg"] - 15.0
+    s21_table["phase_adv_deg"] = s21_table["phase_adv_deg"] - 15.0
     table = pd.concat([s11_table, s21_table], ignore_index=True)
 
     paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
@@ -150,12 +150,12 @@ def test_plot_phase_advance_can_exclude_edge_transitions(tmp_path: Path) -> None
                         "marker_role": "exp",
                         "port_side": None,
                         "s_name": "S11",
-                        "from_source_file": "1.5_processed.csv",
-                        "to_source_file": "2.0_processed.csv",
-                        "from_tune_position": 1.5,
-                        "to_tune_position": 2.0,
-                        "phase_advance_0to360_deg": 180.0,
-                        "phase_error_from_240_deg": -60.0,
+                        "file_from": "1.5_processed.csv",
+                        "file_to": "2.0_processed.csv",
+                        "pos_from": 1.5,
+                        "pos_to": 2.0,
+                        "phase_adv_deg": 180.0,
+                        "phase_err_240_deg": -60.0,
                     }
                 ]
             ),
@@ -184,38 +184,38 @@ def test_plot_phase_advance_separates_duplicate_transition_series(
             {
                 "marker_name": "f_2pi3",
                 "port_side": "in",
-                "from_tune_position": 0.5,
-                "to_tune_position": 1.5,
+                "pos_from": 0.5,
+                "pos_to": 1.5,
                 "position_family": "cell",
-                "phase_advance_0to360_deg": 12.0,
-                "phase_error_from_240_deg": -228.0,
+                "phase_adv_deg": 12.0,
+                "phase_err_240_deg": -228.0,
             },
             {
                 "marker_name": "f_2pi3",
                 "port_side": "out",
-                "from_tune_position": 0.5,
-                "to_tune_position": 1.5,
+                "pos_from": 0.5,
+                "pos_to": 1.5,
                 "position_family": "cell",
-                "phase_advance_0to360_deg": 18.0,
-                "phase_error_from_240_deg": -222.0,
+                "phase_adv_deg": 18.0,
+                "phase_err_240_deg": -222.0,
             },
             {
                 "marker_name": "f_2pi3",
                 "port_side": "in",
-                "from_tune_position": 1.5,
-                "to_tune_position": 2.5,
+                "pos_from": 1.5,
+                "pos_to": 2.5,
                 "position_family": "cell",
-                "phase_advance_0to360_deg": 267.0,
-                "phase_error_from_240_deg": 27.0,
+                "phase_adv_deg": 267.0,
+                "phase_err_240_deg": 27.0,
             },
             {
                 "marker_name": "f_2pi3",
                 "port_side": "out",
-                "from_tune_position": 1.5,
-                "to_tune_position": 2.5,
+                "pos_from": 1.5,
+                "pos_to": 2.5,
                 "position_family": "cell",
-                "phase_advance_0to360_deg": 253.0,
-                "phase_error_from_240_deg": 13.0,
+                "phase_adv_deg": 253.0,
+                "phase_err_240_deg": 13.0,
             },
         ]
     )
@@ -242,8 +242,8 @@ def test_plot_phase_advance_separates_duplicate_transition_series(
 
 def test_plot_phase_advance_skips_family_split_when_positions_are_missing(tmp_path: Path) -> None:
     table = _phase_advance_table().assign(
-        from_tune_position=pd.NA,
-        to_tune_position=pd.NA,
+        pos_from=pd.NA,
+        pos_to=pd.NA,
         position_family="offset_nan",
     )
 

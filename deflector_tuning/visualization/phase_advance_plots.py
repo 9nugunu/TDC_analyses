@@ -27,10 +27,10 @@ from deflector_tuning.visualization.simulation_grouping import (
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
-    "from_tune_position",
-    "to_tune_position",
-    "phase_advance_0to360_deg",
-    "phase_error_from_240_deg",
+    "pos_from",
+    "pos_to",
+    "phase_adv_deg",
+    "phase_err_240_deg",
 )
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
 SERIES_ID_COLUMNS: tuple[str, ...] = (
@@ -81,7 +81,7 @@ def plot_phase_advance(
                 paths[key] = _plot_metric(
                     facet_table,
                     folder / f"{key}.png",
-                    value_column="phase_advance_0to360_deg",
+                    value_column="phase_adv_deg",
                     ylabel="Phase advance [deg]",
                     title=f"{family.title()} phase advance by transition{facet_title}",
                     reference_value=240.0,
@@ -95,9 +95,9 @@ def plot_phase_advance(
 def _prepare_table(phase_advance: pd.DataFrame, *, transition_scope: str) -> pd.DataFrame:
     table = phase_advance.copy()
     if "position_family" not in table:
-        table["position_family"] = table["from_tune_position"].map(_position_family)
-    table["_from_sort"] = pd.to_numeric(table["from_tune_position"], errors="coerce")
-    table["_to_sort"] = pd.to_numeric(table["to_tune_position"], errors="coerce")
+        table["position_family"] = table["pos_from"].map(_position_family)
+    table["_from_sort"] = pd.to_numeric(table["pos_from"], errors="coerce")
+    table["_to_sort"] = pd.to_numeric(table["pos_to"], errors="coerce")
     if transition_scope == "internal":
         masks = []
         for _, family_group in table.groupby("position_family", dropna=False, sort=False):
@@ -117,7 +117,7 @@ def _prepare_table(phase_advance: pd.DataFrame, *, transition_scope: str) -> pd.
             )
         table = table.loc[pd.concat(masks).sort_index()].copy()
     table["transition_label"] = table.apply(
-        lambda row: f"{_format_position(row['from_tune_position'])}→{_format_position(row['to_tune_position'])}",
+        lambda row: f"{_format_position(row['pos_from'])}→{_format_position(row['pos_to'])}",
         axis=1,
     )
     return table.sort_values(["position_family", "_from_sort", "_to_sort", "marker_name"], kind="mergesort")

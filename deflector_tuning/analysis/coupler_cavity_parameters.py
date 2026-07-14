@@ -18,10 +18,10 @@ ID_COLUMN_CANDIDATES: tuple[str, ...] = (
     "data_layer",
     "source_file",
     "tune_position",
-    "coupler_transition_pair",
-    "coupler_position_basis",
-    "coupler_pair_start_tune_position",
-    "coupler_pair_end_tune_position",
+    "cpl_pair",
+    "cpl_pos_basis",
+    "cpl_pos_from",
+    "cpl_pos_to",
     "port_side",
     "s_name",
     "marker_role",
@@ -38,34 +38,34 @@ OUTPUT_COLUMNS: list[str] = [
     "data_layer",
     "source_file",
     "tune_position",
-    "coupler_transition_pair",
-    "coupler_position_basis",
-    "coupler_pair_start_tune_position",
-    "coupler_pair_end_tune_position",
+    "cpl_pair",
+    "cpl_pos_basis",
+    "cpl_pos_from",
+    "cpl_pos_to",
     "port_side",
     "s_name",
     "marker_role",
-    "reference_marker_name",
-    "operation_marker_name",
-    "reference_frequency_ghz",
-    "operation_frequency_ghz",
-    "reference_target_frequency_ghz",
-    "operation_target_frequency_ghz",
-    "reference_reflection_phase_deg",
-    "operation_reflection_phase_deg",
-    "reference_tan_half_phase",
-    "operation_tan_half_phase",
-    "coupler_frequency_ghz",
-    "external_quality_factor",
-    "matching_frequency_ghz",
-    "delta_frequency_mhz",
+    "ref_marker",
+    "op_marker",
+    "ref_freq_ghz",
+    "op_freq_ghz",
+    "ref_freq_target_ghz",
+    "op_freq_target_ghz",
+    "ref_phase_deg",
+    "op_phase_deg",
+    "ref_tan_half",
+    "op_tan_half",
+    "coupler_freq_ghz",
+    "q_ext",
+    "match_freq_ghz",
+    "freq_delta_mhz",
     "coupling_k",
-    "coupling_k_source",
-    "coupling_beta",
-    "target_external_quality_factor",
-    "operation_mode_deg",
-    "phase_input_convention",
-    "coupling_beta_status",
+    "k_source",
+    "beta",
+    "q_ext_target",
+    "op_mode_deg",
+    "phase_convention",
+    "beta_status",
     "is_valid",
     "invalid_reason",
 ]
@@ -249,16 +249,16 @@ def build_coupler_cavity_parameter_table(
 
         row: dict[str, object] = {
             **dict(zip(grouping_columns, _as_tuple(group_values), strict=True)),
-            "reference_marker_name": reference_marker_name,
-            "operation_marker_name": operation_marker_name,
-            "reference_frequency_ghz": _frequency_value(reference),
-            "operation_frequency_ghz": _frequency_value(operation),
-            "reference_target_frequency_ghz": _target_frequency_value(reference),
-            "operation_target_frequency_ghz": _target_frequency_value(operation),
-            "reference_reflection_phase_deg": reference["s_phase_deg"],
-            "operation_reflection_phase_deg": operation["s_phase_deg"],
-            "operation_mode_deg": float(operation_mode_deg),
-            "phase_input_convention": PHASE_INPUT_CONVENTION,
+            "ref_marker": reference_marker_name,
+            "op_marker": operation_marker_name,
+            "ref_freq_ghz": _frequency_value(reference),
+            "op_freq_ghz": _frequency_value(operation),
+            "ref_freq_target_ghz": _target_frequency_value(reference),
+            "op_freq_target_ghz": _target_frequency_value(operation),
+            "ref_phase_deg": reference["s_phase_deg"],
+            "op_phase_deg": operation["s_phase_deg"],
+            "op_mode_deg": float(operation_mode_deg),
+            "phase_convention": PHASE_INPUT_CONVENTION,
         }
         _add_estimates(row, coupling_k=table_coupling_k, coupling_k_source=table_coupling_k_source)
         rows.append(row)
@@ -273,30 +273,30 @@ def build_coupler_cavity_parameter_table(
 
 def _add_estimates(row: dict[str, object], *, coupling_k: float | None, coupling_k_source: str) -> None:
     try:
-        reference_frequency = float(row["reference_frequency_ghz"])
-        operation_frequency = float(row["operation_frequency_ghz"])
-        reference_phase = float(row["reference_reflection_phase_deg"])
-        operation_phase = float(row["operation_reflection_phase_deg"])
-        row["reference_tan_half_phase"] = tan_half_phase(reference_phase)
-        row["operation_tan_half_phase"] = tan_half_phase(operation_phase)
-        row["coupler_frequency_ghz"] = calculate_coupler_frequency_ghz(
+        reference_frequency = float(row["ref_freq_ghz"])
+        operation_frequency = float(row["op_freq_ghz"])
+        reference_phase = float(row["ref_phase_deg"])
+        operation_phase = float(row["op_phase_deg"])
+        row["ref_tan_half"] = tan_half_phase(reference_phase)
+        row["op_tan_half"] = tan_half_phase(operation_phase)
+        row["coupler_freq_ghz"] = calculate_coupler_frequency_ghz(
             reference_frequency,
             reference_phase,
             operation_frequency,
             operation_phase,
         )
-        row["external_quality_factor"] = calculate_external_quality_factor(
+        row["q_ext"] = calculate_external_quality_factor(
             reference_frequency,
             reference_phase,
             operation_frequency,
             operation_phase,
         )
-        row["matching_frequency_ghz"] = calculate_matching_frequency_ghz(
-            float(row["reference_target_frequency_ghz"]),
-            float(row["operation_target_frequency_ghz"]),
+        row["match_freq_ghz"] = calculate_matching_frequency_ghz(
+            float(row["ref_freq_target_ghz"]),
+            float(row["op_freq_target_ghz"]),
         )
-        row["delta_frequency_mhz"] = (
-            float(row["coupler_frequency_ghz"]) - float(row["matching_frequency_ghz"])
+        row["freq_delta_mhz"] = (
+            float(row["coupler_freq_ghz"]) - float(row["match_freq_ghz"])
         ) * 1000.0
         row["is_valid"] = True
         row["invalid_reason"] = ""
@@ -311,53 +311,53 @@ def _add_estimates(row: dict[str, object], *, coupling_k: float | None, coupling
     )
     if resolved_coupling_k is None:
         row["coupling_k"] = float("nan")
-        row["coupling_k_source"] = ""
-        row["coupling_beta"] = float("nan")
-        row["target_external_quality_factor"] = float("nan")
-        row["coupling_beta_status"] = "missing_coupling_k"
+        row["k_source"] = ""
+        row["beta"] = float("nan")
+        row["q_ext_target"] = float("nan")
+        row["beta_status"] = "missing_coupling_k"
         return
 
     try:
         positive_k = _positive_coupling_k(resolved_coupling_k)
         row["coupling_k"] = positive_k
-        row["coupling_k_source"] = resolved_coupling_k_source
-        row["coupling_beta"] = calculate_coupling_beta(
+        row["k_source"] = resolved_coupling_k_source
+        row["beta"] = calculate_coupling_beta(
             reference_frequency,
             reference_phase,
             operation_frequency,
             operation_phase,
-            pi_over_two_frequency_ghz=float(row["reference_target_frequency_ghz"]),
-            operation_mode_deg=float(row["operation_mode_deg"]),
+            pi_over_two_frequency_ghz=float(row["ref_freq_target_ghz"]),
+            operation_mode_deg=float(row["op_mode_deg"]),
             coupling_k=positive_k,
         )
-        row["target_external_quality_factor"] = calculate_target_external_quality_factor(
-            float(row["operation_mode_deg"]),
+        row["q_ext_target"] = calculate_target_external_quality_factor(
+            float(row["op_mode_deg"]),
             coupling_k=positive_k,
         )
-        row["coupling_beta_status"] = "ok"
+        row["beta_status"] = "ok"
     except (TypeError, ValueError) as exc:
         row["coupling_k"] = float(resolved_coupling_k)
-        row["coupling_k_source"] = resolved_coupling_k_source
-        row["coupling_beta"] = float("nan")
-        row["target_external_quality_factor"] = float("nan")
-        row["coupling_beta_status"] = f"invalid_coupling_beta: {exc}"
+        row["k_source"] = resolved_coupling_k_source
+        row["beta"] = float("nan")
+        row["q_ext_target"] = float("nan")
+        row["beta_status"] = f"invalid_coupling_beta: {exc}"
 
 
 def _set_invalid_estimates(row: dict[str, object], *, invalid_reason: str) -> None:
     for column in (
-        "reference_tan_half_phase",
-        "operation_tan_half_phase",
-        "coupler_frequency_ghz",
-        "external_quality_factor",
-        "matching_frequency_ghz",
-        "delta_frequency_mhz",
+        "ref_tan_half",
+        "op_tan_half",
+        "coupler_freq_ghz",
+        "q_ext",
+        "match_freq_ghz",
+        "freq_delta_mhz",
         "coupling_k",
-        "target_external_quality_factor",
-        "coupling_beta",
+        "q_ext_target",
+        "beta",
     ):
         row[column] = float("nan")
-    row["coupling_k_source"] = ""
-    row["coupling_beta_status"] = "not_calculated"
+    row["k_source"] = ""
+    row["beta_status"] = "not_calculated"
     row["is_valid"] = False
     row["invalid_reason"] = invalid_reason
 
@@ -391,7 +391,7 @@ def _positive_coupling_k(value: float) -> float:
 
 def _output_columns(marker_points: pd.DataFrame) -> list[str]:
     metadata_columns = _metadata_columns(marker_points)
-    insert_index = OUTPUT_COLUMNS.index("reference_marker_name")
+    insert_index = OUTPUT_COLUMNS.index("ref_marker")
     return [*OUTPUT_COLUMNS[:insert_index], *metadata_columns, *OUTPUT_COLUMNS[insert_index:]]
 
 
@@ -407,7 +407,7 @@ def _metadata_columns(table: pd.DataFrame) -> list[str]:
     excluded = set(OUTPUT_COLUMNS) | {
         "marker_name",
         "marker_source",
-        "target_freq_ghz",
+        "freq_target_ghz",
         "freq_ghz",
         "freq_error_ghz",
         "s_db",
@@ -439,10 +439,10 @@ def _filter_to_coupler_cavity_endpoints(table: pd.DataFrame) -> pd.DataFrame:
     if table.empty:
         return table
     for column in (
-        "coupler_transition_pair",
-        "coupler_position_basis",
-        "coupler_pair_start_tune_position",
-        "coupler_pair_end_tune_position",
+        "cpl_pair",
+        "cpl_pos_basis",
+        "cpl_pos_from",
+        "cpl_pos_to",
     ):
         table[column] = [metadata[column] for metadata in kept_metadata]
     return table
@@ -457,10 +457,10 @@ def _filter_to_geometry_sweep(table: pd.DataFrame) -> pd.DataFrame:
     if not _has_coupler_geometry_sweep_context(table):
         return table.iloc[0:0].copy()
     table = table.copy()
-    table["coupler_transition_pair"] = pd.NA
-    table["coupler_position_basis"] = "geometry_sweep"
-    table["coupler_pair_start_tune_position"] = pd.NA
-    table["coupler_pair_end_tune_position"] = pd.NA
+    table["cpl_pair"] = pd.NA
+    table["cpl_pos_basis"] = "geometry_sweep"
+    table["cpl_pos_from"] = pd.NA
+    table["cpl_pos_to"] = pd.NA
     return table
 
 
@@ -510,12 +510,12 @@ def _first_marker_row(group: pd.DataFrame, marker_name: str) -> pd.Series | None
 def _frequency_value(row: pd.Series) -> float:
     if "freq_ghz" in row and pd.notna(row["freq_ghz"]):
         return float(row["freq_ghz"])
-    return float(row["target_freq_ghz"])
+    return float(row["freq_target_ghz"])
 
 
 def _target_frequency_value(row: pd.Series) -> float:
-    if "target_freq_ghz" in row and pd.notna(row["target_freq_ghz"]):
-        return float(row["target_freq_ghz"])
+    if "freq_target_ghz" in row and pd.notna(row["freq_target_ghz"]):
+        return float(row["freq_target_ghz"])
     return _frequency_value(row)
 
 
@@ -555,15 +555,15 @@ def _resolve_coupling_k(
         return float(coupling_k), coupling_k_source
 
     for reference_column, operation_column in (
-        ("reference_target_frequency_ghz", "operation_target_frequency_ghz"),
-        ("reference_frequency_ghz", "operation_frequency_ghz"),
+        ("ref_freq_target_ghz", "op_freq_target_ghz"),
+        ("ref_freq_ghz", "op_freq_ghz"),
     ):
         try:
             return (
                 estimate_coupling_k_from_marker_frequencies(
                     pi_over_two_frequency_ghz=float(row[reference_column]),
                     operation_frequency_ghz=float(row[operation_column]),
-                    operation_mode_deg=float(row["operation_mode_deg"]),
+                    operation_mode_deg=float(row["op_mode_deg"]),
                 ),
                 "marker_frequency_ratio_abs",
             )

@@ -20,11 +20,14 @@ from deflector_tuning.analysis.marker_pipeline import (
     save_marker_analysis,
 )
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
-from deflector_tuning.data_loading.admittance import (
-    extract_y11_marker_frequencies,
-    is_y11_touchstone_folder,
+from deflector_tuning.data_loading.one_port_matrix import (
+    Lane,
+    detect_one_port_matrix_lane,
+    extract_one_port_marker_frequencies,
     load_y11_touchstone_folder,
+    load_z11_touchstone_folder,
     sample_y11_markers,
+    sample_z11_markers,
 )
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_path
@@ -58,7 +61,10 @@ from deflector_tuning.visualization.polar_phase_views import (
     plot_marker_phase_polar_views,
 )
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
-from deflector_tuning.visualization.admittance_sweep_plots import plot_y11_marker_sweep
+from deflector_tuning.visualization.admittance_sweep_plots import (
+    plot_y11_marker_sweep,
+    plot_z11_marker_sweep,
+)
 from deflector_tuning.visualization.plot_config import PlotConfig
 from deflector_tuning.visualization.cell_iris_response_plots import (
     plot_cell_iris_response_comparison,
@@ -71,6 +77,7 @@ from deflector_tuning.workflows.dispersion import (
     run_dispersion_analysis as _run_dispersion_only_analysis,
 )
 from deflector_tuning.workflows.manifest import (
+    cached_manifest_figures as _cached_manifest_figures,
     cached_manifest_figure_group as _cached_manifest_figure_group,
     write_manifest as _write_manifest,
 )
@@ -90,6 +97,7 @@ from deflector_tuning.workflows.profile import (
     find_cst_profile_inputs as _find_cst_profile_inputs,
     run_profile_analysis as _run_profile_only_analysis,
 )
+from deflector_tuning.table_export import TableSaveResult, save_table_contract
 
 DEFAULT_DATA_ROOT = Path("data")
 DEFAULT_DISPERSION_SUBPATH = DEFAULT_PROJECT_DEFAULTS.default_dispersion_subpath
@@ -122,6 +130,7 @@ def run_folder_analysis(
     data_root: str | Path = DEFAULT_DATA_ROOT,
     file_workers: int = 1,
     plot_workers: int = 1,
+    tables_only: bool = False,
     loader: DataLoader | None = None,
     project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
 ) -> RunResult:
@@ -133,11 +142,12 @@ def run_folder_analysis(
     """
 
     logger.info(
-        "Starting folder analysis: sparameter_path=%s dispersion_path=%s output_dir=%s marker_role=%s",
+        "Starting folder analysis: sparameter_path=%s dispersion_path=%s output_dir=%s marker_role=%s tables_only=%s",
         sparameter_path,
         dispersion_path,
         output_dir,
         marker_role,
+        tables_only,
     )
     sparameter_path, dispersion_path = resolve_input_paths(
         sparameter_path,
@@ -151,9 +161,12 @@ def run_folder_analysis(
     table_dir = output_dir / "tables"
     figure_root = output_dir / "figures"
     manifest_path = output_dir / "manifest.json"
+    matrix_lane = detect_one_port_matrix_lane(sparameter_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if dataset_category == "profile":
+        if tables_only:
+            raise ValueError("--tables-only is supported only for standard marker-analysis datasets")
         profile_inputs = find_cst_profile_inputs(sparameter_path)
         if not profile_inputs:
             raise ValueError(
@@ -180,6 +193,8 @@ def run_folder_analysis(
             f"Dataset category is dispersion, but no parseable CST dispersion txt export was found: {sparameter_path}"
         )
     if dispersion_inputs:
+        if tables_only:
+            raise ValueError("--tables-only is supported only for standard marker-analysis datasets")
         logger.info("Detected CST dispersion data; running dispersion-only analysis")
         result = _run_dispersion_only_analysis(
             dispersion_inputs,
@@ -201,6 +216,8 @@ def run_folder_analysis(
         find_cst_profile_inputs(sparameter_path) if dataset_category is None else ()
     )
     if profile_inputs:
+        if tables_only:
+            raise ValueError("--tables-only is supported only for standard marker-analysis datasets")
         return _run_profile_only_analysis_from_runner(
             profile_inputs,
             output_dir=output_dir,
@@ -211,8 +228,9 @@ def run_folder_analysis(
             marker_role=marker_role,
         )
 
-    if is_y11_touchstone_folder(sparameter_path):
-        return _run_y11_admittance_analysis_from_runner(
+    if matrix_lane is not None:
+        return _run_one_port_matrix_analysis_from_runner(
+            lane=matrix_lane,
             sparameter_path=sparameter_path,
             dispersion_path=dispersion_path,
             output_dir=output_dir,
@@ -220,6 +238,7 @@ def run_folder_analysis(
             figure_root=figure_root,
             marker_role=marker_role,
             plot_config=plot_config,
+            tables_only=tables_only,
         )
 
     loader = _RunScopedDataLoader(
@@ -233,11 +252,13 @@ def run_folder_analysis(
     )
     cached_s11_figures = (
         _cached_manifest_figure_group(manifest_path, "s11")
-        if dataset_category == "grid"
+        if dataset_category == "grid" and not tables_only
         else OrderedDict()
     )
     sparameter_table: pd.DataFrame | None = None
-    if cached_s11_figures:
+    if tables_only:
+        logger.info("Skipping figure-only S11 table load in tables-only mode")
+    elif cached_s11_figures:
         logger.info(
             "Skipping S11 table load because cached grid-scan S11 figures already exist"
         )
@@ -253,10 +274,43 @@ def run_folder_analysis(
     )
     logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
     logger.info("Saving analysis tables to %s", table_dir)
-    table_paths = AnalysisPaths(save_marker_analysis(tables, table_dir))
+    save_result = save_marker_analysis(tables, table_dir)
+    if isinstance(save_result, TableSaveResult):
+        table_paths = AnalysisPaths(save_result.paths)
+        table_constants = save_result.constants
+    else:
+        # Keep test/integration adapters that still return a plain mapping usable.
+        table_paths = AnalysisPaths(save_result)
+        table_constants = {}
     logger.info("Saved %d analysis tables", len(table_paths))
     modes = detect_analysis_modes(tables, dataset_category=dataset_category)
     logger.info("Enabled analysis modes: %s", ", ".join(modes))
+
+    if tables_only:
+        figures = _cached_manifest_figures(manifest_path)
+        detection = _detection_report(tables, dataset_category=dataset_category)
+        logger.info("Writing tables-only manifest to %s", manifest_path)
+        _write_manifest(
+            manifest_path,
+            sparameter_path=sparameter_path,
+            dispersion_path=dispersion_path,
+            marker_role=marker_role,
+            modes=modes,
+            detection=detection,
+            tables=table_paths,
+            figures=figures,
+            table_contract="standard",
+            table_schema_version=2,
+            table_constants=table_constants,
+        )
+        logger.info("Tables-only analysis completed successfully")
+        return RunResult(
+            output_dir=output_dir,
+            tables=table_paths,
+            figures=figures,
+            analysis_modes=modes,
+            manifest_path=manifest_path,
+        )
 
     figures: FigurePaths = OrderedDict()
     if "grid_scan_spacing" in modes and cached_s11_figures:
@@ -271,17 +325,17 @@ def run_folder_analysis(
         figures["s11"] = OrderedDict(
             plot_s11_with_markers(
                 sparameter_table,
-                tables["marker_points"],
+                tables["marker_pts"],
                 figure_root / "s11",
                 render_workers=plot_workers,
                 config=plot_config,
             )
         )
-    if _has_rows(tables.get("phase_advance")):
+    if _has_rows(tables.get("phase_adv")):
         logger.info("Rendering phase advance figures")
         figures["phase_advance"] = OrderedDict(
             plot_phase_advance(
-                tables["phase_advance"],
+                tables["phase_adv"],
                 figure_root / "phase_advance",
                 split_by_family=True,
                 config=plot_config,
@@ -304,11 +358,11 @@ def run_folder_analysis(
         logger.info(
             "Skipping nodal-shift figures because nodal_shift is missing or empty"
         )
-    if _has_rows(tables.get("cell_iris_response_comparison")):
+    if _has_rows(tables.get("cell_iris_cmp")):
         logger.info("Rendering cell-iris response figures")
         figures["cell_iris_response"] = OrderedDict(
             plot_cell_iris_response_comparison(
-                tables["cell_iris_response_comparison"],
+                tables["cell_iris_cmp"],
                 figure_root / "cell_iris_response",
                 config=plot_config,
             )
@@ -317,11 +371,11 @@ def run_folder_analysis(
         logger.info(
             "Skipping cell-iris response figures because cell_iris_response_comparison is missing or empty"
         )
-    if _has_rows(tables.get("coupler_cavity_parameter_estimates")):
+    if _has_rows(tables.get("coupler_params")):
         logger.info("Rendering coupler-cavity parameter figures")
         figures["coupler_cavity_parameters"] = OrderedDict(
             plot_coupler_cavity_parameters(
-                tables["coupler_cavity_parameter_estimates"],
+                tables["coupler_params"],
                 figure_root / "coupler_cavity_parameters",
                 config=plot_config,
             )
@@ -330,11 +384,11 @@ def run_folder_analysis(
         logger.info(
             "Skipping coupler-cavity parameter figures because coupler_cavity_parameter_estimates is missing or empty"
         )
-    if _has_rows(tables.get("geometry_phase_response")):
+    if _has_rows(tables.get("geom_phase")):
         logger.info("Rendering geometry phase-response figures")
         figures["geometry_phase_response"] = OrderedDict(
             plot_geometry_phase_response(
-                tables["geometry_phase_response"],
+                tables["geom_phase"],
                 figure_root / "geometry_phase_response",
                 config=plot_config,
             )
@@ -343,22 +397,22 @@ def run_folder_analysis(
         logger.info(
             "Skipping geometry phase-response figures because geometry_phase_response is missing or empty"
         )
-    if _has_rows(tables.get("marker_points")):
+    if _has_rows(tables.get("marker_pts")):
         logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
             plot_marker_phase_polar_views(
-                tables["marker_points"], figure_root / "polar", config=plot_config
+                tables["marker_pts"], figure_root / "polar", config=plot_config
             )
         )
     else:
         logger.info(
             "Skipping polar phase figures because marker_points is missing or empty"
         )
-    if _has_rows(tables.get("kyhl_f2pi3_normalized_admittance_audit")):
+    if _has_rows(tables.get("kyhl_admit_audit")):
         logger.info("Rendering f_2pi3 normalized admittance figure")
         figures["kyhl_normalized_admittance"] = OrderedDict(
             plot_f2pi3_normalized_admittance_view(
-                tables["kyhl_f2pi3_normalized_admittance_audit"],
+                tables["kyhl_admit_audit"],
                 figure_root / "kyhl_normalized_admittance",
                 config=plot_config,
             )
@@ -373,7 +427,7 @@ def run_folder_analysis(
     if "grid_scan_spacing" in modes:
         logger.info("Rendering grid-scan spacing figures")
         spacing_summary = summarize_marker_spacing_for_grid_scan(
-            tables["marker_points"]
+            tables["marker_pts"]
         )
         figures["grid_scan_spacing"] = OrderedDict(
             plot_grid_scan_spacing_error_maps(
@@ -385,7 +439,7 @@ def run_folder_analysis(
         logger.info("Rendering grid-scan S-parameter phase r_c line scan")
         figures["grid_scan_sparameter_phase_r_c_line_scan"] = OrderedDict(
             plot_grid_scan_sparameter_phase_r_c_line_scan(
-                tables["marker_points"],
+                tables["marker_pts"],
                 figure_root / "grid_scan_sparameter_phase_r_c_line_scan",
                 config=plot_config,
             )
@@ -406,6 +460,9 @@ def run_folder_analysis(
         detection=detection,
         tables=table_paths,
         figures=figures,
+        table_contract="standard",
+        table_schema_version=2,
+        table_constants=table_constants,
     )
     logger.info("Folder analysis completed successfully")
 
@@ -447,8 +504,9 @@ def _run_profile_only_analysis_from_runner(
     return result
 
 
-def _run_y11_admittance_analysis_from_runner(
+def _run_one_port_matrix_analysis_from_runner(
     *,
+    lane: Lane,
     sparameter_path: Path,
     dispersion_path: Path,
     output_dir: Path,
@@ -456,40 +514,62 @@ def _run_y11_admittance_analysis_from_runner(
     figure_root: Path,
     marker_role: str,
     plot_config: PlotConfig,
+    tables_only: bool,
 ) -> RunResult:
-    """Run the direct-Y11 workflow without entering the S11 marker pipeline."""
+    """Run direct one-port Y11/Z11 analysis outside the S-parameter pipeline."""
 
-    logger.info("Detected direct CST Y11 Touchstone exports; running admittance-only analysis")
-    y11_table = load_y11_touchstone_folder(sparameter_path)
-    markers = extract_y11_marker_frequencies(dispersion_path, marker_role=marker_role)
-    marker_points = sample_y11_markers(y11_table, markers)
-    table_dir.mkdir(parents=True, exist_ok=True)
-    marker_path = table_dir / "markers.csv"
-    point_path = table_dir / "y11_marker_points.csv"
-    markers.to_csv(marker_path, index=False)
-    marker_points.to_csv(point_path, index=False)
-    tables = AnalysisPaths(
-        OrderedDict(
-            (("markers", marker_path), ("y11_marker_points", point_path))
+    parameter = lane[0].upper() + "11"
+    logger.info("Detected direct CST %s Touchstone exports", parameter)
+    if lane == "y11":
+        matrix_table = load_y11_touchstone_folder(sparameter_path)
+    else:
+        matrix_table = load_z11_touchstone_folder(sparameter_path)
+    markers = extract_one_port_marker_frequencies(
+        dispersion_path,
+        marker_role=marker_role,
+    )
+    if lane == "y11":
+        marker_points = sample_y11_markers(matrix_table, markers)
+        point_key = "y11_pts"
+    else:
+        marker_points = sample_z11_markers(matrix_table, markers)
+        point_key = "z11_pts"
+    save_result = save_table_contract(
+        OrderedDict((("markers", markers), (point_key, marker_points))),
+        table_dir,
+        lane,
+    )
+    tables = AnalysisPaths(save_result.paths)
+
+    manifest_path = output_dir / "manifest.json"
+    if tables_only:
+        figures = _cached_manifest_figures(manifest_path)
+    else:
+        if lane == "y11":
+            figure_path = plot_y11_marker_sweep(
+                marker_points,
+                figure_root / "y11_complex" / "y11_marker_sweep.png",
+                config=plot_config,
+            )
+            figure_group = "y11_complex"
+        else:
+            figure_path = plot_z11_marker_sweep(
+                marker_points,
+                figure_root / "z11_complex" / "z11_marker_sweep.png",
+                config=plot_config,
+            )
+            figure_group = "z11_complex"
+        figures = OrderedDict(
+            ((figure_group, OrderedDict((("marker_sweep", figure_path),))),)
         )
-    )
-
-    figure_path = plot_y11_marker_sweep(
-        marker_points,
-        figure_root / "y11_complex" / "y11_marker_sweep.png",
-        config=plot_config,
-    )
-    figures: FigurePaths = OrderedDict(
-        (("y11_complex", OrderedDict((("marker_sweep", figure_path),))),)
-    )
-    modes = ("y11_admittance",)
+    mode = "y11_admittance" if lane == "y11" else "z11_impedance"
+    modes = (mode,)
     detection = {
-        "y11_admittance": {
+        mode: {
             "enabled": True,
-            "reason": "direct CST Touchstone Y11 files detected",
+            "reason": f"direct CST Touchstone {parameter} files detected",
         }
     }
-    manifest_path = output_dir / "manifest.json"
     _write_manifest(
         manifest_path,
         sparameter_path=sparameter_path,
@@ -499,8 +579,11 @@ def _run_y11_admittance_analysis_from_runner(
         detection=detection,
         tables=tables,
         figures=figures,
+        table_contract=lane,
+        table_schema_version=2,
+        table_constants=save_result.constants,
     )
-    logger.info("Direct Y11 admittance analysis completed successfully")
+    logger.info("Direct %s analysis completed successfully", parameter)
     return RunResult(
         output_dir=output_dir,
         tables=tables,

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from deflector_tuning.table_schema import SOURCE_COLUMN_ALIASES
+
 GROUP_COLUMNS: list[str] = ["source_file", "s_name", "tune_position", "port_side"]
 OUTPUT_COLUMNS: list[str] = [
     "dataset_id",
@@ -16,7 +18,7 @@ OUTPUT_COLUMNS: list[str] = [
     "marker_name",
     "marker_role",
     "marker_source",
-    "target_freq_ghz",
+    "freq_target_ghz",
     "freq_ghz",
     "freq_error_ghz",
     "s_db",
@@ -42,18 +44,19 @@ MARKER_METADATA_COLUMNS: list[str] = [
 def sample_nearest_markers(sparameter_table: pd.DataFrame, markers: pd.DataFrame) -> pd.DataFrame:
     """Return long-form nearest S-parameter samples for each marker frequency."""
 
-    frames = [_sample_one_marker(sparameter_table, marker) for _, marker in markers.iterrows()]
+    source_table = _canonicalize_source_columns(sparameter_table)
+    frames = [_sample_one_marker(source_table, marker) for _, marker in markers.iterrows()]
     if not frames:
         return pd.DataFrame(columns=OUTPUT_COLUMNS)
     sampled = pd.concat(frames, ignore_index=True)
-    passthrough_columns = _passthrough_columns(sparameter_table)
+    passthrough_columns = _passthrough_columns(source_table)
     return sampled[[*OUTPUT_COLUMNS, *passthrough_columns]]
 
 
 def _sample_one_marker(sparameter_table: pd.DataFrame, marker: pd.Series) -> pd.DataFrame:
     target_freq_ghz = float(marker["freq_ghz"])
     table = sparameter_table.copy()
-    table["target_freq_ghz"] = target_freq_ghz
+    table["freq_target_ghz"] = target_freq_ghz
     table["freq_error_ghz"] = table["freq_ghz"] - target_freq_ghz
     table["_abs_freq_error_ghz"] = table["freq_error_ghz"].abs()
 
@@ -79,3 +82,20 @@ def _passthrough_columns(sparameter_table: pd.DataFrame) -> list[str]:
         if column in PASSTHROUGH_COLUMNS or any(column.startswith(prefix) for prefix in PASSTHROUGH_PREFIXES):
             columns.append(column)
     return columns
+
+
+def _canonicalize_source_columns(table: pd.DataFrame) -> pd.DataFrame:
+    collisions = [
+        (legacy, canonical)
+        for legacy, canonical in SOURCE_COLUMN_ALIASES.items()
+        if legacy in table.columns and canonical in table.columns
+    ]
+    if collisions:
+        details = ", ".join(f"{legacy}/{canonical}" for legacy, canonical in collisions)
+        raise ValueError(f"source metadata alias collision: {details}")
+    renames = {
+        legacy: canonical
+        for legacy, canonical in SOURCE_COLUMN_ALIASES.items()
+        if legacy in table.columns
+    }
+    return table.rename(columns=renames).copy()

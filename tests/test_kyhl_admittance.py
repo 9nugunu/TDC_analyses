@@ -36,7 +36,7 @@ def test_compute_kyhl_admittance_transitions_matches_2pi3_branch_axis() -> None:
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "sim",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "s_real": 1.0,
                 "s_imag": 0.0,
@@ -52,7 +52,7 @@ def test_compute_kyhl_admittance_transitions_matches_2pi3_branch_axis() -> None:
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "sim",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "s_real": 0.2,
                 "s_imag": -0.4,
@@ -67,16 +67,19 @@ def test_compute_kyhl_admittance_transitions_matches_2pi3_branch_axis() -> None:
     assert len(result) == 1
     row = result.iloc[0]
     assert row["position_family"] == "cell"
-    assert row["operation_axes_deg"] == "60;180;300"
-    assert row["operation_mode_scale"] == pytest.approx(math.sqrt(3.0))
-    assert row["delta_raw_pseudo_admittance_real"] == pytest.approx(0.5)
-    assert row["delta_raw_pseudo_admittance_imag"] == pytest.approx(0.5)
-    assert row["delta_operation_scaled_admittance_real"] == pytest.approx(0.5)
-    assert row["delta_operation_scaled_admittance_imag"] == pytest.approx(math.sqrt(3.0) / 2.0)
-    assert row["kyhl_operation_angle_deg"] == pytest.approx(60.0)
-    assert row["operation_scaled_admittance_angle_deg"] == pytest.approx(60.0)
-    assert row["nearest_operation_axis_deg"] == pytest.approx(60.0)
-    assert row["operation_axis_error_deg"] == pytest.approx(0.0)
+    assert row["op_admit_axes_deg"] == "60;180;300"
+    assert row["op_admit_scale"] == pytest.approx(math.sqrt(3.0))
+    assert row["op_admit_delta_re"] == pytest.approx(0.5)
+    assert row["op_admit_delta_im"] == pytest.approx(math.sqrt(3.0) / 2.0)
+    assert row["op_admit_delta_mag"] == pytest.approx(1.0)
+    assert row["op_admit_ang_deg"] == pytest.approx(60.0)
+    assert row["op_admit_axis_deg"] == pytest.approx(60.0)
+    assert row["op_admit_axis_err_deg"] == pytest.approx(0.0)
+    assert "admittance_real" not in result
+    assert "kyhl_operation_real" not in result
+    assert "raw_pseudo_admittance_real" not in result
+    assert "from_freq_ghz" not in result
+    assert "to_freq_ghz" not in result
 
 
 def test_coupler_cavity_transition_gate_allows_only_entrance_ordered_pairs() -> None:
@@ -108,7 +111,7 @@ def test_compute_kyhl_admittance_transitions_skips_regular_cell_pairs() -> None:
 
     result = compute_kyhl_admittance_transitions(marker_points, operation_mode_deg=120.0)
 
-    assert list(zip(result["from_tune_position"], result["to_tune_position"], strict=True)) == [
+    assert list(zip(result["pos_from"], result["pos_to"], strict=True)) == [
         (1.0, 2.0),
         (0.5, 1.5),
     ]
@@ -127,7 +130,7 @@ def test_compute_kyhl_admittance_points_reports_nearest_branch_axis() -> None:
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "sim",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "s_real": 0.2,
                 "s_imag": -0.4,
@@ -141,14 +144,17 @@ def test_compute_kyhl_admittance_points_reports_nearest_branch_axis() -> None:
 
     assert len(result) == 1
     row = result.iloc[0]
-    assert row["operation_axes_deg"] == "60;180;300"
-    assert row["raw_pseudo_admittance_real"] == pytest.approx(0.5)
-    assert row["raw_pseudo_admittance_imag"] == pytest.approx(0.5)
-    assert row["operation_scaled_admittance_real"] == pytest.approx(0.5)
-    assert row["operation_scaled_admittance_imag"] == pytest.approx(math.sqrt(3.0) / 2.0)
-    assert row["kyhl_operation_angle_deg"] == pytest.approx(60.0)
-    assert row["operation_scaled_admittance_angle_deg"] == pytest.approx(60.0)
-    assert row["nearest_operation_axis_deg"] == pytest.approx(60.0)
+    assert row["op_admit_axes_deg"] == "60;180;300"
+    assert row["gamma_re"] == pytest.approx(0.2)
+    assert row["gamma_im"] == pytest.approx(-0.4)
+    assert row["op_admit_re"] == pytest.approx(0.5)
+    assert row["op_admit_im"] == pytest.approx(math.sqrt(3.0) / 2.0)
+    assert row["op_admit_mag"] == pytest.approx(1.0)
+    assert row["op_admit_ang_deg"] == pytest.approx(60.0)
+    assert row["op_admit_axis_deg"] == pytest.approx(60.0)
+    assert "raw_pseudo_admittance_real" not in result
+    assert "admittance_real" not in result
+    assert "kyhl_operation_real" not in result
 
 
 def test_compute_f2pi3_normalized_admittance_audit_reports_source_based_steps() -> None:
@@ -170,25 +176,25 @@ def test_compute_f2pi3_normalized_admittance_audit_reports_source_based_steps() 
     mode_admittance = math.sqrt(3.0) * admittance
     mode_reflection = (1.0 - mode_admittance) / (1.0 + mode_admittance)
     assert row["marker_name"] == "f_2pi3"
-    assert row["gamma_magnitude"] == pytest.approx(magnitude)
-    assert row["gamma_phase_deg"] == pytest.approx(-60.0)
-    assert row["gamma_real"] == pytest.approx(gamma.real)
-    assert row["gamma_imag"] == pytest.approx(gamma.imag)
-    assert row["normalized_impedance_real"] == pytest.approx(impedance.real)
-    assert row["normalized_impedance_imag"] == pytest.approx(impedance.imag)
+    assert row["gamma_mag"] == pytest.approx(magnitude)
+    assert row["gamma_ang_deg"] == pytest.approx(-60.0)
+    assert row["gamma_re"] == pytest.approx(gamma.real)
+    assert row["gamma_im"] == pytest.approx(gamma.imag)
+    assert row["norm_imp_re"] == pytest.approx(impedance.real)
+    assert row["norm_imp_im"] == pytest.approx(impedance.imag)
     assert row["reference_ohm"] == pytest.approx(50.0)
-    assert row["reference_admittance_siemens"] == pytest.approx(0.02)
-    assert row["line_normalized_admittance_real"] == pytest.approx(admittance.real)
-    assert row["line_normalized_admittance_imag"] == pytest.approx(admittance.imag)
-    assert row["admittance_real"] == pytest.approx(admittance.real)
-    assert row["admittance_imag"] == pytest.approx(admittance.imag)
-    assert row["physical_admittance_siemens_real"] == pytest.approx(admittance.real / 50.0)
-    assert row["physical_admittance_siemens_imag"] == pytest.approx(admittance.imag / 50.0)
-    assert row["mode_normalization_factor"] == pytest.approx(math.sqrt(3.0))
-    assert row["mode_normalized_admittance_real"] == pytest.approx(mode_admittance.real)
-    assert row["mode_normalized_admittance_imag"] == pytest.approx(mode_admittance.imag)
-    assert row["mode_reflection_real"] == pytest.approx(mode_reflection.real)
-    assert row["mode_reflection_imag"] == pytest.approx(mode_reflection.imag)
+    assert row["ref_admit_siemens"] == pytest.approx(0.02)
+    assert row["line_admit_re"] == pytest.approx(admittance.real)
+    assert row["line_admit_im"] == pytest.approx(admittance.imag)
+    assert row["phys_admit_re_siemens"] == pytest.approx(admittance.real / 50.0)
+    assert row["phys_admit_im_siemens"] == pytest.approx(admittance.imag / 50.0)
+    assert row["mode_admit_scale"] == pytest.approx(math.sqrt(3.0))
+    assert row["mode_admit_re"] == pytest.approx(mode_admittance.real)
+    assert row["mode_admit_im"] == pytest.approx(mode_admittance.imag)
+    assert row["mode_gamma_re"] == pytest.approx(mode_reflection.real)
+    assert row["mode_gamma_im"] == pytest.approx(mode_reflection.imag)
+    assert "admittance_real" not in result
+    assert "line_normalized_admittance_angle_deg" not in result
 
 
 def _marker_point(*, tune_position: float, phase_deg: float) -> dict[str, object]:
@@ -203,7 +209,7 @@ def _marker_point(*, tune_position: float, phase_deg: float) -> dict[str, object
         "s_name": "S11",
         "marker_name": "f_2pi3",
         "marker_role": "sim",
-        "target_freq_ghz": 2.856,
+        "freq_target_ghz": 2.856,
         "freq_ghz": 2.856,
         "s_real": magnitude * math.cos(phase_rad),
         "s_imag": magnitude * math.sin(phase_rad),

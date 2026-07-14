@@ -17,30 +17,30 @@ from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_st
 REQUIRED_POINT_COLUMNS: tuple[str, ...] = (
     "marker_name",
     "tune_position",
-    "kyhl_operation_angle_deg",
-    "nearest_operation_axis_deg",
-    "operation_axis_error_deg",
+    "op_admit_ang_deg",
+    "op_admit_axis_deg",
+    "op_admit_axis_err_deg",
 )
 REQUIRED_TRANSITION_COLUMNS: tuple[str, ...] = (
     "marker_name",
     "position_family",
-    "from_tune_position",
-    "to_tune_position",
-    "kyhl_operation_angle_deg",
-    "nearest_operation_axis_deg",
-    "operation_axis_error_deg",
+    "pos_from",
+    "pos_to",
+    "op_admit_ang_deg",
+    "op_admit_axis_deg",
+    "op_admit_axis_err_deg",
 )
 F2PI3_MARKER = "f_2pi3"
 NORMALIZED_POINT_COLUMNS: tuple[str, ...] = (
     "marker_name",
     "source_file",
     "tune_position",
-    "mode_normalized_admittance_real",
-    "mode_normalized_admittance_imag",
-    "mode_reflection_real",
-    "mode_reflection_imag",
-    "mode_reflection_abs",
-    "mode_reflection_angle_deg",
+    "mode_admit_re",
+    "mode_admit_im",
+    "mode_gamma_re",
+    "mode_gamma_im",
+    "mode_gamma_mag",
+    "mode_gamma_ang_deg",
 )
 
 
@@ -66,7 +66,7 @@ def plot_kyhl_operation_polar(
     config = config or PlotConfig()
     apply_plot_style(config)
     axes_deg = _operation_axes(point_table, transition_table)
-    operation_mode = _first_float(point_table, "operation_mode_deg", fallback=_first_float(transition_table, "operation_mode_deg"))
+    operation_mode = _first_float(point_table, "op_mode_deg", fallback=_first_float(transition_table, "op_mode_deg"))
     marker_label = MARKER_LABELS.get(marker_name, marker_name)
 
     fig, axes = plt.subplots(
@@ -131,8 +131,8 @@ def plot_f2pi3_normalized_admittance(
     fig, ax = plt.subplots(figsize=(7.2, 5.8), subplot_kw={"projection": "polar"}, constrained_layout=True)
     color = MARKER_COLORS.get(F2PI3_MARKER, "#444444")
     _draw_smith_polar_reference(ax, config=config)
-    theta = np.deg2rad(point_table["mode_reflection_angle_deg"].astype(float))
-    radius = point_table["mode_reflection_abs"].astype(float)
+    theta = np.deg2rad(point_table["mode_gamma_ang_deg"].astype(float))
+    radius = point_table["mode_gamma_mag"].astype(float)
     ax.scatter(
         theta,
         radius,
@@ -244,12 +244,12 @@ def _draw_points(ax, table: pd.DataFrame, *, marker_name: str, config: PlotConfi
     radii = np.linspace(0.55, 0.95, len(table))
     label_offsets = np.linspace(-14.0, 14.0, len(table)) if len(table) > 1 else np.array([8.0])
     for radius, label_offset, (_, row) in zip(radii, label_offsets, table.iterrows(), strict=True):
-        angle_deg = float(row["kyhl_operation_angle_deg"])
+        angle_deg = float(row["op_admit_ang_deg"])
         angle = np.deg2rad(angle_deg)
         if angle_deg > 180.0 and label_offset > 0.0:
             label_offset *= -1.0
         tune_label = _format_position(row["tune_position"])
-        error = float(row["operation_axis_error_deg"])
+        error = float(row["op_admit_axis_err_deg"])
         ax.plot([angle, angle], [0.0, radius], color=color, linewidth=1.4, alpha=0.50)
         ax.scatter([angle], [radius], s=70, color=color, edgecolors="white", linewidths=0.8, zorder=4)
         _annotate(
@@ -267,7 +267,7 @@ def _draw_transitions(ax, table: pd.DataFrame, *, marker_name: str, config: Plot
     marker_color = MARKER_COLORS.get(marker_name, "#444444")
     family_colors = {"cell": "#9467bd", "iris": "#ff7f0e"}
     table = table.copy()
-    table["_from_sort"] = pd.to_numeric(table["from_tune_position"], errors="coerce")
+    table["_from_sort"] = pd.to_numeric(table["pos_from"], errors="coerce")
     table = table.sort_values(["position_family", "_from_sort"], kind="mergesort")
     radii = np.linspace(0.68, 0.95, len(table))
     label_offsets = np.linspace(-10.0, 10.0, len(table)) if len(table) > 1 else np.array([8.0])
@@ -276,9 +276,9 @@ def _draw_transitions(ax, table: pd.DataFrame, *, marker_name: str, config: Plot
     for radius, label_offset, (_, row) in zip(radii, label_offsets, table.iterrows(), strict=True):
         family = str(row["position_family"])
         color = family_colors.get(family, marker_color)
-        angle = np.deg2rad(float(row["kyhl_operation_angle_deg"]))
-        error = float(row["operation_axis_error_deg"])
-        transition_label = f"{family} {_format_position(row['from_tune_position'])}->{_format_position(row['to_tune_position'])}"
+        angle = np.deg2rad(float(row["op_admit_ang_deg"]))
+        error = float(row["op_admit_axis_err_deg"])
+        transition_label = f"{family} {_format_position(row['pos_from'])}->{_format_position(row['pos_to'])}"
         ax.plot([angle, angle], [0.0, radius], color=color, linewidth=1.8, alpha=0.72)
         ax.scatter([angle], [radius], marker="s", s=80, color=color, edgecolors="white", linewidths=0.8, zorder=4)
         _annotate(
@@ -316,13 +316,13 @@ def _annotate(ax, angle: float, radius: float, label: str, *, angle_offset_deg: 
 
 def _operation_axes(points: pd.DataFrame, transitions: pd.DataFrame) -> tuple[float, ...]:
     for table in (points, transitions):
-        if "operation_axes_deg" in table and table["operation_axes_deg"].notna().any():
-            text = str(table["operation_axes_deg"].dropna().iloc[0])
+        if "op_admit_axes_deg" in table and table["op_admit_axes_deg"].notna().any():
+            text = str(table["op_admit_axes_deg"].dropna().iloc[0])
             return tuple(float(part) for part in text.split(";") if part)
     values = pd.concat(
         [
-            points["nearest_operation_axis_deg"].dropna().astype(float),
-            transitions["nearest_operation_axis_deg"].dropna().astype(float),
+            points["op_admit_axis_deg"].dropna().astype(float),
+            transitions["op_admit_axis_deg"].dropna().astype(float),
         ],
         ignore_index=True,
     )

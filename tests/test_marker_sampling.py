@@ -114,7 +114,7 @@ def test_sample_nearest_markers_returns_long_form_rows_per_group_and_marker() ->
         "marker_name",
         "marker_role",
         "marker_source",
-        "target_freq_ghz",
+        "freq_target_ghz",
         "freq_ghz",
         "freq_error_ghz",
         "s_db",
@@ -130,7 +130,7 @@ def test_sample_nearest_markers_returns_long_form_rows_per_group_and_marker() ->
     records = sampled.sort_values(["source_file", "marker_name"]).to_dict("records")
     assert records[0]["source_file"] == "0.5_processed.csv"
     assert records[0]["marker_name"] == "f_2pi3"
-    assert records[0]["target_freq_ghz"] == 2.856
+    assert records[0]["freq_target_ghz"] == 2.856
     assert records[0]["freq_ghz"] == 2.8561
     assert records[0]["freq_error_ghz"] == pytest.approx(0.0001)
     assert records[0]["s_db"] == -2.0
@@ -210,3 +210,59 @@ def test_sample_nearest_markers_groups_sim_without_tune_position_or_port_side() 
     assert row["scan_type"] == "grid_2d"
     assert row["sim_r_c"] == 54.5
     assert row["sim_w_c"] == 18.5
+
+
+def test_sample_nearest_markers_canonicalizes_known_simulation_metadata() -> None:
+    s_table = pd.DataFrame(
+        [
+            {
+                "dataset_id": "dataset",
+                "data_kind": "simulation",
+                "data_layer": "sim",
+                "source_file": "run.s1p",
+                "s_name": "S11",
+                "freq_ghz": 2.856,
+                "s_db": -10.0,
+                "s_phase_deg": 20.0,
+                "source_format": "touchstone_ri",
+                "sim_tuner_insertion_depth": 3.5,
+                "sim_coupler_path_bot2_width": 8.0,
+            }
+        ]
+    )
+    markers = pd.DataFrame(
+        [{"marker_name": "f_2pi3", "freq_ghz": 2.856, "marker_role": "sim", "marker_source": "test"}]
+    )
+
+    sampled = sample_nearest_markers(s_table, markers)
+
+    assert sampled.loc[0, "sim_tuner_depth"] == 3.5
+    assert sampled.loc[0, "sim_cpl_bot2_w"] == 8.0
+    assert "sim_tuner_insertion_depth" not in sampled
+    assert "sim_coupler_path_bot2_width" not in sampled
+
+
+def test_sample_nearest_markers_rejects_source_alias_collisions() -> None:
+    s_table = pd.DataFrame(
+        [
+            {
+                "dataset_id": "dataset",
+                "data_kind": "simulation",
+                "data_layer": "sim",
+                "source_file": "run.s1p",
+                "s_name": "S11",
+                "freq_ghz": 2.856,
+                "s_db": -10.0,
+                "s_phase_deg": 20.0,
+                "source_format": "touchstone_ri",
+                "sim_tuner_insertion_depth": 3.5,
+                "sim_tuner_depth": 4.0,
+            }
+        ]
+    )
+    markers = pd.DataFrame(
+        [{"marker_name": "f_2pi3", "freq_ghz": 2.856, "marker_role": "sim", "marker_source": "test"}]
+    )
+
+    with pytest.raises(ValueError, match="source metadata alias collision"):
+        sample_nearest_markers(s_table, markers)

@@ -43,23 +43,13 @@ from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import extract_marker_frequencies
 from deflector_tuning.markers.sampling import sample_nearest_markers
+from deflector_tuning.table_schema import STANDARD_TABLE_SPECS
+from deflector_tuning.table_export import TableSaveResult, save_standard_tables
 
 AnalysisTables = OrderedDict[str, pd.DataFrame]
 
 TABLE_FILENAMES: dict[str, str] = {
-    "markers": "markers.csv",
-    "marker_points": "marker_points.csv",
-    "marker_phase_polar": "marker_phase_polar.csv",
-    "kyhl_f2pi3_normalized_admittance_audit": "kyhl_f2pi3_normalized_admittance_audit.csv",
-    "kyhl_admittance_points": "kyhl_admittance_points.csv",
-    "kyhl_admittance_transitions": "kyhl_admittance_transitions.csv",
-    "cell_iris_response_comparison": "cell_iris_response_comparison.csv",
-    "coupler_cavity_parameter_estimates": "coupler_cavity_parameter_estimates.csv",
-    "grid_rc_line_scan": "grid_rc_line_scan.csv",
-    "phase_advance": "phase_advance.csv",
-    "phase_summary": "phase_summary.csv",
-    "nodal_shift": "nodal_shift.csv",
-    "geometry_phase_response": "geometry_phase_response.csv",
+    name: spec.filename for name, spec in STANDARD_TABLE_SPECS.items()
 }
 
 POLAR_MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
@@ -108,54 +98,47 @@ def build_marker_analysis(
     sparameter_table = select_s11_rows(sparameter_table)
     markers = extract_marker_frequencies(dispersion_path, marker_role=marker_role)
     marker_points = sample_nearest_markers(sparameter_table, markers)
-    marker_phase_polar = build_marker_phase_polar_table(marker_points)
-    grid_rc_line_scan = extract_fixed_width_rc_line_scan(marker_phase_polar)
-    kyhl_f2pi3_normalized_admittance_audit = _compute_f2pi3_normalized_admittance_audit_when_supported(marker_points)
-    kyhl_admittance_points = _compute_kyhl_admittance_points_when_supported(marker_points)
-    kyhl_admittance_transitions = _compute_kyhl_admittance_transitions_when_supported(marker_points)
-    cell_iris_response_comparison = (
-        compare_cell_and_iris_responses(kyhl_admittance_transitions)
-        if not kyhl_admittance_transitions.empty
+    phase_polar = build_marker_phase_polar_table(marker_points)
+    rc_line = extract_fixed_width_rc_line_scan(phase_polar)
+    kyhl_admit_audit = _compute_f2pi3_normalized_admittance_audit_when_supported(marker_points)
+    kyhl_admit_pts = _compute_kyhl_admittance_points_when_supported(marker_points)
+    kyhl_admit_steps = _compute_kyhl_admittance_transitions_when_supported(marker_points)
+    cell_iris_cmp = (
+        compare_cell_and_iris_responses(kyhl_admit_steps)
+        if not kyhl_admit_steps.empty
         else _empty_cell_iris_response_comparison()
     )
-    coupler_cavity_parameter_estimates = build_coupler_cavity_parameter_table(marker_points, markers)
-    phase_advance = _compute_phase_advance_when_supported(marker_points)
-    phase_summary = summarize_phase_advance(phase_advance) if not phase_advance.empty else _empty_phase_summary()
-    nodal_shift = compute_nodal_shift_errors(phase_advance) if not phase_advance.empty else _empty_nodal_shift()
-    geometry_phase_response = compute_geometry_phase_response(marker_points)
+    coupler_params = build_coupler_cavity_parameter_table(marker_points, markers)
+    phase_adv = _compute_phase_advance_when_supported(marker_points)
+    phase_stats = summarize_phase_advance(phase_adv) if not phase_adv.empty else _empty_phase_summary()
+    nodal_shift = compute_nodal_shift_errors(phase_adv) if not phase_adv.empty else _empty_nodal_shift()
+    geom_phase = compute_geometry_phase_response(marker_points)
     return OrderedDict(
         [
             ("markers", markers),
-            ("marker_points", marker_points),
-            ("marker_phase_polar", marker_phase_polar),
-            (
-                "kyhl_f2pi3_normalized_admittance_audit",
-                kyhl_f2pi3_normalized_admittance_audit,
-            ),
-            ("kyhl_admittance_points", kyhl_admittance_points),
-            ("kyhl_admittance_transitions", kyhl_admittance_transitions),
-            ("cell_iris_response_comparison", cell_iris_response_comparison),
-            ("coupler_cavity_parameter_estimates", coupler_cavity_parameter_estimates),
-            ("grid_rc_line_scan", grid_rc_line_scan),
-            ("phase_advance", phase_advance),
-            ("phase_summary", phase_summary),
+            ("marker_pts", marker_points),
+            ("phase_polar", phase_polar),
+            ("kyhl_admit_audit", kyhl_admit_audit),
+            ("kyhl_admit_pts", kyhl_admit_pts),
+            ("kyhl_admit_steps", kyhl_admit_steps),
+            ("cell_iris_cmp", cell_iris_cmp),
+            ("coupler_params", coupler_params),
+            ("rc_line", rc_line),
+            ("phase_adv", phase_adv),
+            ("phase_stats", phase_stats),
             ("nodal_shift", nodal_shift),
-            ("geometry_phase_response", geometry_phase_response),
+            ("geom_phase", geom_phase),
         ]
     )
 
 
-def save_marker_analysis(tables: dict[str, pd.DataFrame], output_dir: str | Path) -> OrderedDict[str, Path]:
-    """Write marker analysis tables as CSV files and return their paths."""
+def save_marker_analysis(
+    tables: dict[str, pd.DataFrame],
+    output_dir: str | Path,
+) -> TableSaveResult:
+    """Persist the standard tables through the transactional CSV saver."""
 
-    folder = Path(output_dir)
-    folder.mkdir(parents=True, exist_ok=True)
-    paths: OrderedDict[str, Path] = OrderedDict()
-    for name, filename in TABLE_FILENAMES.items():
-        path = folder / filename
-        _presentation_table(tables[name]).to_csv(path, index=False)
-        paths[name] = path
-    return paths
+    return save_standard_tables(tables, output_dir)
 
 
 def build_marker_phase_polar_table(marker_points: pd.DataFrame) -> pd.DataFrame:
@@ -279,12 +262,3 @@ def _sort_polar_phase_table(table: pd.DataFrame) -> pd.DataFrame:
         helper_columns.append(helper)
     sorted_table = sortable.sort_values([*helper_columns, *sort_columns], kind="mergesort")
     return sorted_table.drop(columns=helper_columns).reset_index(drop=True)
-
-
-def _presentation_table(table: pd.DataFrame) -> pd.DataFrame:
-    output = table.copy()
-    if "data_kind" in output:
-        output = output.drop(columns=["data_kind"])
-    if "port_side" in output and output["port_side"].isna().all():
-        output = output.drop(columns=["port_side"])
-    return output

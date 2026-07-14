@@ -38,16 +38,16 @@ def coupler_cavity_endpoint_metadata(tune_positions: Iterable[object]) -> dict[f
             continue
         pair_label = f"{start:g}_to_{end:g}"
         metadata[present_start] = {
-            "coupler_transition_pair": pair_label,
-            "coupler_position_basis": basis,
-            "coupler_pair_start_tune_position": start,
-            "coupler_pair_end_tune_position": end,
+            "cpl_pair": pair_label,
+            "cpl_pos_basis": basis,
+            "cpl_pos_from": start,
+            "cpl_pos_to": end,
         }
         metadata[present_end] = {
-            "coupler_transition_pair": pair_label,
-            "coupler_position_basis": basis,
-            "coupler_pair_start_tune_position": start,
-            "coupler_pair_end_tune_position": end,
+            "cpl_pair": pair_label,
+            "cpl_pos_basis": basis,
+            "cpl_pos_from": start,
+            "cpl_pos_to": end,
         }
     return metadata
 

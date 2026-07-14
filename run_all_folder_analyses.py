@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import json
 import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -25,6 +27,11 @@ from deflector_tuning.project_defaults import (
     load_project_defaults,
 )
 from deflector_tuning.progress import progress_iter
+from deflector_tuning.table_schema import (
+    FORBIDDEN_LEGACY_COLUMNS,
+    STANDARD_TABLE_SPECS,
+    TABLE_CONTRACTS,
+)
 
 
 DESCRIPTION = "Run all discovered datasets through the standard deflector tuning analysis workflow."
@@ -42,6 +49,7 @@ class BatchTask:
         output_dir: Path,
         marker_role: str,
         data_root: Path,
+        tables_only: bool = False,
         project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
     ) -> None:
         self.sparameter_path = sparameter_path
@@ -49,6 +57,7 @@ class BatchTask:
         self.output_dir = output_dir
         self.marker_role = marker_role
         self.data_root = data_root
+        self.tables_only = tables_only
         self.project_defaults = project_defaults
 
 
@@ -104,6 +113,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=default_worker_count(),
         help="Number of dataset-level worker processes. Default: max(1, os.cpu_count() - 2).",
     )
+    parser.add_argument(
+        "--tables-only",
+        action="store_true",
+        help="Rebuild only the dataset's canonical CSV table contract and skip figure rendering.",
+    )
     return parser
 
 
@@ -148,6 +162,7 @@ def build_batch_tasks(
     marker_role: str | None,
     dispersion_path: Path | None,
     data_root: Path,
+    tables_only: bool = False,
     project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
 ) -> list[BatchTask]:
     """Resolve all per-dataset runtime arguments for the batch runner."""
@@ -176,6 +191,7 @@ def build_batch_tasks(
                 output_dir=output_dir,
                 marker_role=str(dataset_args.marker_role),
                 data_root=Path(dataset_args.data_root),
+                tables_only=tables_only,
                 project_defaults=project_defaults,
             )
         )
@@ -293,9 +309,84 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         marker_role=task.marker_role,
         data_root=task.data_root,
         plot_workers=1,
+        tables_only=task.tables_only,
         project_defaults=task.project_defaults,
     )
+    if task.tables_only:
+        verify_table_contract_outputs(result.output_dir, result.manifest_path)
     return task.sparameter_path, result.output_dir
+
+
+def verify_table_contract_outputs(output_dir: Path, manifest_path: Path) -> None:
+    """Fail a tables-only batch task unless its declared table contract is complete."""
+
+    manifest_path = Path(manifest_path)
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"tables-only manifest is missing: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("table_schema_version") != 2:
+        raise ValueError(f"tables-only manifest does not declare table_schema_version=2: {manifest_path}")
+    contract_name = manifest.get("table_contract")
+    if contract_name not in TABLE_CONTRACTS:
+        raise ValueError(
+            f"tables-only manifest declares unknown table_contract={contract_name!r}: {manifest_path}"
+        )
+    specs = TABLE_CONTRACTS[str(contract_name)]
+
+    table_dir = Path(output_dir) / "tables"
+    manifest_tables = manifest.get("outputs", {}).get("tables", {})
+    if not isinstance(manifest_tables, dict) or set(manifest_tables) != set(specs):
+        raise ValueError(
+            "manifest table keys do not match declared contract: "
+            f"contract={contract_name!r}, expected={list(specs)}, "
+            f"actual={list(manifest_tables) if isinstance(manifest_tables, dict) else manifest_tables!r}"
+        )
+    active_filenames = {spec.filename for spec in specs.values()}
+    registered_filenames = {
+        spec.filename
+        for contract_specs in TABLE_CONTRACTS.values()
+        for spec in contract_specs.values()
+    }
+    unexpected_files = sorted(
+        filename
+        for filename in registered_filenames.difference(active_filenames)
+        if (table_dir / filename).exists()
+    )
+    if unexpected_files:
+        raise ValueError(
+            f"unexpected canonical table files for {contract_name}: {unexpected_files}"
+        )
+    for key, spec in specs.items():
+        path = table_dir / spec.filename
+        if not path.is_file():
+            raise FileNotFoundError(f"canonical table is missing: {path}")
+        if Path(manifest_tables.get(key, "")) != path:
+            raise ValueError(f"manifest table path mismatch for {key}: {manifest_tables.get(key)!r}")
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            header = next(csv.reader(handle), [])
+        forbidden = sorted(FORBIDDEN_LEGACY_COLUMNS.intersection(header))
+        if forbidden:
+            raise ValueError(f"{key} contains forbidden legacy columns: {forbidden}")
+        if (
+            spec.legacy_filename is not None
+            and spec.legacy_filename != spec.filename
+            and (table_dir / spec.legacy_filename).exists()
+        ):
+            raise ValueError(f"legacy table was not removed: {table_dir / spec.legacy_filename}")
+
+
+def verify_standard_table_outputs(output_dir: Path, manifest_path: Path) -> None:
+    """Compatibility wrapper requiring the standard table contract."""
+
+    manifest_path = Path(manifest_path)
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"tables-only manifest is missing: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("table_contract") != "standard":
+        raise ValueError(
+            f"expected standard table_contract in tables-only manifest: {manifest_path}"
+        )
+    verify_table_contract_outputs(output_dir, manifest_path)
 
 
 def _log_batch_progress(*, completed: int, total: int, dataset_path: Path, success: bool) -> None:
@@ -358,6 +449,7 @@ def main(argv: list[str] | None = None) -> int:
         marker_role=args.marker_role,
         dispersion_path=args.dispersion_path,
         data_root=Path(args.data_root),
+        tables_only=args.tables_only,
         project_defaults=load_project_defaults(args.project_config),
     )
     logger.info("Resolved %d dataset(s) for batch analysis with workers=%d", len(tasks), workers)

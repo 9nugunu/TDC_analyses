@@ -9,7 +9,7 @@ TARGET_PHASE_ADVANCE_DEG: dict[str, float] = {
     "f_pi2": 180.0,
 }
 MARKER_ORDER: tuple[str, ...] = tuple(TARGET_PHASE_ADVANCE_DEG)
-REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "phase_advance_0to360_deg")
+REQUIRED_COLUMNS: tuple[str, ...] = ("marker_name", "phase_adv_deg")
 OUTPUT_COLUMNS: list[str] = [
     "dataset_id",
     "data_kind",
@@ -19,17 +19,16 @@ OUTPUT_COLUMNS: list[str] = [
     "port_side",
     "s_name",
     "position_family",
-    "from_source_file",
-    "to_source_file",
-    "from_tune_position",
-    "to_tune_position",
-    "target_freq_ghz",
-    "from_freq_ghz",
-    "to_freq_ghz",
-    "phase_advance_0to360_deg",
-    "target_phase_advance_deg",
-    "phase_error_from_target_deg",
-    "abs_phase_error_from_target_deg",
+    "file_from",
+    "file_to",
+    "pos_from",
+    "pos_to",
+    "freq_target_ghz",
+    "freq_ghz",
+    "phase_adv_deg",
+    "phase_target_deg",
+    "phase_err_deg",
+    "phase_err_abs_deg",
 ]
 
 
@@ -49,11 +48,11 @@ def compute_nodal_shift_errors(phase_advance: pd.DataFrame) -> pd.DataFrame:
     table = phase_advance[phase_advance["marker_name"].isin(MARKER_ORDER)].copy()
     if table.empty:
         return pd.DataFrame(columns=_output_columns(phase_advance))
-    table["target_phase_advance_deg"] = table["marker_name"].map(TARGET_PHASE_ADVANCE_DEG).astype(float)
-    table["phase_error_from_target_deg"] = (
-        table["phase_advance_0to360_deg"].astype(float) - table["target_phase_advance_deg"]
+    table["phase_target_deg"] = table["marker_name"].map(TARGET_PHASE_ADVANCE_DEG).astype(float)
+    table["phase_err_deg"] = (
+        table["phase_adv_deg"].astype(float) - table["phase_target_deg"]
     )
-    table["abs_phase_error_from_target_deg"] = table["phase_error_from_target_deg"].abs()
+    table["phase_err_abs_deg"] = table["phase_err_deg"].abs()
     columns = _output_columns(table)
     return table.reindex(columns=columns).sort_values(_sort_columns(table), kind="mergesort").reset_index(drop=True)
 
@@ -72,6 +71,6 @@ def _output_columns(table: pd.DataFrame) -> list[str]:
 def _sort_columns(table: pd.DataFrame) -> list[str]:
     return [
         column
-        for column in ("position_family", "from_tune_position", "to_tune_position", "marker_name", "sim_r_c", "sim_w_c")
+        for column in ("position_family", "pos_from", "pos_to", "marker_name", "sim_r_c", "sim_w_c")
         if column in table
     ]

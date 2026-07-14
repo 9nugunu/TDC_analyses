@@ -17,7 +17,7 @@ def test_compute_phase_advance_treats_negative_120_as_240_degree_advance() -> No
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "exp",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "freq_error_ghz": 0.0,
                 "s_db": -1.0,
@@ -34,7 +34,7 @@ def test_compute_phase_advance_treats_negative_120_as_240_degree_advance() -> No
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "exp",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "freq_error_ghz": 0.0,
                 "s_db": -2.0,
@@ -51,7 +51,7 @@ def test_compute_phase_advance_treats_negative_120_as_240_degree_advance() -> No
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "exp",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "freq_error_ghz": 0.0,
                 "s_db": -3.0,
@@ -72,34 +72,33 @@ def test_compute_phase_advance_treats_negative_120_as_240_degree_advance() -> No
         "port_side",
         "s_name",
         "position_family",
-        "from_source_file",
-        "to_source_file",
-        "from_tune_position",
-        "to_tune_position",
-        "target_freq_ghz",
-        "from_freq_ghz",
-        "to_freq_ghz",
-        "from_s_db",
-        "to_s_db",
-        "from_phase_deg",
-        "to_phase_deg",
-        "signed_phase_step_deg",
-        "phase_advance_0to360_deg",
-        "phase_error_from_240_deg",
+        "file_from",
+        "file_to",
+        "pos_from",
+        "pos_to",
+        "freq_target_ghz",
+        "freq_ghz",
+        "s_db_from",
+        "s_db_to",
+        "phase_from_deg",
+        "phase_to_deg",
+        "phase_step_deg",
+        "phase_adv_deg",
+        "phase_err_240_deg",
     ]
     assert len(result) == 2
     first = result.iloc[0]
     assert pd.isna(first["port_side"])
-    assert first["from_tune_position"] == 0.5
-    assert first["to_tune_position"] == 1.5
-    assert first["from_phase_deg"] == 10.0
-    assert first["to_phase_deg"] == -110.0
-    assert first["signed_phase_step_deg"] == pytest.approx(-120.0)
-    assert first["phase_advance_0to360_deg"] == pytest.approx(240.0)
-    assert first["phase_error_from_240_deg"] == pytest.approx(0.0)
+    assert first["pos_from"] == 0.5
+    assert first["pos_to"] == 1.5
+    assert first["phase_from_deg"] == 10.0
+    assert first["phase_to_deg"] == -110.0
+    assert first["phase_step_deg"] == pytest.approx(-120.0)
+    assert first["phase_adv_deg"] == pytest.approx(240.0)
+    assert first["phase_err_240_deg"] == pytest.approx(0.0)
     second = result.iloc[1]
-    assert second["signed_phase_step_deg"] == pytest.approx(-120.0)
-    assert second["phase_advance_0to360_deg"] == pytest.approx(240.0)
+    assert second["phase_step_deg"] == pytest.approx(-120.0)
+    assert second["phase_adv_deg"] == pytest.approx(240.0)
 
 
 def test_compute_phase_advance_keeps_markers_and_port_sides_separate() -> None:
@@ -118,7 +117,7 @@ def test_compute_phase_advance_keeps_markers_and_port_sides_separate() -> None:
                         "s_name": "S11",
                         "marker_name": marker_name,
                         "marker_role": "exp",
-                        "target_freq_ghz": 2.856,
+                        "freq_target_ghz": 2.856,
                         "freq_ghz": 2.8565,
                         "freq_error_ghz": 0.0005,
                         "s_db": -1.0 + db_offset,
@@ -135,7 +134,7 @@ def test_compute_phase_advance_keeps_markers_and_port_sides_separate() -> None:
                         "s_name": "S11",
                         "marker_name": marker_name,
                         "marker_role": "exp",
-                        "target_freq_ghz": 2.856,
+                        "freq_target_ghz": 2.856,
                         "freq_ghz": 2.8565,
                         "freq_error_ghz": 0.0005,
                         "s_db": -2.0 + db_offset,
@@ -152,10 +151,10 @@ def test_compute_phase_advance_keeps_markers_and_port_sides_separate() -> None:
     assert set(result["marker_name"]) == {"f_2pi3", "f_mean"}
     assert set(result["port_side"]) == {"in", "out"}
     for _, row in result.iterrows():
-        assert row["from_tune_position"] == 0.5
-        assert row["to_tune_position"] == 1.5
-        assert row["phase_advance_0to360_deg"] == pytest.approx(240.0)
-        assert row["phase_error_from_240_deg"] == pytest.approx(0.0)
+        assert row["pos_from"] == 0.5
+        assert row["pos_to"] == 1.5
+        assert row["phase_adv_deg"] == pytest.approx(240.0)
+        assert row["phase_err_240_deg"] == pytest.approx(0.0)
 
 
 def test_compute_phase_advance_uses_periodic_position_families_not_adjacent_mixed_positions() -> None:
@@ -172,7 +171,7 @@ def test_compute_phase_advance_uses_periodic_position_families_not_adjacent_mixe
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "exp",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "freq_error_ghz": 0.0,
                 "s_db": -1.0,
@@ -184,14 +183,14 @@ def test_compute_phase_advance_uses_periodic_position_families_not_adjacent_mixe
 
     result = compute_phase_advance(marker_points)
 
-    transitions = set(zip(result["position_family"], result["from_tune_position"], result["to_tune_position"]))
+    transitions = set(zip(result["position_family"], result["pos_from"], result["pos_to"]))
     assert transitions == {
         ("cell", 0.5, 1.5),
         ("cell", 1.5, 2.5),
         ("iris", 1.0, 2.0),
     }
-    assert (0.5, 1.0) not in set(zip(result["from_tune_position"], result["to_tune_position"]))
-    assert (1.0, 1.5) not in set(zip(result["from_tune_position"], result["to_tune_position"]))
+    assert (0.5, 1.0) not in set(zip(result["pos_from"], result["pos_to"]))
+    assert (1.0, 1.5) not in set(zip(result["pos_from"], result["pos_to"]))
 
 
 def test_compute_phase_advance_returns_empty_table_when_geometry_scan_has_no_tune_positions() -> None:
@@ -207,7 +206,7 @@ def test_compute_phase_advance_returns_empty_table_when_geometry_scan_has_no_tun
                 "s_name": "S11",
                 "marker_name": "f_2pi3",
                 "marker_role": "sim",
-                "target_freq_ghz": 2.856,
+                "freq_target_ghz": 2.856,
                 "freq_ghz": 2.856,
                 "freq_error_ghz": 0.0,
                 "s_db": -1.0,
@@ -241,7 +240,7 @@ def test_compute_phase_advance_keeps_simulation_geometry_points_separate() -> No
                     "s_name": "S11",
                     "marker_name": "f_2pi3",
                     "marker_role": "sim",
-                    "target_freq_ghz": 2.856,
+                    "freq_target_ghz": 2.856,
                     "freq_ghz": 2.856,
                     "freq_error_ghz": 0.0,
                     "s_db": -1.0,
@@ -261,9 +260,9 @@ def test_compute_phase_advance_keeps_simulation_geometry_points_separate() -> No
     assert set(result["sim_w_c"]) == {18.5, 18.75}
     assert "sim_NumTune" not in result.columns
     for _, row in result.iterrows():
-        assert row["from_tune_position"] == 0.5
-        assert row["to_tune_position"] == 1.5
-        assert row["phase_advance_0to360_deg"] == pytest.approx(240.0)
+        assert row["pos_from"] == 0.5
+        assert row["pos_to"] == 1.5
+        assert row["phase_adv_deg"] == pytest.approx(240.0)
 
 
 def test_compute_phase_advance_treats_num_depth_as_tune_axis_not_geometry() -> None:
@@ -281,7 +280,7 @@ def test_compute_phase_advance_treats_num_depth_as_tune_axis_not_geometry() -> N
                     "s_name": "S11",
                     "marker_name": "f_2pi3",
                     "marker_role": "sim",
-                    "target_freq_ghz": 2.856,
+                    "freq_target_ghz": 2.856,
                     "freq_ghz": 2.856,
                     "freq_error_ghz": 0.0,
                     "s_db": -1.0,
@@ -299,6 +298,6 @@ def test_compute_phase_advance_treats_num_depth_as_tune_axis_not_geometry() -> N
     assert set(result["sim_DepthPlunger_offset"]) == {-3.0, 0.0}
     assert "sim_NumDepth" not in result.columns
     for _, row in result.iterrows():
-        assert row["from_tune_position"] == 0.5
-        assert row["to_tune_position"] == 1.5
-        assert row["phase_advance_0to360_deg"] == pytest.approx(240.0)
+        assert row["pos_from"] == 0.5
+        assert row["pos_to"] == 1.5
+        assert row["phase_adv_deg"] == pytest.approx(240.0)
