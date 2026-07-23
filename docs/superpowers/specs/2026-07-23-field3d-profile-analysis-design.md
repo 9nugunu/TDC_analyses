@@ -101,4 +101,3 @@ tip/radius inference, Slater disk integration, output contracts, cache reuse,
 and runner routing. The real
 `sim_profile_260723_3DEMfield` folder is then executed and its CSV values and
 both figures are inspected.
-

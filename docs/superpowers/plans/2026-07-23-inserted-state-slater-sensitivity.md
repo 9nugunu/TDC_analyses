@@ -113,4 +113,3 @@
    grid step before its detected tip.
 4. Visually inspect `slater_pos.png`.
 5. Run the full test suite and report the exact command and result.
-

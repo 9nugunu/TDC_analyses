@@ -189,4 +189,3 @@ PNG files and verify labels, units, legend, and visible bars.
 
 Run the same folder command again and confirm the log reports reuse without
 streaming the source files.
-
