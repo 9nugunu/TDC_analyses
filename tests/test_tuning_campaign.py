@@ -317,3 +317,50 @@ def test_tuning_torque_nm_from_dataset_id_parses_p_decimal_case_insensitively() 
     assert tuning_torque_nm_from_dataset_id(
         "raw_sweep_260701_iris_portE"
     ) is None
+
+
+def test_find_tuning_campaign_infers_next_state_for_unique_active_campaign(
+    tmp_path: Path,
+) -> None:
+    campaign_dir = tmp_path / "campaigns"
+    campaign_dir.mkdir()
+    text = COMPACT_CAMPAIGN.replace(
+        "  id: iris_260701",
+        "  id: iris_260701\n  auto_states: true",
+    ).replace(
+        "  s002:\n    prev: s001\n    meas: pending\n    change: tuner_bolt_added_only",
+        """  s002:
+    prev: s001
+    data: raw_sweep_260721_tune_s002_Torque13p5
+    meas: done
+  s003:
+    prev: s002
+    data: raw_sweep_260721_tune_s003_broken
+    meas: done""",
+    )
+    _write_campaign(campaign_dir, text)
+
+    match = find_tuning_campaign("raw_sweep_260722_tune_s004", campaign_dir)
+
+    assert match is not None
+    assert match.state_id == "s004"
+    assert match.measurement_kind == "state"
+    assert match.match_mode == "auto"
+    state = match.campaign.states["s004"]
+    assert state.previous_state_id == "s003"
+    assert state.dataset == "raw_sweep_260722_tune_s004"
+    assert state.quality_flag == "auto_pending"
+
+
+def test_find_tuning_campaign_keeps_explicit_auxiliary_mapping_before_auto_matching() -> None:
+    campaign_dir = Path(__file__).resolve().parents[1] / "config" / "tuning_campaigns"
+
+    match = find_tuning_campaign(
+        "raw_sweep_260721_tune_s003_plungersensitivity",
+        campaign_dir,
+    )
+
+    assert match is not None
+    assert match.state_id == "s003"
+    assert match.measurement_kind == "aux"
+    assert match.match_mode == "explicit"

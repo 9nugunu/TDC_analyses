@@ -57,6 +57,25 @@ def test_anchor_check_prefers_port_extended_trace_and_wraps_180_degrees() -> Non
     assert bool(check["verified"].iloc[0]) is True
 
 
+def test_anchor_check_does_not_treat_noportE_as_port_extended() -> None:
+    table = pd.DataFrame(
+        [
+            {"source_file": "1_noportE.S2P", "tune_position": 1.0, "marker_name": "f_mean", "s_phase_deg": 10.0},
+            {"source_file": "1_portE.S2P", "tune_position": 1.0, "marker_name": "f_mean", "s_phase_deg": -179.0},
+        ]
+    )
+
+    check = build_anchor_check(
+        table,
+        position=1.0,
+        expected_phase_deg=180.0,
+        tolerance_deg=5.0,
+        port_extension_applied=True,
+    )
+
+    assert check["source_file"].tolist() == ["1_portE.S2P"]
+
+
 def test_position_phase_change_uses_wrapped_after_minus_before() -> None:
     before = pd.DataFrame(
         [

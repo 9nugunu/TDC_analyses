@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.analysis.phase_radius_equivalence import (
+    PhaseRadiusMappingError,
     build_experiment_simulation_phase_comparison,
     fit_rc_states,
 )
@@ -270,6 +271,7 @@ def run_tuning_cmp(
     figure_paths: dict[str, Path] = {}
     completed_families: list[str] = []
     skipped_families: list[str] = []
+    skipped_family_reasons: dict[str, str] = {}
     for family, reference in campaign.simulation_references.items():
         if not _table_contains_positions(
             current_markers,
@@ -292,28 +294,39 @@ def run_tuning_cmp(
             plot_workers=plot_workers,
             project_defaults=project_defaults,
         )
-        comparison = build_tuning_family_comparison(
-            simulation_markers,
-            baseline_markers,
-            current_markers,
-            reference=reference,
-            phase_reference=campaign.phase,
-            design_r_c_mm=campaign.design_r_c_mm,
-        )
+        try:
+            comparison = build_tuning_family_comparison(
+                simulation_markers,
+                baseline_markers,
+                current_markers,
+                reference=reference,
+                phase_reference=campaign.phase,
+                design_r_c_mm=campaign.design_r_c_mm,
+            )
+        except PhaseRadiusMappingError as error:
+            reason = str(error)
+            logger.warning(
+                "Skipping %s r_c mapping: %s",
+                family,
+                reason,
+            )
+            skipped_families.append(family)
+            skipped_family_reasons[family] = reason
+            continue
         family_tables = {
             "anchor_chk": comparison.anchor_check,
             "rc_fit": comparison.rc_fit,
             "phase_cmp": comparison.phase_cmp,
         }
         for name, table in family_tables.items():
-            path = output_table_dir / f"{name}.csv"
+            path = output_table_dir / f"{family}_{name}.csv"
             table.to_csv(path, index=False)
-            table_paths[name] = path
+            table_paths[f"{family}_{name}"] = path
 
         phase_rc_map = plot_phase_rc_map(
             comparison.simulation_line,
             comparison.rc_fit,
-            output_figure_dir / "phase_rc_map.png",
+            output_figure_dir / f"{family}_phase_rc_map.png",
         )
         current_label = (
             f"Torque {current_state.torque_nm:g}"
@@ -322,11 +335,11 @@ def run_tuning_cmp(
         )
         phase_cmp_bars = plot_phase_cmp_bars(
             comparison.phase_cmp,
-            output_figure_dir / "phase_cmp_bars.png",
+            output_figure_dir / f"{family}_phase_cmp_bars.png",
             current_label=current_label,
         )
-        figure_paths["phase_rc_map"] = phase_rc_map
-        figure_paths["phase_cmp_bars"] = phase_cmp_bars
+        figure_paths[f"{family}_phase_rc_map"] = phase_rc_map
+        figure_paths[f"{family}_phase_cmp_bars"] = phase_cmp_bars
         completed_families.append(family)
 
     metadata: dict[str, object] = {
@@ -334,6 +347,7 @@ def run_tuning_cmp(
         "current_state_id": campaign_match.state_id,
         "families": completed_families,
         "skipped_families": skipped_families,
+        "skipped_family_reasons": skipped_family_reasons,
         "radius_interpretation": (
             "simulation-equivalent r_c coordinates; not physical bolt travel"
         ),
@@ -481,9 +495,9 @@ def _select_position_markers(
     if port_extension_applied:
         extended = selected[
             selected["source_file"].astype(str).str.contains(
-                "portE",
+                r"(?:^|_)portE(?:[._]|$)",
                 case=False,
-                regex=False,
+                regex=True,
             )
         ]
         if not extended.empty:

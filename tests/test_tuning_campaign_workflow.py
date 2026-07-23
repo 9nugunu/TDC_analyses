@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import yaml
 
 from deflector_tuning.tuning_campaign import load_tuning_campaign
 from deflector_tuning.workflows.manifest import (
@@ -130,6 +131,7 @@ def test_register_tuning_campaign_preserves_manifest_and_links_issues(tmp_path: 
         "state_id": "s001",
         "state_status": "done",
         "measurement_kind": "state",
+        "match_mode": "explicit",
         "issue_ids": ["i001"],
     }
 
@@ -274,3 +276,48 @@ def test_register_matching_tuning_campaign_rejects_folder_yaml_torque_mismatch(
             manifest_path=manifest_path,
             campaign_dir=campaign_dir,
         )
+
+
+def test_register_matching_tuning_campaign_persists_inferred_next_state(
+    tmp_path: Path,
+) -> None:
+    campaign_dir = tmp_path / "campaigns"
+    campaign_dir.mkdir()
+    text = CAMPAIGN_YAML.replace(
+        "  id: iris_260701",
+        "  id: iris_260701\n  auto_states: true",
+    ).replace(
+        """  s002:
+    prev: s001
+    meas: pending
+    change: tuner_bolt_added_only""",
+        """  s002:
+    prev: s001
+    data: raw_sweep_260721_tune_s002_Torque13p5
+    meas: done
+  s003:
+    prev: s002
+    data: raw_sweep_260721_tune_s003_broken
+    meas: done""",
+    )
+    config_path = campaign_dir / "iris.yaml"
+    config_path.write_text(text, encoding="utf-8")
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps({"analysis_modes": ["raw"]}), encoding="utf-8")
+
+    match = register_matching_tuning_campaign(
+        "raw_sweep_260722_tune_s004",
+        manifest_path=manifest_path,
+        campaign_dir=campaign_dir,
+    )
+
+    assert match is not None
+    recorded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert recorded["states"]["s004"] == {
+        "prev": "s003",
+        "data": "raw_sweep_260722_tune_s004",
+        "meas": "done",
+        "flag": "auto_pending",
+    }
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["tuning_campaign"]["match_mode"] == "auto"

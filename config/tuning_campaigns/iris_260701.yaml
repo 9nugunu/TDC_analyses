@@ -1,15 +1,19 @@
 schema: 1
-
 campaign:
   id: iris_260701
+  auto_states: true
   sims:
     iris:
       data: sim_sweep_260701_1DRcFine
-      exp_pos: [1, 2]
+      exp_pos:
+      - 1
+      - 2
       axis: r_c
     cell:
       data: sim_grid_260720_1DRcFine_Cell
-      exp_pos: [0.5, 1.5]
+      exp_pos:
+      - 0.5
+      - 1.5
       axis: r_c
   rc_design_mm: 56.59
   phase:
@@ -19,21 +23,18 @@ campaign:
     anchor_marker: f_mean
     anchor_deg: 180
     tol_deg: 5
-
 states:
   s000:
     role: baseline
     data: raw_sweep_260701_celliris_portE
     torque_nm: 0
     meas: done
-
   s001:
     prev: s000
     data: raw_sweep_260701_iris_tune_Torque13p5
     torque_nm: 13.5
     meas: done
     flag: provisional
-
   s002:
     prev: s001
     data: raw_sweep_260721_tune_s002_Torque13p5
@@ -42,14 +43,18 @@ states:
     change: tuner_bolt_added_only
     flag: verify_pending
     note: post-install measurement; output coupler impact is not established
-
   s003:
     prev: s002
     data: raw_sweep_260721_tune_s003_broken
     meas: done
     flag: input.lr_tuner_disconnect
-    note: internal radius-adjust screw separated from the lower-right input-coupler tuner bolt
-
+    note: internal radius-adjust screw separated from the lower-right input-coupler
+      tuner bolt
+  s004:
+    prev: s003
+    data: raw_sweep_260722_tune_s004
+    meas: done
+    flag: auto_pending
 aux:
   raw_sweep_260721_tune_s003_plungersensitivity:
     state: s003
@@ -57,11 +62,11 @@ aux:
     sens:
       axis: plunger_offset_mm
       ref_mm: 0
-
 issues:
   i001:
     after: s003
     tag: input.lr_tuner_disconnect
-    check: [output]
+    check:
+    - output
     stat: verify_pending
     note: input coupler 우하단 튜너 볼트와 내부 Radius 조정 수나사 분리; output coupler 영향은 재측정 필요

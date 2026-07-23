@@ -6,6 +6,10 @@ import numpy as np
 import pandas as pd
 
 
+class PhaseRadiusMappingError(ValueError):
+    """Raised when a phase trace cannot define one equivalent ``r_c`` value."""
+
+
 def fit_rc_states(
     simulation_phase_line: pd.DataFrame,
     raw_phase_observation: pd.DataFrame,
@@ -52,7 +56,9 @@ def fit_rc_states(
         raise ValueError(f"Expected one observed {anchor_marker!r} row; found {len(anchor_rows)}")
     anchor_radii, anchor_phase = _marker_curve(simulation_phase_line, anchor_marker)
     if not anchor_radii.min() <= design_r_c_mm <= anchor_radii.max():
-        raise ValueError(f"design_r_c_mm={design_r_c_mm:g} is outside the simulated anchor range")
+        raise PhaseRadiusMappingError(
+            f"design_r_c_mm={design_r_c_mm:g} is outside the simulated anchor range"
+        )
     design_phase = float(np.interp(design_r_c_mm, anchor_radii, anchor_phase))
     current_target_phase = design_phase + float(anchor_rows["after_phase_deg"].iloc[0])
     current_r_c_mm = _invert_monotonic_curve(
@@ -69,9 +75,13 @@ def fit_rc_states(
         curves[marker_name] = (radii, phase)
         common_min = max(common_min, float(radii.min()))
         if current_r_c_mm > radii.max() + 1e-12:
-            raise ValueError(f"current equivalent r_c is outside the simulated {marker_name} range")
+            raise PhaseRadiusMappingError(
+                f"current equivalent r_c is outside the simulated {marker_name} range"
+            )
     if common_min > current_r_c_mm:
-        raise ValueError("No simulated baseline range exists below the current equivalent r_c")
+        raise PhaseRadiusMappingError(
+            "No simulated baseline range exists below the current equivalent r_c"
+        )
 
     baseline_grid = _radius_grid(common_min, current_r_c_mm, step_um * 1e-3)
     observed_delta = _wrap180(
@@ -407,9 +417,11 @@ def _invert_monotonic_curve(
 ) -> float:
     differences = np.diff(phase)
     if not (np.all(differences > 0.0) or np.all(differences < 0.0)):
-        raise ValueError(f"Simulated {label} phase is not monotonic in r_c")
+        raise PhaseRadiusMappingError(
+            f"Simulated {label} phase is not monotonic in r_c"
+        )
     if not phase.min() <= target_phase <= phase.max():
-        raise ValueError(
+        raise PhaseRadiusMappingError(
             f"Measured current {label} phase maps outside the simulated r_c range"
         )
     order = np.argsort(phase)

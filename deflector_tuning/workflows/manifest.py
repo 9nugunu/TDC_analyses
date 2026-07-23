@@ -22,6 +22,7 @@ def register_tuning_campaign(
     campaign: TuningCampaign,
     state_id: str | None,
     measurement_kind: str = "state",
+    match_mode: str = "explicit",
 ) -> None:
     """Atomically add tuning-campaign identity to an existing manifest."""
 
@@ -39,6 +40,7 @@ def register_tuning_campaign(
         "state_id": state_id,
         "state_status": state.measurement_status if state is not None else None,
         "measurement_kind": measurement_kind,
+        "match_mode": match_mode,
         "issue_ids": linked_issue_ids,
     }
     temporary = Path(manifest_path).with_name(f".{Path(manifest_path).name}.tmp")

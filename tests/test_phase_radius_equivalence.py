@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 
 from deflector_tuning.analysis.phase_radius_equivalence import (
+    PhaseRadiusMappingError,
     build_experiment_simulation_phase_comparison,
     build_raw_anchored_phase_position,
     estimate_phase_radius_equivalence,
@@ -41,6 +42,30 @@ def test_fit_rc_states_anchors_current_then_fits_baseline_from_three_markers() -
     assert radii_by_state["current"] == pytest.approx(56.55, abs=1e-9)
     assert radii_by_state["design"] == pytest.approx(56.60, abs=1e-9)
     assert fit.loc[fit["state"] == "baseline", "rms_residual_deg"].iloc[0] == pytest.approx(0.0)
+
+
+def test_fit_rc_states_reports_nonmonotonic_anchor_as_mapping_unavailable() -> None:
+    line = pd.DataFrame(
+        [
+            {"sim_r_c": radius, "marker_name": marker, "s_phase_deg": phase}
+            for marker, phases in {
+                "f_2pi3": (-10.0, -12.0, -13.0),
+                "f_mean": (-20.0, -21.0, -20.0),
+                "f_pi2": (-30.0, -29.0, -28.0),
+            }.items()
+            for radius, phase in zip((56.4, 56.5, 56.6), phases, strict=True)
+        ]
+    )
+    observation = pd.DataFrame(
+        [
+            {"marker_name": "f_2pi3", "before_phase_deg": 0.0, "after_phase_deg": -1.0},
+            {"marker_name": "f_mean", "before_phase_deg": 0.0, "after_phase_deg": -1.0},
+            {"marker_name": "f_pi2", "before_phase_deg": 0.0, "after_phase_deg": 1.0},
+        ]
+    )
+
+    with pytest.raises(PhaseRadiusMappingError, match="not monotonic"):
+        fit_rc_states(line, observation, design_r_c_mm=56.5)
 
 
 def test_estimate_phase_radius_equivalence_recovers_shared_radius_shift() -> None:
