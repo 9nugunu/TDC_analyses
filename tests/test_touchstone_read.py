@@ -72,3 +72,14 @@ def test_read_z1p_ri_file_preserves_impedance_value(tmp_path: Path) -> None:
     assert data.header.parameter == "Z"
     assert data.frequency == [2.85]
     assert data.s_values == [[complex(12.0, -3.0)]]
+    assert data.header.reference_ohm == 50.0
+    assert data.header.is_normalized is False
+    assert data.values == [[12 - 3j]]
+
+
+def test_reader_rejects_parameter_mismatch_between_suffix_and_header(tmp_path: Path) -> None:
+    path = tmp_path / "case.z1p"
+    path.write_text("# GHz S RI R 50\n2.6 0 0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"extension.*Z.*header.*S"):
+        read_touchstone(path)

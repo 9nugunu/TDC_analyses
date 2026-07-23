@@ -1,8 +1,8 @@
-"""Small Touchstone helpers.
+"""Small parameter-neutral Touchstone helpers.
 
 Project default: RI data is the default format when the header omits the format.
-Touchstone rows are normalized into complex S-parameter values for downstream
-loaders.
+Touchstone rows are parsed into complex network-parameter values without
+scaling physical Y or Z data by the option-line reference token.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 from pathlib import Path
+import re
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,13 @@ class TouchstoneHeader:
 class TouchstoneData:
     header: TouchstoneHeader
     frequency: list[float]
-    s_values: list[list[complex]]
+    values: list[list[complex]]
+
+    @property
+    def s_values(self) -> list[list[complex]]:
+        """Return the complex values for existing S-parameter consumers."""
+
+        return self.values
 
 
 def read_touchstone(path: str | Path) -> TouchstoneData:
@@ -34,7 +41,8 @@ def read_touchstone(path: str | Path) -> TouchstoneData:
     touchstone_path = Path(path)
     header: TouchstoneHeader | None = None
     frequency: list[float] = []
-    s_values: list[list[complex]] = []
+    values: list[list[complex]] = []
+    extension_parameter = touchstone_parameter_from_suffix(touchstone_path)
     value_count = _value_count_from_suffix(touchstone_path)
 
     for raw_line in touchstone_path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -43,6 +51,12 @@ def read_touchstone(path: str | Path) -> TouchstoneData:
             continue
         if line.startswith("#"):
             header = parse_touchstone_header(line)
+            if header.parameter != extension_parameter:
+                raise ValueError(
+                    "Touchstone extension parameter "
+                    f"{extension_parameter} does not match header parameter {header.parameter} "
+                    f"in {touchstone_path.name}"
+                )
             if header.data_format not in {"RI", "DB"}:
                 raise ValueError("Only RI and DB Touchstone data are supported for now")
             continue
@@ -55,7 +69,7 @@ def read_touchstone(path: str | Path) -> TouchstoneData:
                 f"Expected {expected_number_count} numeric values in {touchstone_path.name}; got {len(row)}"
             )
         frequency.append(row[0])
-        s_values.append(
+        values.append(
             [
                 _pair_to_complex(row[index], row[index + 1], header.data_format)
                 for index in range(1, len(row), 2)
@@ -64,7 +78,7 @@ def read_touchstone(path: str | Path) -> TouchstoneData:
 
     if header is None:
         raise ValueError(f"Missing Touchstone header in {touchstone_path}")
-    return TouchstoneData(header=header, frequency=frequency, s_values=s_values)
+    return TouchstoneData(header=header, frequency=frequency, values=values)
 
 
 def parse_touchstone_header(line: str) -> TouchstoneHeader:
@@ -92,7 +106,7 @@ def parse_touchstone_header(line: str) -> TouchstoneHeader:
         parameter=parameter,
         data_format=data_format,
         reference_ohm=reference_ohm,
-        is_normalized=reference_ohm != 0.0,
+        is_normalized=parameter == "S" and reference_ohm != 0.0,
     )
 
 
@@ -101,13 +115,27 @@ def _strip_inline_comment(line: str) -> str:
 
 
 def _value_count_from_suffix(path: Path) -> int:
-    suffix = path.suffix.lower()
-    if not suffix.startswith((".s", ".y", ".z")) or not suffix.endswith("p"):
-        raise ValueError(
-            f"Expected Touchstone extension like .s1p, .s2p, .y1p, or .z1p; got {path.name}"
-        )
-    port_count = int(suffix[2:-1])
+    match = _touchstone_suffix_match(path)
+    port_count = int(match.group("ports"))
     return port_count * port_count
+
+
+def touchstone_parameter_from_suffix(path: str | Path) -> str:
+    """Return the S, Y, or Z family encoded in a Touchstone extension."""
+
+    return _touchstone_suffix_match(Path(path)).group("parameter").upper()
+
+
+def _touchstone_suffix_match(path: Path) -> re.Match[str]:
+    match = re.fullmatch(
+        r"\.(?P<parameter>[syz])(?P<ports>[1-9]\d*)p",
+        path.suffix.lower(),
+    )
+    if match is None:
+        raise ValueError(
+            f"Expected Touchstone extension like .s1p, .y1p, or .z1p; got {path.name}"
+        )
+    return match
 
 
 def _pair_to_complex(first_value: float, second_value: float, data_format: str) -> complex:

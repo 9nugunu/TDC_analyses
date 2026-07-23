@@ -36,6 +36,11 @@ PHASE_LINE_SCAN_REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
     "s_phase_deg",
 )
 PHASE_LINE_SCAN_MARKER_ORDER: Final[tuple[str, ...]] = ("f_2pi3", "f_mean", "f_pi2")
+PHASE_RC_MAP_MARKERS: Final[dict[str, str]] = {
+    "f_2pi3": "o",
+    "f_mean": "s",
+    "f_pi2": "^",
+}
 
 
 def plot_grid_scan_sparameter_phase_r_c_line_scan(
@@ -74,6 +79,52 @@ def plot_grid_scan_sparameter_phase_r_c_line_scan(
         config=config,
     )
     return OrderedDict([(file_stem, path)])
+
+
+def plot_phase_rc_map(
+    line_scan: pd.DataFrame,
+    rc_fit: pd.DataFrame,
+    output_path: str | Path,
+    *,
+    fixed_w_c: float = DEFAULT_GRID_RC_LINE_SCAN_W_C,
+    config: PlotConfig | None = None,
+) -> Path:
+    """Plot a phase line scan with fitted baseline/current and design guides."""
+
+    missing = [column for column in ("sim_r_c", "marker_name", "s_phase_deg") if column not in line_scan]
+    if missing:
+        raise ValueError(f"line_scan is missing required columns: {missing}")
+    fit_missing = [column for column in ("state", "r_c_mm") if column not in rc_fit]
+    if fit_missing:
+        raise ValueError(f"rc_fit is missing required columns: {fit_missing}")
+    radii = rc_fit.set_index("state")["r_c_mm"]
+    missing_states = [state for state in ("baseline", "current", "design") if state not in radii]
+    if missing_states:
+        raise ValueError(f"rc_fit is missing required states: {missing_states}")
+    config = config or PlotConfig()
+    apply_plot_style(config)
+    require_finite_plot_columns(
+        line_scan,
+        columns=("sim_r_c", "s_phase_deg"),
+        context="S-parameter phase r_c candidate plot",
+        id_columns=("marker_name", "sim_r_c", "sim_w_c", "source_file", "run_id"),
+    )
+    return _plot_sparameter_phase_line_scan(
+        line_scan,
+        Path(output_path),
+        fixed_w_c=fixed_w_c,
+        config=config,
+        candidate_r_c=float(radii["current"]),
+        candidate_label=rf"current $r_c={float(radii['current']):.3f}$ mm",
+        before_r_c=float(radii["baseline"]),
+        before_label=rf"initial $r_c={float(radii['baseline']):.3f}$ mm",
+        target_r_c=float(radii["design"]),
+        target_label=rf"ideal $r_c={float(radii['design']):.3f}$ mm",
+        show_design_reference=False,
+        annotate_design_phase_values=True,
+        design_r_c=float(radii["design"]),
+        sparse_markers=True,
+    )
 
 
 def _write_phase_line_scan_csvs(line_scan: pd.DataFrame, folder: Path, file_stem: str) -> None:
@@ -116,29 +167,121 @@ def _plot_sparameter_phase_line_scan(
     *,
     fixed_w_c: float,
     config: PlotConfig,
+    candidate_r_c: float | None = None,
+    candidate_label: str | None = None,
+    before_r_c: float | None = None,
+    before_label: str | None = None,
+    target_r_c: float | None = None,
+    target_label: str | None = None,
+    show_design_reference: bool = True,
+    annotate_design_phase_values: bool = True,
+    design_r_c: float | None = None,
+    sparse_markers: bool = False,
 ) -> Path:
     fig, ax = plt.subplots(figsize=(7.4, 5.2))
     for marker_name, marker_table in line_scan.groupby("marker_name", sort=False, dropna=False):
         marker_key = str(marker_name)
+        plot_kwargs: dict[str, object] = {
+            "linewidth": config.line_width,
+            "markersize": 6.0,
+            "color": MARKER_COLORS.get(marker_key, "#444444"),
+            "label": MARKER_LABELS.get(marker_key, marker_key),
+        }
+        if sparse_markers:
+            plot_kwargs.update(
+                {
+                    "marker": PHASE_RC_MAP_MARKERS.get(marker_key, "o"),
+                    "markevery": max(1, (len(marker_table) + 11) // 12),
+                    "markerfacecolor": "white",
+                    "markeredgewidth": 1.2,
+                }
+            )
+        else:
+            plot_kwargs["marker"] = "o"
         ax.plot(
             marker_table["sim_r_c"].tolist(),
             marker_table["s_phase_deg"].tolist(),
-            marker="o",
-            linewidth=config.line_width,
-            markersize=6.0,
-            color=MARKER_COLORS.get(marker_key, "#444444"),
-            label=MARKER_LABELS.get(marker_key, marker_key),
+            **plot_kwargs,
         )
-    design_r_c = config.design_point_by_axis.get("sim_r_c")
-    if design_r_c is not None:
+    reference_r_c = design_r_c
+    if reference_r_c is None:
+        reference_r_c = config.design_point_by_axis.get("sim_r_c")
+    if show_design_reference and reference_r_c is not None:
         ax.axvline(
-            design_r_c,
+            reference_r_c,
             color=REFERENCE_GUIDE_COLOR,
             linestyle=REFERENCE_GUIDE_LINESTYLE,
             linewidth=DESIGN_REFERENCE_LINEWIDTH,
             alpha=REFERENCE_GUIDE_ALPHA,
         )
-        _annotate_design_phase_values(ax, line_scan, design_r_c=design_r_c, config=config)
+    if annotate_design_phase_values and reference_r_c is not None:
+        _annotate_design_phase_values(ax, line_scan, design_r_c=reference_r_c, config=config)
+    if candidate_r_c is not None:
+        ax.axvline(
+            candidate_r_c,
+            color="#111111",
+            linestyle="--",
+            linewidth=1.7,
+            zorder=5,
+        )
+        ax.annotate(
+            candidate_label or rf"candidate $r_c={candidate_r_c:.3f}$ mm",
+            xy=(candidate_r_c, 0.99),
+            xycoords=("data", "axes fraction"),
+            xytext=(7, -5),
+            textcoords="offset points",
+            ha="left",
+            va="top",
+            fontsize=9.0,
+            fontweight=config.legend_weight,
+            color="#111111",
+            bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#111111", "alpha": 0.92},
+            zorder=7,
+        )
+    if before_r_c is not None:
+        ax.axvline(
+            before_r_c,
+            color="#8c510a",
+            linestyle="-.",
+            linewidth=1.7,
+            zorder=5,
+        )
+        ax.annotate(
+            before_label or rf"before $r_c={before_r_c:.3f}$ mm",
+            xy=(before_r_c, 0.91),
+            xycoords=("data", "axes fraction"),
+            xytext=(7, -5),
+            textcoords="offset points",
+            ha="left",
+            va="top",
+            fontsize=9.0,
+            fontweight=config.legend_weight,
+            color="#8c510a",
+            bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#8c510a", "alpha": 0.92},
+            zorder=7,
+        )
+    if target_r_c is not None:
+        ax.axvline(
+            target_r_c,
+            color="#c51b7d",
+            linestyle=":",
+            linewidth=2.0,
+            zorder=5,
+        )
+        ax.annotate(
+            target_label or rf"target $r_c={target_r_c:.3f}$ mm",
+            xy=(target_r_c, 0.83),
+            xycoords=("data", "axes fraction"),
+            xytext=(7, -5),
+            textcoords="offset points",
+            ha="left",
+            va="top",
+            fontsize=9.0,
+            fontweight=config.legend_weight,
+            color="#c51b7d",
+            bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#c51b7d", "alpha": 0.92},
+            zorder=7,
+        )
     apply_axis_text_style(
         ax,
         xlabel=r"$r_c$ [mm]",
@@ -166,7 +309,7 @@ def _annotate_design_phase_values(
     config: PlotConfig,
 ) -> None:
     design_rows = line_scan[(line_scan["sim_r_c"] - design_r_c).abs() <= 1e-9]
-    offsets = {"f_2pi3": (8, 8), "f_mean": (8, -18), "f_pi2": (8, -6)}
+    offsets = {"f_2pi3": (10, -22), "f_mean": (10, -22), "f_pi2": (10, -20)}
     for row in design_rows.itertuples(index=False):
         marker_key = str(getattr(row, "marker_name"))
         phase = float(getattr(row, "s_phase_deg"))
@@ -180,6 +323,20 @@ def _annotate_design_phase_values(
             color=MARKER_COLORS.get(marker_key, "#444444"),
             fontsize=config.compact_annotation_size,
             fontweight=config.legend_weight,
+            bbox={
+                "boxstyle": "round,pad=0.25",
+                "facecolor": "white",
+                "edgecolor": MARKER_COLORS.get(marker_key, "#444444"),
+                "alpha": 0.92,
+            },
+            arrowprops={
+                "arrowstyle": "-",
+                "color": MARKER_COLORS.get(marker_key, "#444444"),
+                "linewidth": 0.8,
+                "alpha": 0.9,
+            },
+            clip_on=False,
+            zorder=6,
         )
 
 

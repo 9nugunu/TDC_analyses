@@ -49,5 +49,23 @@ python run_all_folder_analyses.py --workers 4
 The batch runner disables nested S11 plot workers so that the two process pools
 do not compete for the same CPU and memory resources.
 
+## Tuning campaign metadata
+
+Mechanical tuning sequences that span several raw datasets are registered in
+`config/tuning_campaigns/*.yaml`. The normal analysis command is unchanged:
+
+```powershell
+python run_folder_analysis.py raw_sweep_260701_iris_tune_Torque13p5
+```
+
+When the dataset belongs to one campaign, the runner finds the YAML file and
+records its campaign/state identity in the output manifest. Only dataset IDs
+containing the explicit `_tune_` token enter this workflow; an unregistered
+tuning dataset fails clearly instead of being guessed. A readable token such as
+`Torque13p5` is checked against the authoritative `torque_nm` value in YAML.
+There is no need to rewrite `config/project_defaults.toml`, add a YAML file to
+every dataset, or maintain a CSV by hand. Optional CSV views are derived from
+the central campaign YAML and belong under `data/prepro`.
+
 The repository includes source-layer detection, Touchstone loading, analysis,
 and plotting workflows.

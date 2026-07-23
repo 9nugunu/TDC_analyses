@@ -32,6 +32,12 @@ from deflector_tuning.table_schema import (
     STANDARD_TABLE_SPECS,
     TABLE_CONTRACTS,
 )
+from deflector_tuning.workflows.tuning_campaign import (
+    register_matching_tuning_campaign,
+)
+from deflector_tuning.workflows.tuning_simulation_comparison import (
+    run_tuning_cmp,
+)
 
 
 DESCRIPTION = "Run all discovered datasets through the standard deflector tuning analysis workflow."
@@ -312,6 +318,19 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         tables_only=task.tables_only,
         project_defaults=task.project_defaults,
     )
+    campaign_match = register_matching_tuning_campaign(
+        task.sparameter_path.name,
+        manifest_path=result.manifest_path,
+        data_root=task.data_root,
+    )
+    if campaign_match is not None and not task.tables_only:
+        run_tuning_cmp(
+            campaign_match,
+            current_result=result,
+            data_root=task.data_root,
+            plot_workers=1,
+            project_defaults=task.project_defaults,
+        )
     if task.tables_only:
         verify_table_contract_outputs(result.output_dir, result.manifest_path)
     return task.sparameter_path, result.output_dir

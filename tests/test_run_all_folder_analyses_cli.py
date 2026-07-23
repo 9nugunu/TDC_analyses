@@ -312,6 +312,7 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
     )
     captured: dict[str, object] = {}
     verified: list[tuple[Path, Path]] = []
+    registered: list[dict[str, object]] = []
 
     monkeypatch.setattr(module, "prepare_batch_dispersion_input", lambda *args, **kwargs: None)
 
@@ -328,6 +329,14 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
         "verify_table_contract_outputs",
         lambda output_dir, manifest_path: verified.append((output_dir, manifest_path)),
     )
+    monkeypatch.setattr(
+        module,
+        "register_matching_tuning_campaign",
+        lambda dataset_id, **kwargs: registered.append(
+            {"dataset_id": dataset_id, **kwargs}
+        ),
+        raising=False,
+    )
 
     result = module.run_batch_task(task)
 
@@ -335,6 +344,13 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
     assert captured["plot_workers"] == 1
     assert captured["tables_only"] is True
     assert verified == [(task.output_dir, task.output_dir / "manifest.json")]
+    assert registered == [
+        {
+            "dataset_id": "sim_sweep_260519_scan_dataset",
+            "manifest_path": task.output_dir / "manifest.json",
+            "data_root": Path("data"),
+        }
+    ]
 
 
 def test_verify_standard_table_outputs_rejects_leftover_legacy_file(tmp_path: Path) -> None:

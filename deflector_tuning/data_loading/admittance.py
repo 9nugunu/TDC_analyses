@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pandas as pd
-
 from deflector_tuning.data_loading.one_port_matrix import (
     extract_one_port_marker_frequencies,
     load_y11_touchstone_folder,

@@ -133,17 +133,6 @@ def build_s11_plot_plans(
             )
         return plans
 
-    if not _skip_overview_for_port_sides(s_table):
-        plans.append(
-            S11PlotPlan(
-                key="overview",
-                kind="overview",
-                output_path=folder / "with_markers.png",
-                title="S11 magnitude with marker points",
-                s_table=s_table,
-                marker_points=marker_points,
-            )
-        )
     if split_by_position and _has_named_tune_positions(s_table, marker_points):
         positioned_s_table = s_table[s_table["tune_position"].notna()]
         for tune_position, group in positioned_s_table.groupby("tune_position", sort=True):
@@ -529,12 +518,6 @@ def _position_family(tune_position: object) -> str:
     if abs(fractional - 0.5) < 1e-9:
         return "cell"
     return f"offset_{str(fractional).replace('.', 'p')}"
-
-
-def _skip_overview_for_port_sides(s_table: pd.DataFrame) -> bool:
-    if "port_side" not in s_table:
-        return False
-    return s_table["port_side"].dropna().nunique() > 0
 
 
 def _has_grid_point_groups(s_table: pd.DataFrame, m_table: pd.DataFrame) -> bool:

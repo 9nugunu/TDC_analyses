@@ -61,9 +61,12 @@ from deflector_tuning.visualization.polar_phase_views import (
     plot_marker_phase_polar_views,
 )
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
-from deflector_tuning.visualization.admittance_sweep_plots import (
-    plot_y11_marker_sweep,
-    plot_z11_marker_sweep,
+from deflector_tuning.visualization.admittance_sweep_plots import plot_z11_marker_sweep
+from deflector_tuning.visualization.raw_y11_plots import (
+    plot_y11_raw_complex_sweep,
+    plot_y11_raw_frequency_with_markers,
+    plot_y11_raw_grid,
+    plot_y11_raw_polar_views,
 )
 from deflector_tuning.visualization.plot_config import PlotConfig
 from deflector_tuning.visualization.cell_iris_response_plots import (
@@ -241,6 +244,7 @@ def run_folder_analysis(
             tables_only=tables_only,
         )
 
+    sparameter_table: pd.DataFrame | None = None
     loader = _RunScopedDataLoader(
         loader or DataLoader(file_workers=file_workers),
         sparameter_path,
@@ -262,7 +266,7 @@ def run_folder_analysis(
         logger.info(
             "Skipping S11 table load because cached grid-scan S11 figures already exist"
         )
-    else:
+    elif sparameter_table is None:
         sparameter_table = _load_s11_table_for_figures(loader, sparameter_path)
     logger.info("Building marker analysis tables")
     tables = build_marker_analysis(
@@ -544,23 +548,45 @@ def _run_one_port_matrix_analysis_from_runner(
     manifest_path = output_dir / "manifest.json"
     if tables_only:
         figures = _cached_manifest_figures(manifest_path)
+    elif lane == "y11":
+        figures = FigurePaths()
+        raw_frequency = OrderedDict(
+            plot_y11_raw_frequency_with_markers(
+                matrix_table,
+                marker_points,
+                figure_root / "y11_raw",
+                config=plot_config,
+            )
+        )
+        raw_frequency["complex_sweep"] = plot_y11_raw_complex_sweep(
+            marker_points,
+            figure_root / "y11_raw" / "complex_sweep.png",
+            config=plot_config,
+        )
+        figures["y11_raw"] = raw_frequency
+        figures["polar_raw"] = OrderedDict(
+            plot_y11_raw_polar_views(
+                marker_points,
+                figure_root / "polar_raw",
+                config=plot_config,
+            )
+        )
+        if "sim_r_c" in marker_points and marker_points["sim_r_c"].notna().any():
+            figures["grid_raw"] = OrderedDict(
+                plot_y11_raw_grid(
+                    marker_points,
+                    figure_root / "grid_raw",
+                    config=plot_config,
+                )
+            )
     else:
-        if lane == "y11":
-            figure_path = plot_y11_marker_sweep(
-                marker_points,
-                figure_root / "y11_complex" / "y11_marker_sweep.png",
-                config=plot_config,
-            )
-            figure_group = "y11_complex"
-        else:
-            figure_path = plot_z11_marker_sweep(
-                marker_points,
-                figure_root / "z11_complex" / "z11_marker_sweep.png",
-                config=plot_config,
-            )
-            figure_group = "z11_complex"
-        figures = OrderedDict(
-            ((figure_group, OrderedDict((("marker_sweep", figure_path),))),)
+        figure_path = plot_z11_marker_sweep(
+            marker_points,
+            figure_root / "z11_complex" / "z11_marker_sweep.png",
+            config=plot_config,
+        )
+        figures = FigurePaths(
+            (("z11_complex", OrderedDict((("marker_sweep", figure_path),))),)
         )
     mode = "y11_admittance" if lane == "y11" else "z11_impedance"
     modes = (mode,)

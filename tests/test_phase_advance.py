@@ -157,6 +157,69 @@ def test_compute_phase_advance_keeps_markers_and_port_sides_separate() -> None:
         assert row["phase_err_240_deg"] == pytest.approx(0.0)
 
 
+def test_compute_phase_advance_skips_same_position_file_pairs() -> None:
+    marker_points = pd.DataFrame(
+        [
+            {
+                "dataset_id": "dataset",
+                "data_kind": "experiment",
+                "data_layer": "raw",
+                "source_file": "1_noportE.S2P",
+                "tune_position": 1.0,
+                "port_side": None,
+                "s_name": "S11",
+                "marker_name": "f_2pi3",
+                "marker_role": "exp",
+                "freq_target_ghz": 2.856,
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": 10.0,
+            },
+            {
+                "dataset_id": "dataset",
+                "data_kind": "experiment",
+                "data_layer": "raw",
+                "source_file": "1_portE.S2P",
+                "tune_position": 1.0,
+                "port_side": None,
+                "s_name": "S11",
+                "marker_name": "f_2pi3",
+                "marker_role": "exp",
+                "freq_target_ghz": 2.856,
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": 20.0,
+            },
+            {
+                "dataset_id": "dataset",
+                "data_kind": "experiment",
+                "data_layer": "raw",
+                "source_file": "2_portE.S2P",
+                "tune_position": 2.0,
+                "port_side": None,
+                "s_name": "S11",
+                "marker_name": "f_2pi3",
+                "marker_role": "exp",
+                "freq_target_ghz": 2.856,
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": -100.0,
+            },
+        ]
+    )
+
+    result = compute_phase_advance(marker_points)
+
+    assert result[["file_from", "file_to", "pos_from", "pos_to"]].to_dict("records") == [
+        {
+            "file_from": "1_portE.S2P",
+            "file_to": "2_portE.S2P",
+            "pos_from": 1.0,
+            "pos_to": 2.0,
+        }
+    ]
+
+
 def test_compute_phase_advance_uses_periodic_position_families_not_adjacent_mixed_positions() -> None:
     rows = []
     for tune_position, phase in [(0.5, 10.0), (1.0, 80.0), (1.5, -110.0), (2.0, -40.0), (2.5, 130.0)]:

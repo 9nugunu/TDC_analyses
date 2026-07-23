@@ -15,6 +15,13 @@ from deflector_tuning.project_defaults import (
     load_project_defaults,
 )
 from deflector_tuning.runner import run_folder_analysis
+from deflector_tuning.workflows.tuning_campaign import (
+    register_matching_tuning_campaign,
+)
+from deflector_tuning.workflows.tuning_simulation_comparison import (
+    run_tuning_cmp,
+)
+from deflector_tuning.workflows.plunger_sensitivity import run_plunger_sensitivity
 
 
 DESCRIPTION = "Run one folder through the standard deflector tuning analysis workflow."
@@ -258,6 +265,37 @@ def main(argv: list[str] | None = None) -> int:
         tables_only=args.tables_only,
         project_defaults=args.project_defaults,
     )
+    campaign_match = register_matching_tuning_campaign(
+        _dataset_id_from_input(Path(args.sparameter_path)),
+        manifest_path=result.manifest_path,
+        data_root=args.data_root,
+    )
+    tuning_cmp = None
+    if (
+        campaign_match is not None
+        and campaign_match.phase_offset_sensitivity is not None
+    ):
+        plunger_sensitivity = run_plunger_sensitivity(
+            campaign_match,
+            current_result=result,
+            render_figure=not args.tables_only,
+            project_defaults=args.project_defaults,
+        )
+    else:
+        plunger_sensitivity = None
+    if (
+        campaign_match is not None
+        and campaign_match.comparison_enabled
+        and not args.tables_only
+    ):
+        tuning_cmp = run_tuning_cmp(
+            campaign_match,
+            current_result=result,
+            data_root=args.data_root,
+            file_workers=args.file_workers,
+            plot_workers=args.plot_workers,
+            project_defaults=args.project_defaults,
+        )
 
     print(f"input_folder: {args.input_folder}")
     print(f"marker_role: {args.marker_role}")
@@ -272,6 +310,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {group}:")
         for name, path in paths.items():
             print(f"    {name}: {path}")
+    if tuning_cmp is not None:
+        print("tuning_cmp:")
+        print("  families: " + ", ".join(tuning_cmp.families))
+        for name, path in tuning_cmp.figures.items():
+            print(f"  {name}: {path}")
+    if plunger_sensitivity is not None:
+        print("plunger_sensitivity:")
+        print(f"  table: {plunger_sensitivity.table_path}")
+        if plunger_sensitivity.figure_path is not None:
+            print(f"  figure: {plunger_sensitivity.figure_path}")
     return 0
 
 

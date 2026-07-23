@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -212,3 +213,144 @@ sim_w_c = 20.0
         "sim_w_c": 20.0,
     }
     assert args.project_defaults.ideal_phase_guide_angles_deg == (15.0, 195.0)
+
+
+def test_main_registers_matching_campaign_without_new_cli_arguments(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_runner_module()
+    manifest_path = tmp_path / "analysis" / "manifest.json"
+    args = SimpleNamespace(
+        input_folder=Path("raw_sweep_260701_iris_tune_Torque13p5"),
+        sparameter_path=Path("raw") / "raw_sweep_260701_iris_tune_Torque13p5",
+        dispersion_path=None,
+        output_dir=tmp_path / "analysis",
+        marker_role="exp",
+        data_root=tmp_path / "data",
+        file_workers=1,
+        plot_workers=1,
+        tables_only=False,
+        project_defaults=object(),
+    )
+    result = SimpleNamespace(
+        output_dir=args.output_dir,
+        manifest_path=manifest_path,
+        analysis_modes=("raw",),
+        tables={},
+        figures={},
+    )
+    registered: list[dict[str, object]] = []
+    comparisons: list[dict[str, object]] = []
+    match = SimpleNamespace(
+        comparison_enabled=True,
+        phase_offset_sensitivity=None,
+    )
+    monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
+    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    monkeypatch.setattr(
+        module,
+        "register_matching_tuning_campaign",
+        lambda dataset_id, **kwargs: (
+            registered.append({"dataset_id": dataset_id, **kwargs}) or match
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        module,
+        "run_tuning_cmp",
+        lambda campaign_match, **kwargs: comparisons.append(
+            {"campaign_match": campaign_match, **kwargs}
+        ),
+        raising=False,
+    )
+
+    assert module.main([]) == 0
+
+    assert registered == [
+        {
+            "dataset_id": "raw_sweep_260701_iris_tune_Torque13p5",
+            "manifest_path": manifest_path,
+            "data_root": tmp_path / "data",
+        }
+    ]
+    assert comparisons == [
+        {
+            "campaign_match": match,
+            "current_result": result,
+            "data_root": tmp_path / "data",
+            "file_workers": 1,
+            "plot_workers": 1,
+            "project_defaults": args.project_defaults,
+        }
+    ]
+
+
+def test_main_skips_tuning_comparison_for_auxiliary_measurement(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_runner_module()
+    manifest_path = tmp_path / "analysis" / "manifest.json"
+    args = SimpleNamespace(
+        input_folder=Path("raw_sweep_260721_tune_s003_plungersensitivity"),
+        sparameter_path=Path("raw") / "raw_sweep_260721_tune_s003_plungersensitivity",
+        dispersion_path=None,
+        output_dir=tmp_path / "analysis",
+        marker_role="exp",
+        data_root=tmp_path / "data",
+        file_workers=1,
+        plot_workers=1,
+        tables_only=False,
+        project_defaults=object(),
+    )
+    result = SimpleNamespace(
+        output_dir=args.output_dir,
+        manifest_path=manifest_path,
+        analysis_modes=("raw",),
+        tables={},
+        figures={},
+    )
+    comparisons: list[dict[str, object]] = []
+    sensitivities: list[dict[str, object]] = []
+    match = SimpleNamespace(
+        comparison_enabled=False,
+        phase_offset_sensitivity=object(),
+    )
+    monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
+    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    monkeypatch.setattr(
+        module,
+        "register_matching_tuning_campaign",
+        lambda dataset_id, **kwargs: match,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        module,
+        "run_tuning_cmp",
+        lambda campaign_match, **kwargs: comparisons.append(
+            {"campaign_match": campaign_match, **kwargs}
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        module,
+        "run_plunger_sensitivity",
+        lambda campaign_match, **kwargs: (
+            sensitivities.append({"campaign_match": campaign_match, **kwargs})
+            or SimpleNamespace(
+                table_path=tmp_path / "phase_vs_plunger_offset.csv",
+                figure_path=None,
+            )
+        ),
+        raising=False,
+    )
+
+    assert module.main([]) == 0
+    assert comparisons == []
+    assert sensitivities == [
+        {
+            "campaign_match": match,
+            "current_result": result,
+            "render_figure": True,
+            "project_defaults": args.project_defaults,
+        }
+    ]

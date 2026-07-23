@@ -95,10 +95,9 @@ def test_build_s11_plot_plans_describes_outputs_before_rendering(tmp_path: Path)
         split_by_position=True,
     )
 
-    assert [plan.key for plan in plans] == ["overview", "cell_0p5", "cell_1p5"]
-    assert [plan.kind for plan in plans] == ["overview", "position", "position"]
+    assert [plan.key for plan in plans] == ["cell_0p5", "cell_1p5"]
+    assert [plan.kind for plan in plans] == ["position", "position"]
     assert [plan.output_path.name for plan in plans] == [
-        "with_markers.png",
         "cell_0p5.png",
         "cell_1p5.png",
     ]
@@ -306,7 +305,7 @@ def _port_side_marker_points() -> pd.DataFrame:
     )
 
 
-def test_plot_s11_with_markers_writes_individual_position_pngs_without_overview(tmp_path: Path) -> None:
+def test_plot_s11_with_markers_writes_only_individual_position_pngs(tmp_path: Path) -> None:
     paths = plot_s11_with_markers(
         _sparameter_table(),
         _marker_points(),
@@ -315,10 +314,9 @@ def test_plot_s11_with_markers_writes_individual_position_pngs_without_overview(
         config=PlotConfig(dpi=120),
     )
 
-    assert "overview" in paths
+    assert "overview" not in paths
     assert "cell_0p5" in paths
     assert "cell_1p5" in paths
-    assert paths["overview"].name == "with_markers.png"
     assert paths["cell_0p5"].name == "cell_0p5.png"
     for path in paths.values():
         assert path.exists()
@@ -334,7 +332,7 @@ def test_plot_s11_with_markers_names_num_depth_positions_by_depth(tmp_path: Path
 
     paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
 
-    assert "overview" in paths
+    assert "overview" not in paths
     assert "depth_1p0" in paths
     assert "depth_2p0" in paths
     assert paths["depth_1p0"].name == "depth_1p0.png"
@@ -576,7 +574,13 @@ def test_plot_s11_with_markers_omits_unreadable_large_legends(tmp_path: Path, mo
         )
     monkeypatch.setattr(s11_frequency_plots, "save_figure", _capture_figure)
 
-    plot_s11_with_markers(pd.DataFrame(rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
+    s11_frequency_plots._plot_one(
+        pd.DataFrame(rows),
+        pd.DataFrame(marker_rows),
+        tmp_path / "legend_limit.png",
+        title="legend limit",
+        config=PlotConfig(dpi=120),
+    )
 
     assert saved_figures
     assert saved_figures[0].axes[0].get_legend() is None
@@ -621,7 +625,13 @@ def test_plot_s11_with_markers_labels_source_traces_by_run_number(tmp_path: Path
 
     monkeypatch.setattr(s11_frequency_plots, "save_figure", _capture_figure)
 
-    plot_s11_with_markers(pd.DataFrame(sparameter_rows), pd.DataFrame(marker_rows), tmp_path, config=PlotConfig(dpi=120))
+    s11_frequency_plots._plot_one(
+        pd.DataFrame(sparameter_rows),
+        pd.DataFrame(marker_rows),
+        tmp_path / "run_labels.png",
+        title="run labels",
+        config=PlotConfig(dpi=120),
+    )
 
     legend = saved_figures[0].axes[0].get_legend()
     assert legend is not None
@@ -634,8 +644,7 @@ def test_plot_s11_with_markers_does_not_write_position_nan_when_positions_are_mi
 
     paths = plot_s11_with_markers(sparameter_table, marker_points, tmp_path, config=PlotConfig(dpi=120))
 
-    assert list(paths) == ["overview"]
-    assert paths["overview"].name == "with_markers.png"
+    assert paths == {}
 
 
 def test_plot_s11_with_markers_ignores_unpositioned_reference_trace_for_position_split(tmp_path: Path) -> None:
@@ -647,7 +656,7 @@ def test_plot_s11_with_markers_ignores_unpositioned_reference_trace_for_position
 
     paths = plot_s11_with_markers(sparameter_table, _marker_points(), tmp_path, config=PlotConfig(dpi=120))
 
-    assert "overview" in paths
+    assert "overview" not in paths
     assert "cell_0p5" in paths
     assert "cell_1p5" in paths
     assert all("nan" not in key.lower() for key in paths)

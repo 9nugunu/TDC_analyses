@@ -25,7 +25,7 @@ from deflector_tuning.visualization.plot_config import (
 
 REQUIRED_COLUMNS: tuple[str, ...] = (
     "marker_name",
-    "transition_pair_index",
+    "pair_index",
     "cell_pos_from",
     "cell_pos_to",
     "iris_pos_from",
@@ -67,7 +67,7 @@ def plot_cell_iris_response_comparison(
         comparison,
         columns=FINITE_COLUMNS,
         context="cell_iris_response_comparison",
-        id_columns=("marker_name", "transition_pair_index"),
+        id_columns=("marker_name", "pair_index"),
     )
 
     config = config or PlotConfig()
@@ -117,7 +117,7 @@ def plot_cell_iris_response_comparison(
 def _prepare_table(comparison: pd.DataFrame) -> pd.DataFrame:
     table = comparison.copy()
     table["_marker_order"] = table["marker_name"].map(_marker_sort_key)
-    table["_pair_sort"] = pd.to_numeric(table["transition_pair_index"], errors="coerce")
+    table["_pair_sort"] = pd.to_numeric(table["pair_index"], errors="coerce")
     table["_cell_from_sort"] = pd.to_numeric(table["cell_pos_from"], errors="coerce")
     table["_iris_from_sort"] = pd.to_numeric(table["iris_pos_from"], errors="coerce")
     table["comparison_label"] = table.apply(_comparison_label, axis=1)
@@ -212,7 +212,7 @@ def _format_x_axis(ax: plt.Axes, table: pd.DataFrame) -> None:
 def _comparison_label(row: pd.Series) -> str:
     marker = str(row["marker_name"])
     marker_label = MARKER_TICK_LABELS.get(marker, marker)
-    pair = _format_position(row["transition_pair_index"])
+    pair = _format_position(row["pair_index"])
     cell = f"C {_format_position(row['cell_pos_from'])}->{_format_position(row['cell_pos_to'])}"
     iris = f"I {_format_position(row['iris_pos_from'])}->{_format_position(row['iris_pos_to'])}"
     return f"{marker_label} pair {pair}\n{cell} | {iris}"

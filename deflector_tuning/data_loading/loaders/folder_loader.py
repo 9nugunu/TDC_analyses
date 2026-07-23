@@ -10,7 +10,10 @@ import pandas as pd
 
 from deflector_tuning.data_loading.filename_metadata import metadata_from_filename
 from deflector_tuning.data_loading.dataset_naming import validate_dataset_id
-from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
+from deflector_tuning.data_loading.readers.touchstone_reader import (
+    read_touchstone,
+    touchstone_parameter_from_suffix,
+)
 from deflector_tuning.data_loading.records import DataFiles, DataFolder, DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
 from deflector_tuning.progress import progress_iter
@@ -44,7 +47,7 @@ class FolderLoader:
             if not child.is_file():
                 continue
             suffix = child.suffix.lower()
-            if suffix in {".s1p", ".s2p", ".s3p", ".s4p"}:
+            if _is_touchstone_file(child):
                 touchstone_files.append(child)
             elif suffix == ".csv":
                 csv_files.append(child)
@@ -62,6 +65,17 @@ class FolderLoader:
 
         data_folder = self.load(path)
         touchstone_files = self.list_files(path).touchstone_files
+        parameter_families = {
+            touchstone_parameter_from_suffix(touchstone_file)
+            for touchstone_file in touchstone_files
+        }
+        if len(parameter_families) != 1:
+            families = ", ".join(sorted(parameter_families)) or "none"
+            raise ValueError(
+                f"Expected one Touchstone parameter family in {data_folder.dataset_id}; "
+                f"found mixed Touchstone parameter families: {families}"
+            )
+        parameter = next(iter(parameter_families))
         rows = _load_touchstone_file_rows(
             touchstone_files,
             dataset_id=data_folder.dataset_id,
@@ -70,7 +84,7 @@ class FolderLoader:
             strict_cell_position=self.data_layer is DataLayer.SIM,
             file_workers=file_workers,
         )
-        return pd.DataFrame(rows, columns=_TOUCHSTONE_COLUMNS)
+        return pd.DataFrame(rows, columns=_touchstone_columns(parameter))
 
 
 def _load_touchstone_file_rows(
@@ -142,36 +156,41 @@ def _read_one_touchstone_file_rows(
         strict_cell_position=strict_cell_position,
     )
     rows: list[dict[str, object]] = []
-    for freq, s_values_at_freq in zip(
+    parameter = touchstone_data.header.parameter
+    for freq, values_at_freq in zip(
         touchstone_data.frequency,
-        touchstone_data.s_values,
+        touchstone_data.values,
         strict=True,
     ):
         freq_ghz = _frequency_to_ghz(freq, touchstone_data.header.frequency_unit)
-        for s_name, s_value in zip(_s_names(len(s_values_at_freq)), s_values_at_freq, strict=True):
-            rows.append(
+        names = _parameter_names(parameter, len(values_at_freq))
+        for name, value in zip(names, values_at_freq, strict=True):
+            row = {
+                "dataset_id": dataset_id,
+                "data_kind": data_kind,
+                "data_layer": data_layer,
+                "source_file": touchstone_file.name,
+                "freq_ghz": freq_ghz,
+            }
+            row.update(_parameter_value_columns(parameter, name, value))
+            row.update(
                 {
-                    "dataset_id": dataset_id,
-                    "data_kind": data_kind,
-                    "data_layer": data_layer,
-                    "source_file": touchstone_file.name,
-                    "freq_ghz": freq_ghz,
-                    "s_name": s_name,
-                    "s_real": s_value.real,
-                    "s_imag": s_value.imag,
-                    "s_db": _safe_db(s_value),
-                    "s_phase_deg": float(np.angle(s_value, deg=True)),
-                    "source_format": f"touchstone_{touchstone_data.header.data_format.lower()}",
+                    "source_format": _source_format(
+                        parameter,
+                        touchstone_data.header.data_format,
+                    ),
                     "reference_ohm": touchstone_data.header.reference_ohm,
-                    "is_normalized": touchstone_data.header.is_normalized,
                     "tune_position": metadata["tune_position"],
                     "port_side": metadata["port_side"],
                 }
             )
+            if parameter == "S":
+                row["is_normalized"] = touchstone_data.header.is_normalized
+            rows.append(row)
     return rows
 
 
-_TOUCHSTONE_COLUMNS = [
+_S_TOUCHSTONE_COLUMNS = [
     "dataset_id",
     "data_kind",
     "data_layer",
@@ -189,9 +208,39 @@ _TOUCHSTONE_COLUMNS = [
     "port_side",
 ]
 
+_Y_TOUCHSTONE_COLUMNS = [
+    "dataset_id",
+    "data_kind",
+    "data_layer",
+    "source_file",
+    "freq_ghz",
+    "y_name",
+    "y_real_siemens",
+    "y_imag_siemens",
+    "source_format",
+    "reference_ohm",
+    "tune_position",
+    "port_side",
+]
 
-def _safe_db(s_value: complex) -> float:
-    magnitude = abs(s_value)
+_Z_TOUCHSTONE_COLUMNS = [
+    "dataset_id",
+    "data_kind",
+    "data_layer",
+    "source_file",
+    "freq_ghz",
+    "z_name",
+    "z_real_ohm",
+    "z_imag_ohm",
+    "source_format",
+    "reference_ohm",
+    "tune_position",
+    "port_side",
+]
+
+
+def _safe_db(value: complex) -> float:
+    magnitude = abs(value)
     if magnitude == 0.0:
         return float("-inf")
     return float(20.0 * np.log10(magnitude))
@@ -209,13 +258,76 @@ def _frequency_to_ghz(frequency: float, frequency_unit: str) -> float:
     return frequency * factors[frequency_unit]
 
 
-def _s_names(value_count: int) -> list[str]:
+def _parameter_names(parameter: str, value_count: int) -> list[str]:
     if value_count == 1:
-        return ["S11"]
+        return [f"{parameter}11"]
     if value_count == 4:
-        return ["S11", "S21", "S12", "S22"]
+        return [
+            f"{parameter}11",
+            f"{parameter}21",
+            f"{parameter}12",
+            f"{parameter}22",
+        ]
     port_count = int(value_count**0.5)
-    return [f"S{row}{column}" for column in range(1, port_count + 1) for row in range(1, port_count + 1)]
+    return [
+        f"{parameter}{row}{column}"
+        for column in range(1, port_count + 1)
+        for row in range(1, port_count + 1)
+    ]
+
+
+def _parameter_value_columns(
+    parameter: str,
+    name: str,
+    value: complex,
+) -> dict[str, object]:
+    if parameter == "S":
+        return {
+            "s_name": name,
+            "s_real": value.real,
+            "s_imag": value.imag,
+            "s_db": _safe_db(value),
+            "s_phase_deg": float(np.angle(value, deg=True)),
+        }
+    if parameter == "Y":
+        return {
+            "y_name": name,
+            "y_real_siemens": value.real,
+            "y_imag_siemens": value.imag,
+        }
+    if parameter == "Z":
+        return {
+            "z_name": name,
+            "z_real_ohm": value.real,
+            "z_imag_ohm": value.imag,
+        }
+    raise ValueError(f"Unsupported Touchstone parameter family: {parameter}")
+
+
+def _touchstone_columns(parameter: str) -> list[str]:
+    columns = {
+        "S": _S_TOUCHSTONE_COLUMNS,
+        "Y": _Y_TOUCHSTONE_COLUMNS,
+        "Z": _Z_TOUCHSTONE_COLUMNS,
+    }
+    try:
+        return columns[parameter]
+    except KeyError as error:
+        raise ValueError(f"Unsupported Touchstone parameter family: {parameter}") from error
+
+
+def _source_format(parameter: str, data_format: str) -> str:
+    if parameter == "S":
+        return f"touchstone_{data_format.lower()}"
+    return f"touchstone_{parameter.lower()}_{data_format.lower()}"
+
+
+def _is_touchstone_file(path: Path) -> bool:
+    try:
+        touchstone_parameter_from_suffix(path)
+    except ValueError:
+        return False
+    return True
 
 
 def _dataset_root_from_path(path: Path, data_layer: DataLayer) -> Path:

@@ -10,6 +10,10 @@ from deflector_tuning.data_loading.admittance import (
     sample_y11_markers,
 )
 from deflector_tuning.runner import run_folder_analysis
+from deflector_tuning.visualization.raw_y11_plots import (
+    plot_y11_raw_grid,
+    plot_y11_raw_polar_views,
+)
 
 
 def test_load_y11_touchstone_folder_preserves_cst_values_and_result_navigator_metadata(
@@ -90,7 +94,29 @@ def test_extract_y11_marker_frequencies_prefers_explicit_cst_kyhl_marker_table(
     ]
 
 
-def test_run_folder_analysis_routes_y11_sweep_to_complex_admittance_figure(tmp_path: Path) -> None:
+def test_raw_y11_polar_and_grid_plots_use_direct_y_values(tmp_path: Path) -> None:
+    import pandas as pd
+
+    marker_points = pd.DataFrame(
+        [
+            {"marker_name": "f_2pi3", "sim_r_c": 56.09, "y_re_siemens": 0.001, "y_im_siemens": -0.002},
+            {"marker_name": "f_mean", "sim_r_c": 56.09, "y_re_siemens": 0.002, "y_im_siemens": -0.001},
+            {"marker_name": "f_pi2", "sim_r_c": 56.09, "y_re_siemens": 0.003, "y_im_siemens": 0.001},
+            {"marker_name": "f_2pi3", "sim_r_c": 56.10, "y_re_siemens": 0.004, "y_im_siemens": -0.001},
+            {"marker_name": "f_mean", "sim_r_c": 56.10, "y_re_siemens": 0.005, "y_im_siemens": 0.002},
+            {"marker_name": "f_pi2", "sim_r_c": 56.10, "y_re_siemens": 0.006, "y_im_siemens": 0.003},
+        ]
+    )
+
+    polar = plot_y11_raw_polar_views(marker_points, tmp_path / "polar")
+    grid = plot_y11_raw_grid(marker_points, tmp_path / "grid")
+
+    assert len(polar) == 2
+    assert (tmp_path / "grid" / "y11_raw_rc_scan.png").exists()
+    assert all(path.exists() for path in polar.values())
+
+
+def test_run_folder_analysis_routes_y11_sweep_through_raw_y_figures(tmp_path: Path, monkeypatch) -> None:
     data_root = tmp_path / "data"
     y_folder = data_root / "sim" / "sim_sweep_260701_y_case"
     y_folder.mkdir(parents=True)
@@ -114,6 +140,24 @@ def test_run_folder_analysis_routes_y11_sweep_to_complex_admittance_figure(tmp_p
         encoding="utf-8",
     )
 
+    rendered: list[str] = []
+
+    def fake_frequency(*args, **kwargs):
+        rendered.append("y11_raw")
+        return {"overview": tmp_path / "y11_raw.png"}
+
+    def fake_polar(*args, **kwargs):
+        rendered.append("polar_raw")
+        return {"overview": tmp_path / "polar_raw.png"}
+
+    def fake_grid(*args, **kwargs):
+        rendered.append("grid_raw")
+        return {"overview": tmp_path / "grid_raw.png"}
+
+    monkeypatch.setattr("deflector_tuning.runner.plot_y11_raw_frequency_with_markers", fake_frequency)
+    monkeypatch.setattr("deflector_tuning.runner.plot_y11_raw_polar_views", fake_polar)
+    monkeypatch.setattr("deflector_tuning.runner.plot_y11_raw_grid", fake_grid)
+
     result = run_folder_analysis(
         sparameter_path=y_folder,
         dispersion_path=dispersion_folder,
@@ -124,8 +168,8 @@ def test_run_folder_analysis_routes_y11_sweep_to_complex_admittance_figure(tmp_p
 
     assert result.analysis_modes == ("y11_admittance",)
     assert set(result.tables) == {"markers", "y11_pts"}
-    assert set(result.figures) == {"y11_complex"}
-    assert result.figures["y11_complex"]["marker_sweep"].exists()
+    assert rendered == ["y11_raw", "polar_raw", "grid_raw"]
+    assert set(result.figures) == {"y11_raw", "polar_raw", "grid_raw"}
     marker_points = pd.read_csv(result.tables["y11_pts"])
     assert marker_points.groupby("marker_name").size().to_dict() == {
         "f_2pi3": 2,
@@ -133,6 +177,9 @@ def test_run_folder_analysis_routes_y11_sweep_to_complex_admittance_figure(tmp_p
         "f_pi2": 2,
     }
     assert marker_points["sim_r_c"].tolist() == [56.09, 56.1, 56.09, 56.1, 56.09, 56.1]
+    assert {"y_re_siemens", "y_im_siemens"}.issubset(marker_points.columns)
+    assert "y_real_siemens" not in marker_points
+    assert "s_real" not in marker_points
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["table_contract"] == "y11"
     assert manifest["table_schema_version"] == 2

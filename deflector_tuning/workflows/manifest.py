@@ -4,6 +4,8 @@ import json
 from collections import OrderedDict
 from pathlib import Path
 
+from deflector_tuning.tuning_campaign import TuningCampaign
+
 from deflector_tuning.workflows.models import (
     AnalysisPaths,
     DetectionReport,
@@ -11,6 +13,106 @@ from deflector_tuning.workflows.models import (
 )
 
 FIGURE_SUFFIXES = frozenset({".png", ".pdf", ".svg", ".jpg", ".jpeg"})
+
+
+def register_tuning_campaign(
+    manifest_path: Path,
+    *,
+    config_path: Path,
+    campaign: TuningCampaign,
+    state_id: str | None,
+    measurement_kind: str = "state",
+) -> None:
+    """Atomically add tuning-campaign identity to an existing manifest."""
+
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    state = campaign.states[state_id] if state_id is not None else None
+    linked_issue_ids = [
+        issue_id
+        for issue_id, issue in campaign.issues.items()
+        if state_id is not None
+        and state_id in {issue.after_state_id, issue.verification_state_id}
+    ]
+    manifest["tuning_campaign"] = {
+        "campaign_id": campaign.campaign_id,
+        "config_path": Path(config_path).as_posix(),
+        "state_id": state_id,
+        "state_status": state.measurement_status if state is not None else None,
+        "measurement_kind": measurement_kind,
+        "issue_ids": linked_issue_ids,
+    }
+    temporary = Path(manifest_path).with_name(f".{Path(manifest_path).name}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        temporary.replace(manifest_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def register_tuning_cmp(
+    manifest_path: Path,
+    *,
+    tables: dict[str, Path],
+    figures: dict[str, Path],
+    metadata: dict[str, object],
+) -> None:
+    """Atomically add derived tuning-comparison products to a manifest."""
+
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    outputs = manifest.setdefault("outputs", {})
+    outputs["tuning_cmp"] = {
+        "tables": {name: str(path) for name, path in tables.items()},
+        "figures": {name: str(path) for name, path in figures.items()},
+    }
+    manifest["tuning_cmp"] = metadata
+    temporary = Path(manifest_path).with_name(f".{Path(manifest_path).name}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        temporary.replace(manifest_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def register_phase_offset_response(
+    manifest_path: Path,
+    *,
+    table_path: Path,
+    figure_path: Path | None,
+    reference_offset_mm: float,
+) -> None:
+    """Atomically add a plunger-offset phase-response product to a manifest."""
+
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    outputs = manifest.setdefault("outputs", {})
+    outputs["plunger_sensitivity"] = {
+        "tables": {"phase_vs_plunger_offset": str(table_path)},
+        "figures": (
+            {"phase_vs_plunger_offset": str(figure_path)}
+            if figure_path is not None
+            else {}
+        ),
+    }
+    manifest["plunger_sensitivity"] = {
+        "reference_offset_mm": reference_offset_mm,
+    }
+    temporary = Path(manifest_path).with_name(f".{Path(manifest_path).name}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        temporary.replace(manifest_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def write_manifest(

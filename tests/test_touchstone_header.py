@@ -20,6 +20,13 @@ def test_nonzero_reference_means_normalized_data() -> None:
     assert header.is_normalized is True
 
 
+def test_non_s_parameter_reference_does_not_mean_normalized_data() -> None:
+    header = parse_touchstone_header("# GHz Z RI R 1")
+
+    assert header.reference_ohm == 1.0
+    assert header.is_normalized is False
+
+
 def test_missing_format_defaults_to_ri() -> None:
     header = parse_touchstone_header("# GHz S R 50")
 

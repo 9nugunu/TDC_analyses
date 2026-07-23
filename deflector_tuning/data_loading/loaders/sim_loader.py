@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from deflector_tuning.data_loading.dataset_naming import parse_dataset_id
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
 from deflector_tuning.data_loading.records import DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
@@ -58,6 +59,8 @@ class SimLoader(FolderLoader):
 
     def load_touchstone(self, path: str | Path, *, file_workers: int = 1) -> pd.DataFrame:
         table = super().load_touchstone(path, file_workers=file_workers)
+        touchstone_files = self.list_files(path).touchstone_files
+        table = _merge_cst_parameter_headers(table, touchstone_files)
         navigator = _read_result_navigator(Path(path))
         if navigator.empty:
             return _assign_scan_type(table)
@@ -72,7 +75,7 @@ def _merge_result_navigator(table: pd.DataFrame, navigator: pd.DataFrame) -> pd.
         table["run_id"] = table["run_id"].astype("Int64")
         navigator = navigator.copy()
         navigator["run_id"] = navigator["run_id"].astype("Int64")
-        return table.merge(navigator, on="run_id", how="left")
+        return _merge_navigator_metadata(table, navigator, on="run_id")
     if "sim_NumTune" in navigator and "tune_position" in table:
         table = table.copy()
         table["sim_NumTune"] = table["tune_position"].map(_num_tune_from_cell_position)
@@ -80,8 +83,47 @@ def _merge_result_navigator(table: pd.DataFrame, navigator: pd.DataFrame) -> pd.
         navigator_without_empty_tunes["sim_NumTune"] = navigator_without_empty_tunes["sim_NumTune"].astype("Int64")
         table["sim_NumTune"] = table["sim_NumTune"].astype("Int64")
         table = table.drop(columns=["run_id"])
-        return table.merge(navigator_without_empty_tunes, on="sim_NumTune", how="left")
+        return _merge_navigator_metadata(table, navigator_without_empty_tunes, on="sim_NumTune")
     return table
+
+
+def _merge_cst_parameter_headers(
+    table: pd.DataFrame,
+    touchstone_files: list[Path],
+) -> pd.DataFrame:
+    """Attach CST ``Parameters`` comment metadata to simulation rows."""
+
+    parameter_rows = {
+        touchstone_file.name: parameters
+        for touchstone_file in touchstone_files
+        if (parameters := _read_cst_parameter_header(touchstone_file))
+    }
+    if not parameter_rows:
+        return table
+
+    metadata = pd.DataFrame.from_dict(parameter_rows, orient="index")
+    metadata.index.name = "source_file"
+    return table.merge(metadata.reset_index(), on="source_file", how="left")
+
+
+def _merge_navigator_metadata(
+    table: pd.DataFrame,
+    navigator: pd.DataFrame,
+    *,
+    on: str,
+) -> pd.DataFrame:
+    """Merge Navigator metadata, preferring its non-null values on collisions."""
+
+    merged = table.merge(navigator, on=on, how="left", suffixes=("", "_navigator"))
+    for column in navigator.columns:
+        if column == on:
+            continue
+        navigator_column = f"{column}_navigator"
+        if navigator_column not in merged:
+            continue
+        merged[column] = merged[navigator_column].combine_first(merged[column])
+        merged = merged.drop(columns=[navigator_column])
+    return merged
 
 
 def _read_result_navigator(path: Path) -> pd.DataFrame:
@@ -135,7 +177,28 @@ def _scan_type(table: pd.DataFrame) -> str:
         grid_points = table[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
         if len(grid_points) > 1:
             return "grid_2d"
+    if _dataset_category(table) == "sweep" and _varying_sim_parameter_columns(table):
+        return "parameter_sweep"
     return "single_point"
+
+
+def _dataset_category(table: pd.DataFrame) -> str | None:
+    if "dataset_id" not in table:
+        return None
+    dataset_ids = table["dataset_id"].dropna().astype(str).unique()
+    if len(dataset_ids) != 1:
+        return None
+    return parse_dataset_id(dataset_ids[0]).category
+
+
+def _varying_sim_parameter_columns(table: pd.DataFrame) -> list[str]:
+    return [
+        column
+        for column in table.columns
+        if column.startswith("sim_")
+        and not column.removeprefix("sim_").lower().startswith("num")
+        and table[column].dropna().nunique() > 1
+    ]
 
 
 def _to_number_if_possible(series: pd.Series) -> pd.Series:
@@ -155,9 +218,9 @@ def _dataset_root(path: Path) -> Path:
 
 
 def _run_id_from_file_name(file_name: str) -> int | None:
-    match = re.search(r"_(\d+)\.s\d+p$", file_name, flags=re.IGNORECASE)
+    match = re.search(r"_(\d+)\.[syz]\d+p$", file_name, flags=re.IGNORECASE)
     if match is None:
-        match = re.search(r"(\d+)\.s\d+p$", file_name, flags=re.IGNORECASE)
+        match = re.search(r"(\d+)\.[syz]\d+p$", file_name, flags=re.IGNORECASE)
     if match is None:
         return None
     return int(match.group(1))
@@ -173,8 +236,11 @@ def _num_tune_from_cell_position(tune_position: object) -> int | None:
 
 
 def _read_cst_parameter_header(path: Path) -> dict[str, object]:
-    first_line = path.read_text(encoding="utf-8", errors="replace").splitlines()[0]
-    match = re.search(r"\{(?P<body>.*)\}", first_line)
+    match = None
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = re.search(r"Parameters\s*=\s*\{(?P<body>[^}]*)\}", line, flags=re.IGNORECASE)
+        if match is not None:
+            break
     if match is None:
         return {}
     parameters: dict[str, object] = {}

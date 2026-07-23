@@ -74,6 +74,8 @@ def compute_phase_advance(marker_points: pd.DataFrame) -> pd.DataFrame:
         for index in range(len(group) - 1):
             start = group.iloc[index]
             end = group.iloc[index + 1]
+            if float(end["_tune_sort"]) == float(start["_tune_sort"]):
+                continue
             signed_step = _wrap180(float(end["s_phase_deg"]) - float(start["s_phase_deg"]))
             phase_advance = signed_step % 360.0
             rows.append(

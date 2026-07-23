@@ -13,7 +13,7 @@ def _comparison_table() -> pd.DataFrame:
         [
             {
                 "marker_name": "f_2pi3",
-                "transition_pair_index": 1,
+                "pair_index": 1,
                 "cell_pos_from": 0.5,
                 "cell_pos_to": 1.5,
                 "iris_pos_from": 1.0,
@@ -31,7 +31,7 @@ def _comparison_table() -> pd.DataFrame:
             },
             {
                 "marker_name": "f_mean",
-                "transition_pair_index": 1,
+                "pair_index": 1,
                 "cell_pos_from": 0.5,
                 "cell_pos_to": 1.5,
                 "iris_pos_from": 1.0,
