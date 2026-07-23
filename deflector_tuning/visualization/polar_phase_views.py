@@ -49,6 +49,8 @@ KYHL_PHASE_PAIR_OVERLAY_STEPS: tuple[tuple[str, float, float], ...] = (
 KYHL_PHASE_RADIAL_RADIUS = 1.0
 KYHL_PHASE_RADIAL_START_ALPHA = 0.50
 KYHL_PHASE_RADIAL_END_ALPHA = 0.50
+NO_PORT_EXTENSION_FOLDER = "No_portExtension"
+NO_PORT_EXTENSION_SOURCE_PATTERN = r"(?:^|[_-])noportE(?:[._-]|$)"
 
 
 @dataclass(frozen=True)
@@ -134,10 +136,15 @@ def build_polar_plot_plans(
     plans: list[PolarPlotPlan] = []
     if len(groups) > 1:
         for position_label, position_table in groups:
+            position_folder = (
+                folder / NO_PORT_EXTENSION_FOLDER
+                if _is_no_port_extension_position(position_table)
+                else folder
+            )
             plans.append(
                 PolarPositionPlan(
                     key=position_label,
-                    output_path=folder / f"{_position_output_stem(position_table, position_label, grouping_mode=grouping_mode)}.png",
+                    output_path=position_folder / f"{_position_output_stem(position_table, position_label, grouping_mode=grouping_mode)}.png",
                     position_label=position_label,
                     position_table=position_table,
                     title=_position_plot_title(
@@ -375,6 +382,20 @@ def _has_multiple_source_files(marker_points: pd.DataFrame) -> bool:
     if "source_file" not in marker_points:
         return False
     return marker_points["source_file"].dropna().nunique() > 1
+
+
+def _is_no_port_extension_position(position_table: pd.DataFrame) -> bool:
+    if "source_file" not in position_table:
+        return False
+    source_files = position_table["source_file"].dropna().astype(str)
+    return bool(
+        not source_files.empty
+        and source_files.str.contains(
+            NO_PORT_EXTENSION_SOURCE_PATTERN,
+            case=False,
+            regex=True,
+        ).all()
+    )
 
 
 def _position_group_columns(table: pd.DataFrame, *, base_columns: tuple[str, ...]) -> list[str]:

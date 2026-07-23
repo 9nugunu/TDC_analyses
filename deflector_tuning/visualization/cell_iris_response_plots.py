@@ -46,7 +46,7 @@ FINITE_COLUMNS: tuple[str, ...] = (
     "iris_admit_axis_err_abs_deg",
 )
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
-MARKER_TICK_LABELS: dict[str, str] = {"f_2pi3": "f_2pi/3", "f_mean": "f_mean", "f_pi2": "f_pi/2"}
+MARKER_TICK_LABELS: dict[str, str] = dict(MARKER_LABELS)
 FAMILY_COLORS: dict[str, str] = {"cell": "#4c78a8", "iris": "#f58518"}
 
 
@@ -81,16 +81,16 @@ def plot_cell_iris_response_comparison(
         table,
         folder / "iris_over_cell_admittance_response_ratio.png",
         value_column="admit_ratio_iris_cell",
-        ylabel="Iris / cell admittance response",
-        title="Iris-over-cell admittance response ratio",
+        ylabel="Iris / Cell",
+        title="Iris/Cell |Y11| ratio",
         config=config,
     )
     paths["iris_over_cell_phase_step_ratio"] = _plot_response_ratio(
         table,
         folder / "iris_over_cell_phase_step_ratio.png",
         value_column="phase_ratio_iris_cell",
-        ylabel="Iris / cell phase-step response",
-        title="Iris-over-cell phase-step response ratio",
+        ylabel=r"$|\Delta\phi_I| / |\Delta\phi_C|$",
+        title=r"Iris/Cell $\Delta\phi$ ratio",
         config=config,
     )
     paths["cell_vs_iris_phase_residual"] = _plot_cell_iris_bars(
@@ -98,8 +98,8 @@ def plot_cell_iris_response_comparison(
         folder / "cell_vs_iris_phase_residual.png",
         cell_column="cell_phase_err_deg",
         iris_column="iris_phase_err_deg",
-        ylabel="Absolute residual from target phase [deg]",
-        title="Cell vs iris target-phase residual",
+        ylabel=r"$|\phi - \phi_0|$ [deg]",
+        title="Phase residual",
         config=config,
     )
     paths["cell_vs_iris_operation_axis_error"] = _plot_cell_iris_bars(
@@ -107,8 +107,8 @@ def plot_cell_iris_response_comparison(
         folder / "cell_vs_iris_operation_axis_error.png",
         cell_column="cell_admit_axis_err_abs_deg",
         iris_column="iris_admit_axis_err_abs_deg",
-        ylabel="Absolute operation-axis error [deg]",
-        title="Cell vs iris operation-axis error",
+        ylabel=r"$|\phi - \phi_{axis}|$ [deg]",
+        title="Axis error",
         config=config,
     )
     return paths
@@ -147,9 +147,9 @@ def _plot_response_ratio(
         edgecolor="white",
         linewidth=0.8,
     )
-    ax.axhline(1.0, color="0.25", linestyle="--", linewidth=1.0, label="equal cell and iris response")
+    ax.axhline(1.0, color="0.25", linestyle="--", linewidth=1.0, label="equal")
     _format_x_axis(ax, table)
-    apply_axis_text_style(ax, xlabel="Matched transition", ylabel=ylabel, title=title, config=config)
+    apply_axis_text_style(ax, xlabel="Transition", ylabel=ylabel, title=title, config=config)
     ax.grid(True, axis="y", color="0.86", linewidth=0.8)
     marker_handles = _marker_handles(table)
     handles, labels = ax.get_legend_handles_labels()
@@ -181,7 +181,7 @@ def _plot_cell_iris_bars(
         color=FAMILY_COLORS["cell"],
         edgecolor="white",
         linewidth=0.8,
-        label="cell center",
+        label="Cell",
     )
     ax.bar(
         x_values + width / 2.0,
@@ -190,10 +190,10 @@ def _plot_cell_iris_bars(
         color=FAMILY_COLORS["iris"],
         edgecolor="white",
         linewidth=0.8,
-        label="iris center",
+        label="Iris",
     )
     _format_x_axis(ax, table)
-    apply_axis_text_style(ax, xlabel="Matched transition", ylabel=ylabel, title=title, config=config)
+    apply_axis_text_style(ax, xlabel="Transition", ylabel=ylabel, title=title, config=config)
     ax.grid(True, axis="y", color="0.86", linewidth=0.8)
     legend = ax.legend(frameon=True, loc="best", fontsize=config.compact_legend_size)
     apply_legend_text_style(legend, config)
@@ -213,9 +213,9 @@ def _comparison_label(row: pd.Series) -> str:
     marker = str(row["marker_name"])
     marker_label = MARKER_TICK_LABELS.get(marker, marker)
     pair = _format_position(row["pair_index"])
-    cell = f"C {_format_position(row['cell_pos_from'])}->{_format_position(row['cell_pos_to'])}"
-    iris = f"I {_format_position(row['iris_pos_from'])}->{_format_position(row['iris_pos_to'])}"
-    return f"{marker_label} pair {pair}\n{cell} | {iris}"
+    cell = f"C{_format_position(row['cell_pos_from'])}-{_format_position(row['cell_pos_to'])}"
+    iris = f"I{_format_position(row['iris_pos_from'])}-{_format_position(row['iris_pos_to'])}"
+    return f"{marker_label} P{pair}\n{cell} | {iris}"
 
 
 def _figure_size(table: pd.DataFrame) -> tuple[float, float]:
@@ -254,6 +254,4 @@ def _format_position(position: object) -> str:
         value = float(position)
     except (TypeError, ValueError):
         return str(position)
-    if value.is_integer():
-        return f"{value:.1f}"
     return f"{value:g}"

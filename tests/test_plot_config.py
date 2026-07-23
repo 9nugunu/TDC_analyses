@@ -55,6 +55,23 @@ def test_bold_math_wraps_math_expressions_for_bold_labels() -> None:
     assert math_label(r"S_{11}", bold=True) == r"$\mathbf{S}_{\mathbf{11}}$"
 
 
+def test_apply_axis_text_style_renders_delta_and_subscripts() -> None:
+    fig, ax = plt.subplots()
+    apply_axis_text_style(
+        ax,
+        ylabel=r"$|\Delta\phi_I| / |\Delta\phi_C|$",
+        config=PlotConfig(),
+    )
+
+    fig.canvas.draw()
+
+    assert ax.yaxis.label.get_text() == (
+        r"$|\mathbf{\Delta}\mathbf{\phi}_\mathbf{I}| / "
+        r"|\mathbf{\Delta}\mathbf{\phi}_\mathbf{C}|$"
+    )
+    plt.close(fig)
+
+
 def test_apply_plot_style_suppresses_mathtext_font_substitution_info_logs() -> None:
     logger = logging.getLogger(MATPLOTLIB_MATHTEXT_LOGGER)
     original_level = logger.level

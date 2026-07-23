@@ -121,6 +121,7 @@ def bold_math(label: str) -> str:
     protected_commands = {
         r"\partial": "§∂§",
         r"\nabla": "§∇§",
+        r"\Delta": "§Δ§",
         r"\phi": "§φ§",
         r"\beta": "§β§",
         r"\pi": "§π§",
@@ -131,6 +132,7 @@ def bold_math(label: str) -> str:
     body = re.sub(r"(\d+)", r"\\mathbf{\1}", body)
     body = body.replace("§∂§", r"\mathbf{\partial}")
     body = body.replace("§∇§", r"\mathbf{\nabla}")
+    body = body.replace("§Δ§", r"\mathbf{\Delta}")
     body = body.replace("§φ§", r"\mathbf{\phi}")
     body = body.replace("§β§", r"\mathbf{\beta}")
     body = body.replace("§π§", r"\mathbf{\pi}")

@@ -314,6 +314,20 @@ def test_build_polar_plot_plans_describes_outputs_before_rendering(tmp_path: Pat
     assert all(not plan.output_path.exists() for plan in plans)
 
 
+def test_build_polar_plot_plans_places_no_port_extension_positions_in_subfolder(
+    tmp_path: Path,
+) -> None:
+    marker_points = _marker_points().copy()
+    marker_points.loc[marker_points["tune_position"] == 0.5, "source_file"] = "0.5_noportE.s2p"
+    marker_points.loc[marker_points["tune_position"] == 1.0, "source_file"] = "1_portE.s2p"
+
+    plans = build_polar_plot_plans(marker_points, tmp_path)
+    paths = {plan.key: plan.output_path for plan in plans}
+
+    assert paths["0.5"] == tmp_path / "No_portExtension" / "cell_0p5.png"
+    assert paths["1.0"] == tmp_path / "iris_1p0.png"
+
+
 def test_plot_marker_phase_polar_views_writes_separate_kyhl_phase_pair_arc_overlays(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
