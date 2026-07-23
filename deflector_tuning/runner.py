@@ -31,6 +31,10 @@ from deflector_tuning.data_loading.one_port_matrix import (
 )
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.data_loading.dataset_naming import dataset_identity_from_path
+from deflector_tuning.data_loading.field3d import (
+    Field3DPair,
+    find_field3d_pairs as _find_field3d_pairs,
+)
 from deflector_tuning.data_loading.source_layer import detect_data_layer
 from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS, ProjectDefaults
 from deflector_tuning.dispersion import (
@@ -78,6 +82,9 @@ from deflector_tuning.visualization.coupler_cavity_parameter_plots import (
 from deflector_tuning.workflows.dispersion import (
     find_cst_dispersion_inputs as _find_cst_dispersion_inputs,
     run_dispersion_analysis as _run_dispersion_only_analysis,
+)
+from deflector_tuning.workflows.field3d import (
+    run_field3d_analysis as _run_field3d_analysis,
 )
 from deflector_tuning.workflows.manifest import (
     cached_manifest_figures as _cached_manifest_figures,
@@ -170,6 +177,17 @@ def run_folder_analysis(
     if dataset_category == "profile":
         if tables_only:
             raise ValueError("--tables-only is supported only for standard marker-analysis datasets")
+        field3d_pairs = find_cst_field3d_pairs(sparameter_path)
+        if field3d_pairs:
+            return _run_field3d_only_analysis_from_runner(
+                field3d_pairs,
+                output_dir=output_dir,
+                table_dir=table_dir,
+                figure_root=figure_root,
+                sparameter_path=sparameter_path,
+                dispersion_path=dispersion_path,
+                marker_role=marker_role,
+            )
         profile_inputs = find_cst_profile_inputs(sparameter_path)
         if not profile_inputs:
             raise ValueError(
@@ -214,6 +232,22 @@ def run_folder_analysis(
         )
         logger.info("Dispersion-only analysis completed successfully")
         return result
+
+    field3d_pairs = (
+        find_cst_field3d_pairs(sparameter_path) if dataset_category is None else ()
+    )
+    if field3d_pairs:
+        if tables_only:
+            raise ValueError("--tables-only is supported only for standard marker-analysis datasets")
+        return _run_field3d_only_analysis_from_runner(
+            field3d_pairs,
+            output_dir=output_dir,
+            table_dir=table_dir,
+            figure_root=figure_root,
+            sparameter_path=sparameter_path,
+            dispersion_path=dispersion_path,
+            marker_role=marker_role,
+        )
 
     profile_inputs = (
         find_cst_profile_inputs(sparameter_path) if dataset_category is None else ()
@@ -508,6 +542,30 @@ def _run_profile_only_analysis_from_runner(
     return result
 
 
+def _run_field3d_only_analysis_from_runner(
+    pairs: tuple[Field3DPair, ...],
+    *,
+    output_dir: Path,
+    table_dir: Path,
+    figure_root: Path,
+    sparameter_path: Path,
+    dispersion_path: Path,
+    marker_role: str,
+) -> RunResult:
+    logger.info("Detected CST 3D complex E/H data; running field3d analysis")
+    result = _run_field3d_analysis(
+        pairs,
+        output_dir=output_dir,
+        table_dir=table_dir,
+        figure_root=figure_root,
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role=marker_role,
+    )
+    logger.info("3D field analysis completed successfully")
+    return result
+
+
 def _run_one_port_matrix_analysis_from_runner(
     *,
     lane: Lane,
@@ -621,6 +679,10 @@ def _run_one_port_matrix_analysis_from_runner(
 
 def find_cst_profile_inputs(path: str | Path) -> tuple[Path, ...]:
     return _find_cst_profile_inputs(path, load_profile=load_field_profile_export)
+
+
+def find_cst_field3d_pairs(path: str | Path) -> tuple[Field3DPair, ...]:
+    return _find_field3d_pairs(path)
 
 
 def find_cst_dispersion_inputs(path: str | Path) -> tuple[Path, ...]:

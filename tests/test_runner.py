@@ -1085,6 +1085,71 @@ def test_runner_preserves_profile_and_dispersion_patch_seams(tmp_path: Path, mon
     assert "f_2pi3" in runner.GRID_SCAN_REQUIRED_MARKERS
 
 
+def test_run_folder_analysis_routes_3d_field_headers_before_1d_profile_loader(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    profile_folder = (
+        tmp_path
+        / "data"
+        / "sim"
+        / "sim_profile_260723_field3d_auto"
+    )
+    profile_folder.mkdir(parents=True)
+    for kind, component, units in (
+        ("e", "E", "V/m"),
+        ("h", "H", "A/m"),
+    ):
+        header = (
+            f"x [mm] y [mm] z [mm] "
+            f"{component}xRe [{units}] {component}xIm [{units}] "
+            f"{component}yRe [{units}] {component}yIm [{units}] "
+            f"{component}zRe [{units}] {component}zIm [{units}]"
+        )
+        (profile_folder / f"{kind}-field [1]_NoPlunger.txt").write_text(
+            header + "\n" + "-" * len(header) + "\n",
+            encoding="utf-8",
+        )
+
+    output_dir = tmp_path / "fig" / "analyses" / profile_folder.name
+    expected = runner.RunResult(
+        output_dir=output_dir,
+        tables=runner.AnalysisPaths(),
+        figures=runner.FigurePaths(),
+        analysis_modes=("field3d",),
+        manifest_path=output_dir / "manifest.json",
+    )
+    recorded_pairs = []
+
+    def fake_field3d_run(pairs, **kwargs):
+        recorded_pairs.extend(pairs)
+        return expected
+
+    monkeypatch.setattr(
+        runner,
+        "_run_field3d_only_analysis_from_runner",
+        fake_field3d_run,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runner,
+        "find_cst_profile_inputs",
+        lambda path: (_ for _ in ()).throw(
+            AssertionError("3D headers must bypass the 1D profile loader")
+        ),
+    )
+
+    result = runner.run_folder_analysis(
+        sparameter_path=profile_folder,
+        dispersion_path=tmp_path / "dispersion",
+        output_dir=output_dir,
+        marker_role="sim",
+    )
+
+    assert result == expected
+    assert [pair.case_id for pair in recorded_pairs] == ["NoPlunger"]
+
+
 def test_run_folder_analysis_logs_progress_steps(tmp_path: Path, monkeypatch, caplog) -> None:
     tables = _tables()
     sparameter_table = pd.DataFrame(
