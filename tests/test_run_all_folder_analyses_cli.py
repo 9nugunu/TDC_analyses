@@ -353,6 +353,51 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
     ]
 
 
+def test_run_batch_task_generates_campaign_phase_shifts_for_a_tuning_state(monkeypatch) -> None:
+    module = _load_runner_module()
+    task = module.BatchTask(
+        sparameter_path=Path("raw") / "raw_sweep_260722_tune_s004",
+        dispersion_path=None,
+        output_dir=Path("fig") / "analyses" / "raw_sweep_260722_tune_s004",
+        marker_role="exp",
+        data_root=Path("data"),
+        tables_only=False,
+    )
+    campaign = object()
+    phase_runs: list[dict[str, object]] = []
+    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: SimpleNamespace(
+        output_dir=task.output_dir,
+        manifest_path=task.output_dir / "manifest.json",
+    ))
+    monkeypatch.setattr(
+        module,
+        "register_matching_tuning_campaign",
+        lambda *args, **kwargs: SimpleNamespace(
+            campaign=campaign,
+            measurement_kind="state",
+            state_id="s004",
+        ),
+    )
+    monkeypatch.setattr(module, "run_tuning_cmp", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "run_tuning_campaign_phase_shifts",
+        lambda campaign, **kwargs: phase_runs.append({"campaign": campaign, **kwargs}) or None,
+        raising=False,
+    )
+
+    assert module.run_batch_task(task) == (task.sparameter_path, task.output_dir)
+
+    assert phase_runs == [
+        {
+            "campaign": campaign,
+                "analysis_root": Path("fig") / "analyses",
+                "output_dir": task.output_dir,
+                "current_state_id": "s004",
+            }
+    ]
+
+
 def test_verify_standard_table_outputs_rejects_leftover_legacy_file(tmp_path: Path) -> None:
     module = _load_runner_module()
     output_dir = tmp_path / "analysis"

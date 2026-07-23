@@ -21,6 +21,9 @@ from deflector_tuning.workflows.tuning_campaign import (
 from deflector_tuning.workflows.tuning_simulation_comparison import (
     run_tuning_cmp,
 )
+from deflector_tuning.workflows.tuning_phase_shifts import (
+    run_tuning_campaign_phase_shifts,
+)
 from deflector_tuning.workflows.plunger_sensitivity import run_plunger_sensitivity
 
 
@@ -296,6 +299,18 @@ def main(argv: list[str] | None = None) -> int:
             plot_workers=args.plot_workers,
             project_defaults=args.project_defaults,
         )
+    phase_shifts = None
+    if (
+        campaign_match is not None
+        and getattr(campaign_match, "measurement_kind", None) == "state"
+        and not args.tables_only
+    ):
+        phase_shifts = run_tuning_campaign_phase_shifts(
+            campaign_match.campaign,
+            analysis_root=Path(result.output_dir).parent,
+            output_dir=result.output_dir,
+            current_state_id=getattr(campaign_match, "state_id", None),
+        )
 
     print(f"input_folder: {args.input_folder}")
     print(f"marker_role: {args.marker_role}")
@@ -320,6 +335,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  table: {plunger_sensitivity.table_path}")
         if plunger_sensitivity.figure_path is not None:
             print(f"  figure: {plunger_sensitivity.figure_path}")
+    if phase_shifts is not None:
+        print("tuning_phase_shifts:")
+        print(f"  table: {phase_shifts.table_path}")
+        print(f"  combined: {phase_shifts.combined_figure_path}")
+        print(f"  iris: {phase_shifts.iris_figure_path}")
+        print(f"  cell: {phase_shifts.cell_figure_path}")
     return 0
 
 

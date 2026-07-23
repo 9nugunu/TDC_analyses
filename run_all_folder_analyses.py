@@ -38,6 +38,9 @@ from deflector_tuning.workflows.tuning_campaign import (
 from deflector_tuning.workflows.tuning_simulation_comparison import (
     run_tuning_cmp,
 )
+from deflector_tuning.workflows.tuning_phase_shifts import (
+    run_tuning_campaign_phase_shifts,
+)
 
 
 DESCRIPTION = "Run all discovered datasets through the standard deflector tuning analysis workflow."
@@ -330,6 +333,17 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
             data_root=task.data_root,
             plot_workers=1,
             project_defaults=task.project_defaults,
+        )
+    if (
+        campaign_match is not None
+        and getattr(campaign_match, "measurement_kind", None) == "state"
+        and not task.tables_only
+    ):
+        run_tuning_campaign_phase_shifts(
+            campaign_match.campaign,
+            analysis_root=Path(result.output_dir).parent,
+            output_dir=result.output_dir,
+            current_state_id=getattr(campaign_match, "state_id", None),
         )
     if task.tables_only:
         verify_table_contract_outputs(result.output_dir, result.manifest_path)

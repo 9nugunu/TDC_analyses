@@ -285,6 +285,61 @@ def test_main_registers_matching_campaign_without_new_cli_arguments(
     ]
 
 
+def test_main_generates_campaign_phase_shift_figures_for_a_tuning_state(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_runner_module()
+    manifest_path = tmp_path / "analyses" / "s004" / "manifest.json"
+    args = SimpleNamespace(
+        input_folder=Path("raw_sweep_260722_tune_s004"),
+        sparameter_path=Path("raw") / "raw_sweep_260722_tune_s004",
+        dispersion_path=None,
+        output_dir=tmp_path / "analyses" / "s004",
+        marker_role="exp",
+        data_root=tmp_path / "data",
+        file_workers=1,
+        plot_workers=1,
+        tables_only=False,
+        project_defaults=object(),
+    )
+    result = SimpleNamespace(
+        output_dir=args.output_dir,
+        manifest_path=manifest_path,
+        analysis_modes=("raw",),
+        tables={},
+        figures={},
+    )
+    campaign = object()
+    match = SimpleNamespace(
+        campaign=campaign,
+        comparison_enabled=False,
+        phase_offset_sensitivity=None,
+        measurement_kind="state",
+        state_id="s004",
+    )
+    phase_runs: list[dict[str, object]] = []
+    monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
+    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    monkeypatch.setattr(module, "register_matching_tuning_campaign", lambda *args, **kwargs: match)
+    monkeypatch.setattr(
+        module,
+        "run_tuning_campaign_phase_shifts",
+        lambda campaign, **kwargs: phase_runs.append({"campaign": campaign, **kwargs}) or None,
+        raising=False,
+    )
+
+    assert module.main([]) == 0
+
+    assert phase_runs == [
+        {
+            "campaign": campaign,
+                "analysis_root": tmp_path / "analyses",
+                "output_dir": args.output_dir,
+                "current_state_id": "s004",
+            }
+    ]
+
+
 def test_main_skips_tuning_comparison_for_auxiliary_measurement(
     monkeypatch, tmp_path: Path
 ) -> None:
