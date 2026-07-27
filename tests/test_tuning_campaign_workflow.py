@@ -16,6 +16,7 @@ from deflector_tuning.workflows.tuning_campaign import (
     campaign_issue_table,
     campaign_state_table,
     export_campaign_tables,
+    resolve_tuning_marker_correction,
     register_matching_tuning_campaign,
 )
 
@@ -60,6 +61,36 @@ def _campaign(tmp_path: Path):
     path = tmp_path / "iris.yaml"
     path.write_text(CAMPAIGN_YAML, encoding="utf-8")
     return load_tuning_campaign(path)
+
+
+def test_resolve_tuning_marker_correction_uses_registered_state_metadata(
+    tmp_path: Path,
+) -> None:
+    campaign_dir = tmp_path / "campaigns"
+    campaign_dir.mkdir()
+    text = CAMPAIGN_YAML.replace(
+        "  rc_design_mm: 56.59",
+        "\n".join(
+            (
+                "  rc_design_mm: 56.59",
+                "  marker_correction:",
+                "    design_temp_C: 30.0",
+            )
+        ),
+    ).replace(
+        "    flag: provisional",
+        "\n".join(("    flag: provisional", "    temp_meas_C: 23.4")),
+    )
+    (campaign_dir / "iris.yaml").write_text(text, encoding="utf-8")
+
+    correction = resolve_tuning_marker_correction(
+        "raw_sweep_260701_iris_tune_Torque13p5",
+        campaign_dir=campaign_dir,
+    )
+
+    assert correction is not None
+    assert correction.temp_op_C == pytest.approx(30.0)
+    assert correction.temp_meas_C == pytest.approx(23.4)
 
 
 def test_campaign_state_table_keeps_pending_state_and_compact_fields(tmp_path: Path) -> None:
@@ -130,9 +161,46 @@ def test_register_tuning_campaign_preserves_manifest_and_links_issues(tmp_path: 
         "config_path": "config/tuning_campaigns/iris_260701.yaml",
         "state_id": "s001",
         "state_status": "done",
+        "marker_correction": None,
         "measurement_kind": "state",
         "match_mode": "explicit",
         "issue_ids": ["i001"],
+    }
+
+
+def test_register_tuning_campaign_records_state_marker_correction(tmp_path: Path) -> None:
+    campaign_path = tmp_path / "iris.yaml"
+    campaign_path.write_text(
+        CAMPAIGN_YAML.replace(
+            "  rc_design_mm: 56.59",
+            "\n".join(
+                (
+                    "  rc_design_mm: 56.59",
+                    "  marker_correction:",
+                    "    design_temp_C: 30.0",
+                )
+            ),
+        ).replace("    flag: provisional", "    flag: provisional\n    temp_meas_C: 23.4"),
+        encoding="utf-8",
+    )
+    campaign = load_tuning_campaign(campaign_path)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text("{}", encoding="utf-8")
+
+    register_tuning_campaign(
+        manifest_path,
+        config_path=campaign_path,
+        campaign=campaign,
+        state_id="s001",
+    )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["tuning_campaign"]["marker_correction"] == {
+        "design_temp_C": 30.0,
+        "measurement_temp_C": 23.4,
+        "humidity_fraction": 0.65,
+        "thermal_alpha_per_C": 1.68e-5,
+        "eps_air_humid": 1.000712754221782,
     }
 
 

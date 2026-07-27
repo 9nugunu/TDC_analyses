@@ -19,6 +19,7 @@ from deflector_tuning.analysis.marker_pipeline import (
     build_marker_analysis,
     save_marker_analysis,
 )
+from deflector_tuning.markers.frequency_markers import TemperatureHumidityCorrection
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.one_port_matrix import (
     Lane,
@@ -143,6 +144,7 @@ def run_folder_analysis(
     tables_only: bool = False,
     loader: DataLoader | None = None,
     project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
+    marker_correction: TemperatureHumidityCorrection | None = None,
 ) -> RunResult:
     """Run the standard one-folder marker workflow and write tables/figures.
 
@@ -309,6 +311,7 @@ def run_folder_analysis(
         marker_role=marker_role,
         loader=loader,
         sparameter_table=sparameter_table,
+        marker_correction=marker_correction,
     )
     logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
     logger.info("Saving analysis tables to %s", table_dir)

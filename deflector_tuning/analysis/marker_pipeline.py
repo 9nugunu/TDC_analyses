@@ -41,7 +41,10 @@ from deflector_tuning.analysis.geometry_phase_response import (
 from deflector_tuning.analysis.grid_rc_line_scan import extract_fixed_width_rc_line_scan
 from deflector_tuning.analysis.sparameter_selection import select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
-from deflector_tuning.markers.frequency_markers import extract_marker_frequencies
+from deflector_tuning.markers.frequency_markers import (
+    TemperatureHumidityCorrection,
+    extract_marker_frequencies,
+)
 from deflector_tuning.markers.sampling import sample_nearest_markers
 from deflector_tuning.table_schema import STANDARD_TABLE_SPECS
 from deflector_tuning.table_export import TableSaveResult, save_standard_tables
@@ -85,6 +88,7 @@ def build_marker_analysis(
     marker_role: str,
     loader: DataLoader | None = None,
     sparameter_table: pd.DataFrame | None = None,
+    marker_correction: TemperatureHumidityCorrection | None = None,
 ) -> AnalysisTables:
     """Build marker-frequency, marker-point, phase-advance, and summary tables.
 
@@ -96,7 +100,11 @@ def build_marker_analysis(
         loader = loader or DataLoader()
         sparameter_table = loader.load(sparameter_path)
     sparameter_table = select_s11_rows(sparameter_table)
-    markers = extract_marker_frequencies(dispersion_path, marker_role=marker_role)
+    markers = extract_marker_frequencies(
+        dispersion_path,
+        marker_role=marker_role,
+        correction=marker_correction,
+    )
     marker_points = sample_nearest_markers(sparameter_table, markers)
     phase_polar = build_marker_phase_polar_table(marker_points)
     rc_line = extract_fixed_width_rc_line_scan(phase_polar)

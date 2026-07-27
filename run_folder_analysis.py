@@ -17,6 +17,7 @@ from deflector_tuning.project_defaults import (
 from deflector_tuning.runner import run_folder_analysis
 from deflector_tuning.workflows.tuning_campaign import (
     register_matching_tuning_campaign,
+    resolve_tuning_marker_correction,
 )
 from deflector_tuning.workflows.tuning_simulation_comparison import (
     run_tuning_cmp,
@@ -257,6 +258,14 @@ def main(argv: list[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = parse_args(argv)
+    marker_correction = (
+        resolve_tuning_marker_correction(
+            _dataset_id_from_input(Path(args.sparameter_path)),
+            data_root=args.data_root,
+        )
+        if args.marker_role == "exp"
+        else None
+    )
     result = run_folder_analysis(
         sparameter_path=args.sparameter_path,
         dispersion_path=args.dispersion_path,
@@ -267,6 +276,7 @@ def main(argv: list[str] | None = None) -> int:
         plot_workers=args.plot_workers,
         tables_only=args.tables_only,
         project_defaults=args.project_defaults,
+        marker_correction=marker_correction,
     )
     campaign_match = register_matching_tuning_campaign(
         _dataset_id_from_input(Path(args.sparameter_path)),

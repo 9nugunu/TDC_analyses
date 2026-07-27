@@ -34,6 +34,7 @@ from deflector_tuning.table_schema import (
 )
 from deflector_tuning.workflows.tuning_campaign import (
     register_matching_tuning_campaign,
+    resolve_tuning_marker_correction,
 )
 from deflector_tuning.workflows.tuning_simulation_comparison import (
     run_tuning_cmp,
@@ -311,6 +312,14 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         if task.dispersion_path is not None
         else None
     )
+    marker_correction = (
+        resolve_tuning_marker_correction(
+            task.sparameter_path.name,
+            data_root=task.data_root,
+        )
+        if task.marker_role == "exp"
+        else None
+    )
     result = run_folder_analysis(
         sparameter_path=task.sparameter_path,
         dispersion_path=dispersion_path,
@@ -320,6 +329,7 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         plot_workers=1,
         tables_only=task.tables_only,
         project_defaults=task.project_defaults,
+        marker_correction=marker_correction,
     )
     campaign_match = register_matching_tuning_campaign(
         task.sparameter_path.name,

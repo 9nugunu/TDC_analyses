@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
+from deflector_tuning.markers.frequency_markers import TemperatureHumidityCorrection
 from deflector_tuning.tuning_campaign import (
     TuningCampaign,
     TuningCampaignMatch,
@@ -21,6 +22,24 @@ from deflector_tuning.workflows.manifest import register_tuning_campaign
 DEFAULT_TUNING_CAMPAIGN_DIR = (
     Path(__file__).resolve().parents[2] / "config" / "tuning_campaigns"
 )
+
+
+def resolve_tuning_marker_correction(
+    dataset_id: str,
+    *,
+    campaign_dir: str | Path = DEFAULT_TUNING_CAMPAIGN_DIR,
+    data_root: str | Path | None = None,
+) -> TemperatureHumidityCorrection | None:
+    """Return the state-recorded marker correction for one dataset, if any."""
+
+    match = find_tuning_campaign(
+        dataset_id,
+        campaign_dir,
+        data_root=data_root,
+    )
+    if match is None or match.state_id is None:
+        return None
+    return match.campaign.marker_correction_for(match.state_id)
 
 
 def register_matching_tuning_campaign(

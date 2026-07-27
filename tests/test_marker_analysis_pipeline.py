@@ -8,6 +8,7 @@ from deflector_tuning.analysis.marker_pipeline import (
     build_marker_phase_polar_table,
     save_marker_analysis,
 )
+from deflector_tuning.markers.frequency_markers import TemperatureHumidityCorrection
 
 
 def _write_dispersion_summary(folder: Path) -> None:
@@ -437,7 +438,7 @@ def test_build_marker_phase_polar_table_writes_one_row_per_run_with_marker_phase
 
 
 def test_build_marker_analysis_samples_only_s11_rows(monkeypatch, tmp_path: Path) -> None:
-    captured: dict[str, pd.DataFrame] = {}
+    captured: dict[str, object] = {}
 
     class FakeLoader:
         def load(self, path):
@@ -485,11 +486,12 @@ def test_build_marker_analysis_samples_only_s11_rows(monkeypatch, tmp_path: Path
             ]
         )
 
-    monkeypatch.setattr(
-        marker_pipeline,
-        "extract_marker_frequencies",
-        lambda *args, **kwargs: pd.DataFrame([{"marker_name": "f_2pi3", "freq_ghz": 2.856}]),
-    )
+    def fake_extract_marker_frequencies(*args, **kwargs) -> pd.DataFrame:
+        captured["correction"] = kwargs.get("correction")
+        return pd.DataFrame([{"marker_name": "f_2pi3", "freq_ghz": 2.856}])
+
+    correction = TemperatureHumidityCorrection(temp_op_C=30.0, temp_meas_C=23.4)
+    monkeypatch.setattr(marker_pipeline, "extract_marker_frequencies", fake_extract_marker_frequencies)
     monkeypatch.setattr(marker_pipeline, "sample_nearest_markers", fake_sample_nearest_markers)
 
     build_marker_analysis(
@@ -497,6 +499,8 @@ def test_build_marker_analysis_samples_only_s11_rows(monkeypatch, tmp_path: Path
         dispersion_path=tmp_path / "data" / "sim" / "dispersion",
         marker_role="exp",
         loader=FakeLoader(),
+        marker_correction=correction,
     )
 
     assert captured["sparameter_table"]["s_name"].tolist() == ["S11"]
+    assert captured["correction"] is correction

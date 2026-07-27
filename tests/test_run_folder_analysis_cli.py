@@ -246,7 +246,19 @@ def test_main_registers_matching_campaign_without_new_cli_arguments(
         phase_offset_sensitivity=None,
     )
     monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
-    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    run_arguments: list[dict[str, object]] = []
+    correction = object()
+    monkeypatch.setattr(
+        module,
+        "run_folder_analysis",
+        lambda **kwargs: run_arguments.append(kwargs) or result,
+    )
+    monkeypatch.setattr(
+        module,
+        "resolve_tuning_marker_correction",
+        lambda *args, **kwargs: correction,
+        raising=False,
+    )
     monkeypatch.setattr(
         module,
         "register_matching_tuning_campaign",
@@ -283,6 +295,7 @@ def test_main_registers_matching_campaign_without_new_cli_arguments(
             "project_defaults": args.project_defaults,
         }
     ]
+    assert run_arguments[0]["marker_correction"] is correction
 
 
 def test_main_generates_campaign_phase_shift_figures_for_a_tuning_state(
@@ -320,6 +333,12 @@ def test_main_generates_campaign_phase_shift_figures_for_a_tuning_state(
     phase_runs: list[dict[str, object]] = []
     monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
     monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    monkeypatch.setattr(
+        module,
+        "resolve_tuning_marker_correction",
+        lambda *args, **kwargs: None,
+        raising=False,
+    )
     monkeypatch.setattr(module, "register_matching_tuning_campaign", lambda *args, **kwargs: match)
     monkeypatch.setattr(
         module,
@@ -372,6 +391,12 @@ def test_main_skips_tuning_comparison_for_auxiliary_measurement(
     )
     monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
     monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    monkeypatch.setattr(
+        module,
+        "resolve_tuning_marker_correction",
+        lambda *args, **kwargs: None,
+        raising=False,
+    )
     monkeypatch.setattr(
         module,
         "register_matching_tuning_campaign",

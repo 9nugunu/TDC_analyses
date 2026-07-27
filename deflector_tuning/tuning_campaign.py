@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import re
+from math import isfinite
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Mapping, cast
 
 import yaml
+
+from deflector_tuning.markers.frequency_markers import TemperatureHumidityCorrection
 
 
 SUPPORTED_SCHEMA_VERSION = 1
@@ -44,6 +47,16 @@ class PhaseReference:
 
 
 @dataclass(frozen=True)
+class MarkerCorrectionReference:
+    """Campaign-wide inputs for experimental marker-frequency correction."""
+
+    design_temp_C: float = 20.0
+    humidity_fraction: float = 0.65
+    thermal_alpha_per_C: float = 1.68e-5
+    eps_air_humid: float = 1.000712754221782
+
+
+@dataclass(frozen=True)
 class SimulationReference:
     """One measurement-family reference to a one-dimensional ``r_c`` sweep."""
 
@@ -66,6 +79,7 @@ class TuningState:
     angle_deg: float | None = None
     change: str | None = None
     quality_flag: str | None = None
+    measurement_temp_C: float | None = None
     uncertainty: Mapping[str, float] = field(default_factory=dict)
     note: str | None = None
 
@@ -112,6 +126,7 @@ class TuningCampaign:
     simulation_references: Mapping[str, SimulationReference]
     design_r_c_mm: float
     phase: PhaseReference
+    marker_correction: MarkerCorrectionReference
     states: Mapping[str, TuningState]
     auxiliary_measurements: Mapping[str, TuningAuxMeasurement]
     issues: Mapping[str, TuningIssue]
@@ -132,6 +147,23 @@ class TuningCampaign:
         """Return the first simulation dataset for legacy single-sweep callers."""
 
         return next(iter(self.simulation_references.values())).dataset
+
+    def marker_correction_for(
+        self,
+        state_id: str,
+    ) -> TemperatureHumidityCorrection | None:
+        """Return the experimental marker correction recorded for one state."""
+
+        measurement_temp_C = self.states[state_id].measurement_temp_C
+        if measurement_temp_C is None:
+            return None
+        return TemperatureHumidityCorrection(
+            temp_op_C=self.marker_correction.design_temp_C,
+            temp_meas_C=measurement_temp_C,
+            humidity_fraction=self.marker_correction.humidity_fraction,
+            thermal_alpha_per_C=self.marker_correction.thermal_alpha_per_C,
+            eps_air_humid=self.marker_correction.eps_air_humid,
+        )
 
 
 @dataclass(frozen=True)
@@ -193,6 +225,10 @@ def load_tuning_campaign(
         campaign_values.get("rc_design_mm"), "campaign.rc_design_mm", config_path
     )
     phase = _parse_phase(campaign_values.get("phase"), config_path)
+    marker_correction = _parse_marker_correction(
+        campaign_values.get("marker_correction"),
+        config_path,
+    )
     states = _parse_states(root.get("states"), config_path)
     auxiliary_measurements = _parse_auxiliary_measurements(root.get("aux", {}), config_path)
     issues = _parse_issues(root.get("issues", {}), config_path)
@@ -204,6 +240,7 @@ def load_tuning_campaign(
         simulation_references=simulation_references,
         design_r_c_mm=design_r_c_mm,
         phase=phase,
+        marker_correction=marker_correction,
         states=states,
         auxiliary_measurements=auxiliary_measurements,
         issues=issues,
@@ -512,6 +549,38 @@ def _parse_phase(value: object, config_path: Path) -> PhaseReference:
     )
 
 
+def _parse_marker_correction(
+    value: object,
+    config_path: Path,
+) -> MarkerCorrectionReference:
+    """Parse optional campaign-wide experimental marker-correction inputs."""
+
+    if value is None:
+        return MarkerCorrectionReference()
+    correction = _mapping(value, "campaign.marker_correction", config_path)
+    defaults = MarkerCorrectionReference()
+    return MarkerCorrectionReference(
+        design_temp_C=_finite_number(
+            correction.get("design_temp_C", defaults.design_temp_C),
+            "campaign.marker_correction.design_temp_C",
+            config_path,
+        ),
+        humidity_fraction=_finite_number(
+            correction.get("humidity_fraction", defaults.humidity_fraction),
+            "campaign.marker_correction.humidity_fraction",
+            config_path,
+        ),
+        thermal_alpha_per_C=_finite_number(
+            correction.get("thermal_alpha_per_C", defaults.thermal_alpha_per_C),
+            "campaign.marker_correction.thermal_alpha_per_C",
+            config_path,
+        ),
+        eps_air_humid=_finite_number(
+            correction.get("eps_air_humid", defaults.eps_air_humid),
+            "campaign.marker_correction.eps_air_humid",
+            config_path,
+        ),
+    )
 def _parse_simulation_references(
     campaign_values: Mapping[object, object],
     config_path: Path,
@@ -628,6 +697,11 @@ def _parse_states(value: object, config_path: Path) -> dict[str, TuningState]:
             ),
             quality_flag=_optional_text(
                 values.get("flag"), f"states.{state_id}.flag", config_path
+            ),
+            measurement_temp_C=_optional_finite_number(
+                values.get("temp_meas_C"),
+                f"states.{state_id}.temp_meas_C",
+                config_path,
             ),
             uncertainty=uncertainty,
             note=_optional_text(
@@ -869,3 +943,20 @@ def _optional_number(value: object, name: str, config_path: Path) -> float | Non
     if value is None:
         return None
     return _number(value, name, config_path)
+
+
+def _finite_number(value: object, name: str, config_path: Path) -> float:
+    number = _number(value, name, config_path)
+    if not isfinite(number):
+        raise ValueError(f"Expected finite numeric {name} in {config_path}")
+    return number
+
+
+def _optional_finite_number(
+    value: object,
+    name: str,
+    config_path: Path,
+) -> float | None:
+    if value is None:
+        return None
+    return _finite_number(value, name, config_path)

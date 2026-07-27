@@ -28,6 +28,7 @@ def register_tuning_campaign(
 
     manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     state = campaign.states[state_id] if state_id is not None else None
+    marker_correction = campaign.marker_correction_for(state_id)
     linked_issue_ids = [
         issue_id
         for issue_id, issue in campaign.issues.items()
@@ -39,6 +40,17 @@ def register_tuning_campaign(
         "config_path": Path(config_path).as_posix(),
         "state_id": state_id,
         "state_status": state.measurement_status if state is not None else None,
+        "marker_correction": (
+            {
+                "design_temp_C": marker_correction.temp_op_C,
+                "measurement_temp_C": marker_correction.temp_meas_C,
+                "humidity_fraction": marker_correction.humidity_fraction,
+                "thermal_alpha_per_C": marker_correction.thermal_alpha_per_C,
+                "eps_air_humid": marker_correction.eps_air_humid,
+            }
+            if marker_correction is not None
+            else None
+        ),
         "measurement_kind": measurement_kind,
         "match_mode": match_mode,
         "issue_ids": linked_issue_ids,

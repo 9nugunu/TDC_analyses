@@ -92,6 +92,25 @@ def test_project_iris_campaign_registers_completed_tuning_states(
     assert match.comparison_enabled is comparison_enabled
 
 
+@pytest.mark.parametrize("state_id", ("s003", "s004"))
+def test_project_iris_campaign_records_23p4c_measurement_temperature(
+    state_id: str,
+) -> None:
+    campaign_path = (
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "tuning_campaigns"
+        / "iris_260701.yaml"
+    )
+    campaign = load_tuning_campaign(campaign_path)
+
+    correction = campaign.marker_correction_for(state_id)
+
+    assert correction is not None
+    assert correction.temp_op_C == pytest.approx(30.0)
+    assert correction.temp_meas_C == pytest.approx(23.4)
+
+
 def test_load_tuning_campaign_expands_compact_issue_defaults(tmp_path: Path) -> None:
     campaign = load_tuning_campaign(_write_campaign(tmp_path))
 
@@ -115,6 +134,37 @@ def test_load_tuning_campaign_expands_compact_issue_defaults(tmp_path: Path) -> 
     assert issue.check == ("output",)
     assert issue.after_state_id == "s001"
     assert issue.verification_state_id == "s002"
+
+
+def test_load_tuning_campaign_resolves_state_marker_correction(tmp_path: Path) -> None:
+    text = COMPACT_CAMPAIGN.replace(
+        "  rc_design_mm: 56.59",
+        "\n".join(
+            (
+                "  rc_design_mm: 56.59",
+                "  marker_correction:",
+                "    design_temp_C: 30.0",
+                "    humidity_fraction: 0.65",
+                "    thermal_alpha_per_C: 1.68e-5",
+                "    eps_air_humid: 1.000712754221782",
+            )
+        ),
+    ).replace(
+        "    flag: provisional",
+        "\n".join(("    flag: provisional", "    temp_meas_C: 23.4")),
+    )
+
+    campaign = load_tuning_campaign(_write_campaign(tmp_path, text))
+
+    correction = campaign.marker_correction_for("s001")
+
+    assert correction is not None
+    assert correction.temp_op_C == pytest.approx(30.0)
+    assert correction.temp_meas_C == pytest.approx(23.4)
+    assert correction.humidity_fraction == pytest.approx(0.65)
+    assert correction.thermal_alpha_per_C == pytest.approx(1.68e-5)
+    assert correction.eps_air_humid == pytest.approx(1.000712754221782)
+    assert campaign.marker_correction_for("s000") is None
 
 
 def test_load_tuning_campaign_reads_role_keyed_rc_sweeps(tmp_path: Path) -> None:

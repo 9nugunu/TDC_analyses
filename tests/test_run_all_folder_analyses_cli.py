@@ -343,6 +343,7 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
     assert result == (task.sparameter_path, task.output_dir)
     assert captured["plot_workers"] == 1
     assert captured["tables_only"] is True
+    assert captured["marker_correction"] is None
     assert verified == [(task.output_dir, task.output_dir / "manifest.json")]
     assert registered == [
         {
@@ -365,10 +366,22 @@ def test_run_batch_task_generates_campaign_phase_shifts_for_a_tuning_state(monke
     )
     campaign = object()
     phase_runs: list[dict[str, object]] = []
-    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: SimpleNamespace(
-        output_dir=task.output_dir,
-        manifest_path=task.output_dir / "manifest.json",
-    ))
+    captured: dict[str, object] = {}
+    correction = object()
+    monkeypatch.setattr(
+        module,
+        "run_folder_analysis",
+        lambda **kwargs: captured.update(kwargs) or SimpleNamespace(
+            output_dir=task.output_dir,
+            manifest_path=task.output_dir / "manifest.json",
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "resolve_tuning_marker_correction",
+        lambda *args, **kwargs: correction,
+        raising=False,
+    )
     monkeypatch.setattr(
         module,
         "register_matching_tuning_campaign",
@@ -396,6 +409,7 @@ def test_run_batch_task_generates_campaign_phase_shifts_for_a_tuning_state(monke
                 "current_state_id": "s004",
             }
     ]
+    assert captured["marker_correction"] is correction
 
 
 def test_verify_standard_table_outputs_rejects_leftover_legacy_file(tmp_path: Path) -> None:
