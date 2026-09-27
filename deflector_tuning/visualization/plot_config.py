@@ -59,6 +59,14 @@ class PlotConfig:
     line_width: float = 2.4
     marker_size: int = 52
     compact_marker_size: int = 32
+    major_grid_color: str = "0.86"
+    major_grid_line_style: str = "-"
+    major_grid_line_width: float = 0.7
+    major_grid_alpha: float = 0.8
+    minor_grid_color: str = "0.90"
+    minor_grid_line_style: str = ":"
+    minor_grid_line_width: float = 0.5
+    minor_grid_alpha: float = 0.5
     figure_size: tuple[float, float] = (5.6, 5.6)
     overview_panel_size: tuple[float, float] = (5.8, 5.2)
     font_family: tuple[str, ...] = ("Pretendard", "Noto Sans", "Malgun Gothic", "DejaVu Sans")
@@ -163,6 +171,32 @@ def apply_axis_text_style(
     ax.tick_params(axis="both", labelsize=tick_size)
     for tick in [*ax.get_xticklabels(), *ax.get_yticklabels()]:
         tick.set_fontweight(config.tick_weight)
+
+
+def apply_grid_style(ax, config: PlotConfig | None = None) -> None:
+    """Apply distinct major and minor grids to a two-dimensional axis."""
+
+    if hasattr(ax, "get_proj"):
+        return
+    config = config or PlotConfig()
+    ax.minorticks_on()
+    ax.set_axisbelow(True)
+    ax.grid(
+        True,
+        which="major",
+        color=config.major_grid_color,
+        linestyle=config.major_grid_line_style,
+        linewidth=config.major_grid_line_width,
+        alpha=config.major_grid_alpha,
+    )
+    ax.grid(
+        True,
+        which="minor",
+        color=config.minor_grid_color,
+        linestyle=config.minor_grid_line_style,
+        linewidth=config.minor_grid_line_width,
+        alpha=config.minor_grid_alpha,
+    )
 
 
 def apply_legend_text_style(legend, config: PlotConfig | None = None) -> None:

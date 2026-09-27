@@ -6,12 +6,28 @@ from deflector_tuning.visualization.plot_config import (
     MATPLOTLIB_MATHTEXT_LOGGER,
     PlotConfig,
     apply_axis_text_style,
+    apply_grid_style,
     apply_legend_text_style,
     apply_plot_style,
     bold_math,
     contour_contrast_color,
     math_label,
 )
+
+
+def test_apply_grid_style_enables_distinct_major_and_minor_grids() -> None:
+    fig, ax = plt.subplots()
+
+    apply_grid_style(ax, PlotConfig())
+
+    major_gridline = ax.xaxis.get_major_ticks()[0].gridline
+    minor_gridline = ax.xaxis.get_minor_ticks()[0].gridline
+    assert major_gridline.get_visible() is True
+    assert major_gridline.get_linestyle() == "-"
+    assert minor_gridline.get_visible() is True
+    assert minor_gridline.get_linestyle() == ":"
+    assert minor_gridline.get_alpha() == 0.5
+    plt.close(fig)
 
 
 def test_plot_config_defaults_use_larger_readable_typography() -> None:
