@@ -115,15 +115,58 @@ def plot_phase_rc_map(
         fixed_w_c=fixed_w_c,
         config=config,
         candidate_r_c=float(radii["current"]),
-        candidate_label=rf"current $r_c={float(radii['current']):.3f}$ mm",
+        candidate_label=rf"Torque 13.5: $r_c={float(radii['current']):.3f}$ mm",
         before_r_c=float(radii["baseline"]),
-        before_label=rf"initial $r_c={float(radii['baseline']):.3f}$ mm",
+        before_label=rf"Before tuning: $r_c={float(radii['baseline']):.3f}$ mm",
         target_r_c=float(radii["design"]),
-        target_label=rf"ideal $r_c={float(radii['design']):.3f}$ mm",
+        target_label=rf"Design: $r_c={float(radii['design']):.3f}$ mm",
         show_design_reference=False,
         annotate_design_phase_values=True,
         design_r_c=float(radii["design"]),
         sparse_markers=True,
+    )
+
+
+def plot_phase_rc_states(
+    line_scan: pd.DataFrame,
+    output_path: str | Path,
+    *,
+    before_r_c_mm: float,
+    current_r_c_mm: float,
+    s003_r_c_mm: float,
+    design_r_c_mm: float,
+    f_mean_zero_r_c_mm: float,
+    fixed_w_c: float = DEFAULT_GRID_RC_LINE_SCAN_W_C,
+    config: PlotConfig | None = None,
+) -> Path:
+    """Plot the named tuning states on one simulated ``r_c`` scan."""
+
+    config = config or PlotConfig()
+    apply_plot_style(config)
+    require_finite_plot_columns(
+        line_scan,
+        columns=("sim_r_c", "s_phase_deg"),
+        context="S-parameter phase r_c state plot",
+        id_columns=("marker_name", "sim_r_c", "sim_w_c", "source_file", "run_id"),
+    )
+    return _plot_sparameter_phase_line_scan(
+        line_scan,
+        Path(output_path),
+        fixed_w_c=fixed_w_c,
+        config=config,
+        candidate_r_c=float(current_r_c_mm),
+        candidate_label=rf"s002 (13.5 N·m): $r_c={float(current_r_c_mm):.3f}$ mm",
+        s003_r_c=float(s003_r_c_mm),
+        s003_label=rf"s003 tuning: $r_c={float(s003_r_c_mm):.3f}$ mm",
+        before_r_c=float(before_r_c_mm),
+        before_label=rf"Initial: $r_c={float(before_r_c_mm):.3f}$ mm",
+        target_r_c=float(f_mean_zero_r_c_mm),
+        target_label="f_mean phase = 0°",
+        show_design_reference=True,
+        design_r_c=float(design_r_c_mm),
+        design_label=None,
+        annotate_design_phase_values=True,
+        sparse_markers=False,
     )
 
 
@@ -169,6 +212,8 @@ def _plot_sparameter_phase_line_scan(
     config: PlotConfig,
     candidate_r_c: float | None = None,
     candidate_label: str | None = None,
+    s003_r_c: float | None = None,
+    s003_label: str | None = None,
     before_r_c: float | None = None,
     before_label: str | None = None,
     target_r_c: float | None = None,
@@ -176,6 +221,7 @@ def _plot_sparameter_phase_line_scan(
     show_design_reference: bool = True,
     annotate_design_phase_values: bool = True,
     design_r_c: float | None = None,
+    design_label: str | None = None,
     sparse_markers: bool = False,
 ) -> Path:
     fig, ax = plt.subplots(figsize=(7.4, 5.2))
@@ -214,6 +260,26 @@ def _plot_sparameter_phase_line_scan(
             linewidth=DESIGN_REFERENCE_LINEWIDTH,
             alpha=REFERENCE_GUIDE_ALPHA,
         )
+        if design_label is not None:
+            ax.annotate(
+                design_label,
+                xy=(reference_r_c, 0.75),
+                xycoords=("data", "axes fraction"),
+                xytext=(7, -5),
+                textcoords="offset points",
+                ha="left",
+                va="top",
+                fontsize=9.0,
+                fontweight=config.legend_weight,
+                color=REFERENCE_GUIDE_COLOR,
+                bbox={
+                    "boxstyle": "round,pad=0.25",
+                    "facecolor": "white",
+                    "edgecolor": REFERENCE_GUIDE_COLOR,
+                    "alpha": 0.92,
+                },
+                zorder=7,
+            )
     if annotate_design_phase_values and reference_r_c is not None:
         _annotate_design_phase_values(ax, line_scan, design_r_c=reference_r_c, config=config)
     if candidate_r_c is not None:
@@ -258,6 +324,28 @@ def _plot_sparameter_phase_line_scan(
             fontweight=config.legend_weight,
             color="#8c510a",
             bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#8c510a", "alpha": 0.92},
+            zorder=7,
+        )
+    if s003_r_c is not None:
+        ax.axvline(
+            s003_r_c,
+            color="#2b8cbe",
+            linestyle=(0, (5, 2)),
+            linewidth=1.7,
+            zorder=5,
+        )
+        ax.annotate(
+            s003_label or rf"S003 tuning $r_c={s003_r_c:.3f}$ mm",
+            xy=(s003_r_c, 0.60),
+            xycoords=("data", "axes fraction"),
+            xytext=(-7, -5),
+            textcoords="offset points",
+            ha="right",
+            va="top",
+            fontsize=9.0,
+            fontweight=config.legend_weight,
+            color="#2b8cbe",
+            bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#2b8cbe", "alpha": 0.92},
             zorder=7,
         )
     if target_r_c is not None:

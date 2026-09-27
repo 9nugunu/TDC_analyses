@@ -7,6 +7,7 @@ import deflector_tuning.visualization.grid_scan_phase_line_plots as phase_line_p
 from deflector_tuning.visualization.grid_scan_phase_line_plots import (
     plot_grid_scan_sparameter_phase_r_c_line_scan,
     plot_phase_rc_map,
+    plot_phase_rc_states,
 )
 from deflector_tuning.visualization.plot_config import PlotConfig
 
@@ -102,7 +103,7 @@ def test_plot_phase_rc_map_writes_baseline_current_and_design_guides(tmp_path: P
     assert path.stat().st_size > 0
 
 
-def test_plot_phase_rc_map_uses_initial_current_ideal_labels_and_ideal_annotations(
+def test_plot_phase_rc_map_uses_concise_state_labels_and_design_annotations(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -129,11 +130,45 @@ def test_plot_phase_rc_map_uses_initial_current_ideal_labels_and_ideal_annotatio
 
     phase_line_plots.plot_phase_rc_map(line_scan, rc_fit, tmp_path / "phase_rc_map.png")
 
-    assert captured["candidate_label"] == "current $r_c=56.237$ mm"
-    assert captured["before_label"] == "initial $r_c=56.179$ mm"
-    assert captured["target_label"] == "ideal $r_c=56.590$ mm"
+    assert captured["candidate_label"] == "Torque 13.5: $r_c=56.237$ mm"
+    assert captured["before_label"] == "Before tuning: $r_c=56.179$ mm"
+    assert captured["target_label"] == "Design: $r_c=56.590$ mm"
     assert captured["annotate_design_phase_values"] is True
     assert captured["design_r_c"] == 56.59
+
+
+def test_plot_phase_rc_states_uses_concise_state_labels(tmp_path: Path, monkeypatch) -> None:
+    line_scan = pd.DataFrame(
+        [
+            {"sim_r_c": 56.20, "sim_w_c": 19.3224, "marker_name": "f_mean", "s_phase_deg": 12.0},
+            {"sim_r_c": 56.59, "sim_w_c": 19.3224, "marker_name": "f_mean", "s_phase_deg": -3.0},
+        ]
+    )
+    captured: dict[str, object] = {}
+
+    def capture_plot(*args, **kwargs):
+        captured.update(kwargs)
+        return tmp_path / "rc_phase_states.png"
+
+    monkeypatch.setattr(phase_line_plots, "_plot_sparameter_phase_line_scan", capture_plot)
+
+    phase_line_plots.plot_phase_rc_states(
+        line_scan,
+        tmp_path / "rc_phase_states.png",
+        before_r_c_mm=56.179,
+        current_r_c_mm=56.237,
+        s003_r_c_mm=56.470,
+        design_r_c_mm=56.590,
+        f_mean_zero_r_c_mm=56.566,
+    )
+
+    assert captured["candidate_label"] == "s002 (13.5 N·m): $r_c=56.237$ mm"
+    assert captured["before_label"] == "Initial: $r_c=56.179$ mm"
+    assert captured["s003_label"] == "s003 tuning: $r_c=56.470$ mm"
+    assert captured["s003_r_c"] == 56.47
+    assert captured["target_label"] == "f_mean phase = 0°"
+    assert captured["design_label"] is None
+    assert captured["show_design_reference"] is True
 
 
 def test_plot_phase_rc_map_uses_sparse_marker_specific_line_styles(
