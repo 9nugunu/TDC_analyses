@@ -264,6 +264,72 @@ def test_main_runs_every_discovered_dataset_and_continues_after_failure(monkeypa
     assert "failed_datasets:" in captured.out
 
 
+def test_main_refreshes_phase_shift_summaries_after_parallel_batch(monkeypatch, tmp_path: Path) -> None:
+    module = _load_runner_module()
+    task = module.BatchTask(
+        sparameter_path=Path("raw") / "raw_sweep_260721_tune_s002_Torque13p5",
+        dispersion_path=None,
+        output_dir=tmp_path / "analyses" / "raw_sweep_260721_tune_s002_Torque13p5",
+        marker_role="exp",
+        data_root=tmp_path / "data",
+    )
+    successes = [(task.sparameter_path, task.output_dir)]
+    refreshes: list[tuple[list[object], list[tuple[Path, Path]]]] = []
+    monkeypatch.setattr(module, "resolve_batch_inputs", lambda *args, **kwargs: [task.sparameter_path])
+    monkeypatch.setattr(module, "build_batch_tasks", lambda *args, **kwargs: [task])
+    monkeypatch.setattr(module, "execute_batch_tasks", lambda *args, **kwargs: (successes, []))
+    monkeypatch.setattr(
+        module,
+        "refresh_tuning_phase_shift_summaries",
+        lambda tasks, successful_runs: refreshes.append((tasks, successful_runs)),
+        raising=False,
+    )
+
+    assert module.main(["--workers", "2"]) == 0
+
+    assert refreshes == [([task], successes)]
+
+
+def test_refresh_tuning_phase_shift_summaries_uses_each_successful_state(monkeypatch, tmp_path: Path) -> None:
+    module = _load_runner_module()
+    task = module.BatchTask(
+        sparameter_path=Path("raw") / "raw_sweep_260721_tune_s002_Torque13p5",
+        dispersion_path=None,
+        output_dir=tmp_path / "analyses" / "raw_sweep_260721_tune_s002_Torque13p5",
+        marker_role="exp",
+        data_root=tmp_path / "data",
+    )
+    campaign = object()
+    phase_runs: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        module,
+        "register_matching_tuning_campaign",
+        lambda *args, **kwargs: SimpleNamespace(
+            campaign=campaign,
+            measurement_kind="state",
+            state_id="s002",
+        ),
+    )
+    monkeypatch.setattr(
+        module,
+        "run_tuning_campaign_phase_shifts",
+        lambda campaign, **kwargs: phase_runs.append({"campaign": campaign, **kwargs}),
+    )
+
+    module.refresh_tuning_phase_shift_summaries(
+        [task], [(task.sparameter_path, task.output_dir)]
+    )
+
+    assert phase_runs == [
+        {
+            "campaign": campaign,
+            "analysis_root": tmp_path / "analyses",
+            "output_dir": task.output_dir,
+            "current_state_id": "s002",
+        }
+    ]
+
+
 def test_execute_batch_tasks_logs_progress(monkeypatch, caplog) -> None:
     module = _load_runner_module()
     tasks = [
@@ -315,6 +381,13 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
     registered: list[dict[str, object]] = []
 
     monkeypatch.setattr(module, "prepare_batch_dispersion_input", lambda *args, **kwargs: None)
+    correction = object()
+    monkeypatch.setattr(
+        module,
+        "resolve_tuning_marker_correction",
+        lambda *args, **kwargs: correction,
+        raising=False,
+    )
 
     def fake_run_folder_analysis(**kwargs):
         captured.update(kwargs)
@@ -407,7 +480,7 @@ def test_run_batch_task_generates_campaign_phase_shifts_for_a_tuning_state(monke
                 "analysis_root": Path("fig") / "analyses",
                 "output_dir": task.output_dir,
                 "current_state_id": "s004",
-            }
+        }
     ]
     assert captured["marker_correction"] is correction
 

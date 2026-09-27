@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.tuning_campaign import TuningCampaign
-from deflector_tuning.visualization.marker_styles import MARKER_LABELS
+from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.visualization.plot_config import (
     PlotConfig,
     apply_axis_text_style,
@@ -33,12 +33,13 @@ POSITION_COLORS: Mapping[str, str] = {
 
 @dataclass(frozen=True)
 class TuningPhaseShiftOutputs:
-    """One campaign summary table and its three phase-shift figures."""
+    """One campaign summary table and its phase-shift and phase-value figures."""
 
     table_path: Path
     combined_figure_path: Path
     iris_figure_path: Path
     cell_figure_path: Path
+    iris_absolute_figure_path: Path
 
 
 def build_phase_shift_table(
@@ -148,7 +149,19 @@ def run_tuning_campaign_phase_shifts(
         display_states,
         config,
     )
-    return TuningPhaseShiftOutputs(table_path, combined, iris, cell)
+    iris_absolute = _plot_iris_absolute_phase(
+        shifts,
+        figure_dir / "iris_2p0_phase.png",
+        state_order,
+        config,
+    )
+    return TuningPhaseShiftOutputs(
+        table_path,
+        combined,
+        iris,
+        cell,
+        iris_absolute,
+    )
 
 
 def _select_marker_row(table: pd.DataFrame, *, position: float, marker_name: str) -> pd.Series | None:
@@ -255,6 +268,50 @@ def _plot_one_position(
     return path
 
 
+def _plot_iris_absolute_phase(
+    shifts: pd.DataFrame,
+    output_path: Path,
+    state_order: Sequence[str],
+    config: PlotConfig,
+) -> Path:
+    """Plot raw S11 phase at iris position 2.0 across tuning states."""
+
+    position_label = "Iris 2.0"
+    apply_plot_style(config)
+    figure, axis = plt.subplots(figsize=(8.8, 5.4))
+    marker_x, centers, state_width = _state_marker_coordinates(state_order)
+    colors = _absolute_phase_colors(state_order)
+    bars = axis.bar(
+        marker_x,
+        _absolute_phase_values(shifts, position_label, state_order),
+        width=0.58,
+        color=colors,
+        edgecolor="white",
+        linewidth=0.8,
+    )
+    labels = axis.bar_label(
+        bars,
+        fmt="%+.1f",
+        padding=3,
+        fontsize=config.compact_annotation_size,
+    )
+    for label, color in zip(labels, colors, strict=True):
+        label.set_color(color)
+    _style_phase_axis(axis, marker_x, centers, state_width, state_order, config)
+    apply_axis_text_style(
+        axis,
+        xlabel="Frequency mode",
+        ylabel="S11 phase [deg]",
+        title="Iris 2.0: S11 phase",
+        config=config,
+        compact=True,
+    )
+    figure.tight_layout()
+    path = save_figure(figure, output_path, config)
+    plt.close(figure)
+    return path
+
+
 def _state_marker_coordinates(display_states: Sequence[str]) -> tuple[np.ndarray, np.ndarray, float]:
     marker_count = len(MARKER_ORDER)
     state_width = marker_count + 0.85
@@ -265,7 +322,38 @@ def _state_marker_coordinates(display_states: Sequence[str]) -> tuple[np.ndarray
     return marker_x, centers, state_width
 
 
-def _phase_values(shifts: pd.DataFrame, position_label: str, display_states: Sequence[str]) -> list[float]:
+def _absolute_phase_values(
+    shifts: pd.DataFrame,
+    position_label: str,
+    state_order: Sequence[str],
+) -> list[float]:
+    """Return raw S11 phase values in state-major, marker-minor order."""
+
+    return _phase_values(
+        shifts,
+        position_label,
+        state_order,
+        value_column="s_phase_deg",
+    )
+
+
+def _absolute_phase_colors(state_order: Sequence[str]) -> list[str]:
+    """Return polar-marker colors in state-major, marker-minor order."""
+
+    return [
+        MARKER_COLORS[marker_name]
+        for _ in state_order
+        for marker_name in MARKER_ORDER
+    ]
+
+
+def _phase_values(
+    shifts: pd.DataFrame,
+    position_label: str,
+    display_states: Sequence[str],
+    *,
+    value_column: str = "delta_phase_deg",
+) -> list[float]:
     values: list[float] = []
     for state_id in display_states:
         for marker_name in MARKER_ORDER:
@@ -274,7 +362,7 @@ def _phase_values(shifts: pd.DataFrame, position_label: str, display_states: Seq
                 & shifts["position_label"].eq(position_label)
                 & shifts["marker_name"].eq(marker_name)
             ]
-            values.append(float(rows.iloc[0]["delta_phase_deg"]) if not rows.empty else np.nan)
+            values.append(float(rows.iloc[0][value_column]) if not rows.empty else np.nan)
     return values
 
 

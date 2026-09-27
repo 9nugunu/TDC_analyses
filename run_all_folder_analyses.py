@@ -476,6 +476,35 @@ def execute_batch_tasks(tasks: list[BatchTask], *, workers: int) -> tuple[list[t
     return successes, failures
 
 
+def refresh_tuning_phase_shift_summaries(
+    tasks: list[BatchTask],
+    successful_runs: list[tuple[Path, Path]],
+) -> None:
+    """Refresh state summaries after a batch, independent of worker completion order."""
+
+    output_by_input = {input_path: output_dir for input_path, output_dir in successful_runs}
+    for task in tasks:
+        output_dir = output_by_input.get(task.sparameter_path)
+        if output_dir is None or task.tables_only:
+            continue
+        campaign_match = register_matching_tuning_campaign(
+            task.sparameter_path.name,
+            manifest_path=Path(output_dir) / "manifest.json",
+            data_root=task.data_root,
+        )
+        if (
+            campaign_match is None
+            or getattr(campaign_match, "measurement_kind", None) != "state"
+        ):
+            continue
+        run_tuning_campaign_phase_shifts(
+            campaign_match.campaign,
+            analysis_root=Path(output_dir).parent,
+            output_dir=output_dir,
+            current_state_id=getattr(campaign_match, "state_id", None),
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run one-folder analysis across every resolved dataset input."""
 
@@ -497,6 +526,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     logger.info("Resolved %d dataset(s) for batch analysis with workers=%d", len(tasks), workers)
     successes, failures = execute_batch_tasks(tasks, workers=workers)
+    refresh_tuning_phase_shift_summaries(tasks, successes)
     for dataset_path, output_dir in successes:
         print(f"{dataset_path} -> {output_dir}")
 

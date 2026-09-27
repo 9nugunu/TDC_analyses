@@ -5,6 +5,8 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
+import deflector_tuning.workflows.tuning_phase_shifts as phase_shifts
+from deflector_tuning.visualization.marker_styles import MARKER_COLORS
 from deflector_tuning.workflows.tuning_phase_shifts import (
     _position_label,
     build_phase_shift_table,
@@ -80,6 +82,44 @@ def test_position_label_preserves_requested_decimal_position() -> None:
     assert _position_label("cell", 1.5) == "Cell 1.5"
 
 
+def test_absolute_phase_values_preserve_raw_iris_phase_for_every_state() -> None:
+    shifts = build_phase_shift_table(
+        {
+            "s001": _points(
+                (2.0, "f_2pi3", 179.0),
+                (2.0, "f_mean", 20.0),
+                (2.0, "f_pi2", -40.0),
+            ),
+            "s002": _points(
+                (2.0, "f_2pi3", -178.0),
+                (2.0, "f_mean", 18.0),
+                (2.0, "f_pi2", -43.0),
+            ),
+        },
+        state_order=("s001", "s002"),
+        positions={"Iris 2.0": 2.0},
+    )
+
+    values = phase_shifts._absolute_phase_values(
+        shifts,
+        "Iris 2.0",
+        ("s001", "s002"),
+    )
+
+    assert values == pytest.approx([179.0, 20.0, -40.0, -178.0, 18.0, -43.0])
+
+
+def test_absolute_phase_colors_repeat_the_polar_marker_palette_for_each_state() -> None:
+    assert phase_shifts._absolute_phase_colors(("s001", "s002")) == [
+        MARKER_COLORS["f_2pi3"],
+        MARKER_COLORS["f_mean"],
+        MARKER_COLORS["f_pi2"],
+        MARKER_COLORS["f_2pi3"],
+        MARKER_COLORS["f_mean"],
+        MARKER_COLORS["f_pi2"],
+    ]
+
+
 def test_phase_shifts_start_at_s002_and_ignore_later_states(tmp_path) -> None:
     analysis_root = tmp_path / "analyses"
     for state_id, phase_shift in (("s001", 0.0), ("s002", 1.0), ("s003", 2.0)):
@@ -119,3 +159,7 @@ def test_phase_shifts_start_at_s002_and_ignore_later_states(tmp_path) -> None:
     assert outputs is not None
     summary = pd.read_csv(outputs.table_path)
     assert set(summary["state_id"]) == {"s001", "s002"}
+    assert outputs.iris_absolute_figure_path == (
+        tmp_path / "output" / "figures" / "tuning_phase_shifts" / "iris_2p0_phase.png"
+    )
+    assert outputs.iris_absolute_figure_path.is_file()
