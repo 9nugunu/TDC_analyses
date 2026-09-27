@@ -97,6 +97,23 @@ def test_parse_args_accepts_tables_only() -> None:
     assert args.tables_only is True
 
 
+def test_parse_args_accepts_explicit_geometry_sweep_axis_and_reference() -> None:
+    module = _load_runner_module()
+
+    args = module.parse_args(
+        [
+            "sim/sim_sweep_260728_zlen",
+            "--geometry-sweep-axis",
+            "sim_L_c",
+            "--geometry-sweep-base",
+            "29.148",
+        ]
+    )
+
+    assert args.geometry_sweep_axis == "sim_L_c"
+    assert args.geometry_sweep_base == 29.148
+
+
 def test_parse_args_accepts_plot_worker_count_and_normalizes_nonpositive_values() -> None:
     module = _load_runner_module()
 

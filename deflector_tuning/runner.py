@@ -65,6 +65,11 @@ from deflector_tuning.visualization.phase_advance_plots import plot_phase_advanc
 from deflector_tuning.visualization.polar_phase_views import (
     plot_marker_phase_polar_views,
 )
+from deflector_tuning.visualization.position_phase_bar_plots import (
+    build_position_phase_bar_table,
+    plot_position_phase_advance_bars,
+    plot_position_phase_bars,
+)
 from deflector_tuning.visualization.s11_frequency_plots import plot_s11_with_markers
 from deflector_tuning.visualization.admittance_sweep_plots import plot_z11_marker_sweep
 from deflector_tuning.visualization.raw_y11_plots import (
@@ -112,6 +117,8 @@ from deflector_tuning.table_export import TableSaveResult, save_table_contract
 
 DEFAULT_DATA_ROOT = Path("data")
 DEFAULT_DISPERSION_SUBPATH = DEFAULT_PROJECT_DEFAULTS.default_dispersion_subpath
+POSITION_PHASE_BAR_POSITIONS = (1.0, 2.0)
+NO_PORT_EXTENSION_SOURCE_PATTERN = r"(?:^|[_-])noporte(?:[_\-.]|$)"
 logger = logging.getLogger(__name__)
 
 
@@ -145,6 +152,8 @@ def run_folder_analysis(
     loader: DataLoader | None = None,
     project_defaults: ProjectDefaults = DEFAULT_PROJECT_DEFAULTS,
     marker_correction: TemperatureHumidityCorrection | None = None,
+    geometry_sweep_axis: str | None = None,
+    geometry_sweep_base: float | None = None,
 ) -> RunResult:
     """Run the standard one-folder marker workflow and write tables/figures.
 
@@ -312,6 +321,8 @@ def run_folder_analysis(
         loader=loader,
         sparameter_table=sparameter_table,
         marker_correction=marker_correction,
+        geometry_sweep_axis=geometry_sweep_axis,
+        geometry_sweep_base=geometry_sweep_base,
     )
     logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
     logger.info("Saving analysis tables to %s", table_dir)
@@ -343,6 +354,8 @@ def run_folder_analysis(
             table_contract="standard",
             table_schema_version=2,
             table_constants=table_constants,
+            geometry_sweep_axis=geometry_sweep_axis,
+            geometry_sweep_base=geometry_sweep_base,
         )
         logger.info("Tables-only analysis completed successfully")
         return RunResult(
@@ -445,6 +458,29 @@ def run_folder_analysis(
                 tables["marker_pts"], figure_root / "polar", config=plot_config
             )
         )
+        phase_bar_inputs = _select_position_phase_bar_inputs(tables["marker_pts"])
+        if phase_bar_inputs is not None:
+            logger.info("Rendering position phase bar figures")
+            phase_bar_dir = figure_root / "phase_bar"
+            figures["phase_bar"] = OrderedDict(
+                position_phase=plot_position_phase_bars(
+                    phase_bar_inputs,
+                    phase_bar_dir / "position_1p0_vs_2p0_phase_bars.png",
+                    positions=POSITION_PHASE_BAR_POSITIONS,
+                    config=plot_config,
+                ),
+                phase_advance=plot_position_phase_advance_bars(
+                    phase_bar_inputs,
+                    phase_bar_dir / "position_1p0_to_2p0_phase_advance_bars.png",
+                    positions=POSITION_PHASE_BAR_POSITIONS,
+                    config=plot_config,
+                ),
+            )
+        else:
+            logger.info(
+                "Skipping position phase bar figures because marker_points does not "
+                "contain one row for every standard marker at positions 1.0 and 2.0"
+            )
     else:
         logger.info(
             "Skipping polar phase figures because marker_points is missing or empty"
@@ -504,6 +540,8 @@ def run_folder_analysis(
         table_contract="standard",
         table_schema_version=2,
         table_constants=table_constants,
+        geometry_sweep_axis=geometry_sweep_axis,
+        geometry_sweep_base=geometry_sweep_base,
     )
     logger.info("Folder analysis completed successfully")
 
@@ -728,6 +766,42 @@ def _data_relative_path(path: str | Path, *, data_root: Path) -> Path:
 
 def _has_rows(table: pd.DataFrame | None) -> bool:
     return table is not None and not table.empty
+
+
+def _select_position_phase_bar_inputs(
+    marker_points: pd.DataFrame,
+) -> pd.DataFrame | None:
+    """Return unambiguous 1.0-to-2.0 phase-bar rows when available.
+
+    When a raw folder contains matched ``*_portE`` and ``*_noportE`` traces at
+    the same tuning position, retain the port-extension trace for this
+    port-extension phase comparison. A no-port-only dataset remains eligible.
+    """
+
+    try:
+        build_position_phase_bar_table(
+            marker_points,
+            positions=POSITION_PHASE_BAR_POSITIONS,
+        )
+    except ValueError:
+        if "source_file" not in marker_points:
+            return None
+        without_no_port_extension = marker_points.loc[
+            ~marker_points["source_file"].astype(str).str.contains(
+                NO_PORT_EXTENSION_SOURCE_PATTERN,
+                case=False,
+                regex=True,
+            )
+        ].copy()
+        try:
+            build_position_phase_bar_table(
+                without_no_port_extension,
+                positions=POSITION_PHASE_BAR_POSITIONS,
+            )
+        except ValueError:
+            return None
+        return without_no_port_extension
+    return marker_points
 
 
 def _load_s11_table_for_figures(

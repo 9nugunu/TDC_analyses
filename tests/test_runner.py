@@ -122,7 +122,7 @@ def test_run_folder_analysis_loads_sparameter_folder_once(
     sparameter_path.mkdir(parents=True)
     for tune_position, phases in [
         (0.5, [10.0, 20.0, 30.0]),
-        (1.5, [-110.0, -100.0, -90.0]),
+        (1.5, [-110.0, -160.0, 150.0]),
     ]:
         (sparameter_path / f"{tune_position}_processed.csv").write_text(
             "freq[Hz],Magnitude,Phase_deg\n"
@@ -338,6 +338,152 @@ def test_run_folder_analysis_saves_tables_figures_sim_260526_grid_scan_and_manif
     assert manifest_data["table_constants"] == {}
 
 
+def test_run_folder_analysis_prefers_port_e_rows_for_position_phase_bars(
+    tmp_path: Path, monkeypatch
+) -> None:
+    tables = _tables()
+    tables["marker_pts"] = pd.DataFrame(
+        [
+            {
+                "dataset_id": "raw_sweep_260701_iris_portE",
+                "source_file": f"{position:.0f}_portE.S2P",
+                "tune_position": position,
+                "marker_name": marker_name,
+                "freq_target_ghz": target_frequency,
+                "freq_ghz": target_frequency,
+                "s_phase_deg": phase,
+            }
+            for position, phases in {
+                1.0: {"f_2pi3": 175.0, "f_mean": 180.0, "f_pi2": 170.0},
+                2.0: {"f_2pi3": 65.0, "f_mean": 5.0, "f_pi2": 295.0},
+            }.items()
+            for marker_name, target_frequency, phase in (
+                ("f_2pi3", 2.856, phases["f_2pi3"]),
+                ("f_mean", 2.866, phases["f_mean"]),
+                ("f_pi2", 2.876, phases["f_pi2"]),
+            )
+        ]
+    )
+    no_port_extension_rows = tables["marker_pts"].loc[
+        tables["marker_pts"]["tune_position"].eq(1.0)
+    ].copy()
+    no_port_extension_rows["source_file"] = "1_noportE.S2P"
+    no_port_extension_rows["s_phase_deg"] = 70.0
+    tables["marker_pts"] = pd.concat(
+        [tables["marker_pts"], no_port_extension_rows],
+        ignore_index=True,
+    )
+    sparameter_table = pd.DataFrame(
+        [
+            {
+                "source_file": "1_portE.S2P",
+                "tune_position": 1.0,
+                "freq_ghz": 2.856,
+                "s_db": -1.0,
+                "s_phase_deg": 175.0,
+            }
+        ]
+    )
+    output_dir = tmp_path / "out"
+    rendered: list[tuple[str, Path, tuple[float, ...]]] = []
+    rendered_sources: list[tuple[str, tuple[str, ...]]] = []
+
+    monkeypatch.setattr(runner, "build_marker_analysis", lambda **_: tables)
+    monkeypatch.setattr(runner.DataLoader, "load", lambda self, path: sparameter_table)
+    monkeypatch.setattr(
+        runner,
+        "save_marker_analysis",
+        lambda analysis_tables, output: {
+            name: Path(output) / f"{name}.csv" for name in analysis_tables
+        },
+    )
+
+    def fake_s11_plot(*args, **kwargs):
+        output_folder = Path(args[2])
+        output_folder.mkdir(parents=True, exist_ok=True)
+        path = output_folder / "s11.png"
+        path.write_text("s11", encoding="utf-8")
+        return {"overview": path}
+
+    def fake_mapping_plot(name):
+        def _plot(*args, **kwargs):
+            output_folder = Path(args[1])
+            output_folder.mkdir(parents=True, exist_ok=True)
+            path = output_folder / f"{name}.png"
+            path.write_text(name, encoding="utf-8")
+            return {"overview": path}
+
+        return _plot
+
+    def fake_phase_bar_plot(name):
+        def _plot(marker_points, output_path, *, positions, config):
+            path = Path(output_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(name, encoding="utf-8")
+            rendered.append((name, path, tuple(positions)))
+            rendered_sources.append(
+                (name, tuple(marker_points["source_file"].unique()))
+            )
+            return path
+
+        return _plot
+
+    monkeypatch.setattr(runner, "plot_s11_with_markers", fake_s11_plot)
+    monkeypatch.setattr(runner, "plot_phase_advance", fake_mapping_plot("phase_advance"))
+    monkeypatch.setattr(runner, "plot_nodal_shift", fake_mapping_plot("nodal_shift"))
+    monkeypatch.setattr(
+        runner, "plot_marker_phase_polar_views", fake_mapping_plot("polar")
+    )
+    monkeypatch.setattr(
+        runner,
+        "plot_position_phase_bars",
+        fake_phase_bar_plot("position_phase"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runner,
+        "plot_position_phase_advance_bars",
+        fake_phase_bar_plot("phase_advance"),
+        raising=False,
+    )
+
+    result = runner.run_folder_analysis(
+        sparameter_path=tmp_path / "data" / "raw" / "raw_sweep_260701_iris_portE",
+        output_dir=output_dir,
+        marker_role="raw",
+    )
+
+    expected_folder = output_dir / "figures" / "phase_bar"
+    assert result.figures["phase_bar"]["position_phase"] == (
+        expected_folder / "position_1p0_vs_2p0_phase_bars.png"
+    )
+    assert result.figures["phase_bar"]["phase_advance"] == (
+        expected_folder / "position_1p0_to_2p0_phase_advance_bars.png"
+    )
+    assert rendered == [
+        (
+            "position_phase",
+            expected_folder / "position_1p0_vs_2p0_phase_bars.png",
+            (1.0, 2.0),
+        ),
+        (
+            "phase_advance",
+            expected_folder / "position_1p0_to_2p0_phase_advance_bars.png",
+            (1.0, 2.0),
+        ),
+    ]
+    assert rendered_sources == [
+        (
+            "position_phase",
+            ("1_portE.S2P", "2_portE.S2P"),
+        ),
+        (
+            "phase_advance",
+            ("1_portE.S2P", "2_portE.S2P"),
+        ),
+    ]
+
+
 def test_run_folder_analysis_tables_only_skips_plots_and_preserves_existing_figures(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -395,6 +541,48 @@ def test_run_folder_analysis_tables_only_skips_plots_and_preserves_existing_figu
     }
     assert manifest["table_schema_version"] == 2
     assert manifest["table_contract"] == "standard"
+
+
+def test_run_folder_analysis_propagates_geometry_options_and_records_manifest(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+    tables = _tables()
+
+    def fake_build_marker_analysis(**kwargs):
+        captured.update(kwargs)
+        return tables
+
+    monkeypatch.setattr(runner, "build_marker_analysis", fake_build_marker_analysis)
+    monkeypatch.setattr(
+        runner,
+        "save_marker_analysis",
+        lambda analysis_tables, output: {
+            name: Path(output) / f"{name}.csv" for name in analysis_tables
+        },
+    )
+
+    output_dir = tmp_path / "analysis"
+    result = runner.run_folder_analysis(
+        sparameter_path=tmp_path
+        / "data"
+        / "sim"
+        / "sim_sweep_260728_zlen",
+        output_dir=output_dir,
+        marker_role="sim",
+        tables_only=True,
+        geometry_sweep_axis="sim_L_c",
+        geometry_sweep_base=29.148,
+    )
+
+    assert captured["geometry_sweep_axis"] == "sim_L_c"
+    assert captured["geometry_sweep_base"] == 29.148
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["geometry_phase_response"] == {
+        "sweep_axis": "sim_L_c",
+        "sweep_base": 29.148,
+    }
 
 
 def test_detect_analysis_modes_skips_sim_260526_grid_scan_for_experiment_marker_points() -> None:

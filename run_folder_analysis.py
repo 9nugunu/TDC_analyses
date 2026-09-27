@@ -93,6 +93,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Rebuild the 13 standard CSV tables without rendering figures.",
     )
+    parser.add_argument(
+        "--geometry-sweep-axis",
+        default=None,
+        help="Explicit numeric sim_* axis for geometry phase response.",
+    )
+    parser.add_argument(
+        "--geometry-sweep-base",
+        type=float,
+        default=None,
+        help="Sampled geometry-axis value used as the phase-pickup reference.",
+    )
     return parser
 
 
@@ -160,6 +171,10 @@ def apply_inferred_defaults(args: argparse.Namespace) -> argparse.Namespace:
     args.file_workers = max(int(getattr(args, "file_workers", 1)), 1)
     args.plot_workers = max(int(getattr(args, "plot_workers", 1)), 1)
     args.tables_only = bool(getattr(args, "tables_only", False))
+    args.geometry_sweep_axis = getattr(args, "geometry_sweep_axis", None)
+    args.geometry_sweep_base = getattr(args, "geometry_sweep_base", None)
+    if args.geometry_sweep_base is not None and args.geometry_sweep_axis is None:
+        raise ValueError("--geometry-sweep-base requires --geometry-sweep-axis")
     args.project_config = Path(getattr(args, "project_config", DEFAULT_PROJECT_CONFIG_PATH))
     args.project_defaults = load_project_defaults(args.project_config)
     return args
@@ -277,6 +292,8 @@ def main(argv: list[str] | None = None) -> int:
         tables_only=args.tables_only,
         project_defaults=args.project_defaults,
         marker_correction=marker_correction,
+        geometry_sweep_axis=getattr(args, "geometry_sweep_axis", None),
+        geometry_sweep_base=getattr(args, "geometry_sweep_base", None),
     )
     campaign_match = register_matching_tuning_campaign(
         _dataset_id_from_input(Path(args.sparameter_path)),
@@ -351,6 +368,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  combined: {phase_shifts.combined_figure_path}")
         print(f"  iris: {phase_shifts.iris_figure_path}")
         print(f"  cell: {phase_shifts.cell_figure_path}")
+        print(f"  iris_phase: {phase_shifts.iris_absolute_figure_path}")
     return 0
 
 

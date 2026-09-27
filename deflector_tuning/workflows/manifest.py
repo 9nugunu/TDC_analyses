@@ -142,6 +142,8 @@ def write_manifest(
     table_contract: str | None = None,
     table_schema_version: int | None = None,
     table_constants: dict[str, dict[str, object]] | None = None,
+    geometry_sweep_axis: str | None = None,
+    geometry_sweep_base: float | None = None,
 ) -> None:
     manifest = {
         "sparameter_path": str(sparameter_path),
@@ -162,6 +164,11 @@ def write_manifest(
     if table_schema_version is not None:
         manifest["table_schema_version"] = table_schema_version
         manifest["table_constants"] = table_constants or {}
+    if geometry_sweep_axis is not None or geometry_sweep_base is not None:
+        manifest["geometry_phase_response"] = {
+            "sweep_axis": geometry_sweep_axis,
+            "sweep_base": geometry_sweep_base,
+        }
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")
     try:
