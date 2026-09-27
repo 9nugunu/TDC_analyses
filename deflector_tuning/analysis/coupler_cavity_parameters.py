@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Iterable
 
 import pandas as pd
@@ -30,7 +31,7 @@ ID_COLUMN_CANDIDATES: tuple[str, ...] = (
 )
 REFERENCE_MARKER_NAME = "f_pi2"
 OPERATION_MARKER_NAME = "f_2pi3"
-PHASE_INPUT_CONVENTION = "raw_s11_reflection_phase_deg"
+PHASE_INPUT_CONVENTION = "detuning_phase_difference_forward_wrapped_deg"
 COUPLING_K_COLUMNS: tuple[str, ...] = ("coupling_k", "k", "cell_coupling_k")
 OUTPUT_COLUMNS: list[str] = [
     "dataset_id",
@@ -79,6 +80,15 @@ def tan_half_phase(phase_deg: float) -> float:
     if not math.isfinite(tangent):
         raise ValueError(f"phase_deg produces a non-finite half-phase tangent: {phase_deg!r}")
     return float(tangent)
+
+
+def forward_phase_difference_deg(reference_phase_deg: float, observed_phase_deg: float) -> float:
+    """Return ``arg(Gamma_observed/Gamma_reference)`` wrapped to ``[0, 360)``."""
+
+    difference = (float(observed_phase_deg) - float(reference_phase_deg)) % 360.0
+    if math.isclose(difference, 360.0, abs_tol=1e-12):
+        return 0.0
+    return float(difference)
 
 
 def calculate_coupler_frequency_ghz(
@@ -232,7 +242,6 @@ def build_coupler_cavity_parameter_table(
     if table.empty:
         return pd.DataFrame(columns=output_columns)
 
-    grouping_columns = _grouping_columns(table)
     table_coupling_k, table_coupling_k_source = _first_valid_coupling_k_with_source(
         explicit_argument=coupling_k,
         column_values=[
@@ -241,22 +250,40 @@ def build_coupler_cavity_parameter_table(
         ],
     )
     rows: list[dict[str, object]] = []
-    for group_values, group in table.groupby(grouping_columns, dropna=False, sort=False):
-        reference = _first_marker_row(group, reference_marker_name)
-        operation = _first_marker_row(group, operation_marker_name)
-        if reference is None or operation is None:
+    grouping_columns = _grouping_columns(table)
+    for phase_reference_group, observed_group in _detuning_phase_pairs(table, grouping_columns):
+        phase_reference = _first_marker_row(phase_reference_group, reference_marker_name)
+        phase_reference_operation = _first_marker_row(phase_reference_group, operation_marker_name)
+        observed_reference = _first_marker_row(observed_group, reference_marker_name)
+        observed_operation = _first_marker_row(observed_group, operation_marker_name)
+        if any(
+            marker is None
+            for marker in (
+                phase_reference,
+                phase_reference_operation,
+                observed_reference,
+                observed_operation,
+            )
+        ):
             continue
 
+        observed_key = observed_group.iloc[0]
         row: dict[str, object] = {
-            **dict(zip(grouping_columns, _as_tuple(group_values), strict=True)),
+            **{column: observed_key[column] for column in grouping_columns},
             "ref_marker": reference_marker_name,
             "op_marker": operation_marker_name,
-            "ref_freq_ghz": _frequency_value(reference),
-            "op_freq_ghz": _frequency_value(operation),
-            "ref_freq_target_ghz": _target_frequency_value(reference),
-            "op_freq_target_ghz": _target_frequency_value(operation),
-            "ref_phase_deg": reference["s_phase_deg"],
-            "op_phase_deg": operation["s_phase_deg"],
+            "ref_freq_ghz": _frequency_value(observed_reference),
+            "op_freq_ghz": _frequency_value(observed_operation),
+            "ref_freq_target_ghz": _target_frequency_value(observed_reference),
+            "op_freq_target_ghz": _target_frequency_value(observed_operation),
+            "ref_phase_deg": forward_phase_difference_deg(
+                phase_reference["s_phase_deg"],
+                observed_reference["s_phase_deg"],
+            ),
+            "op_phase_deg": forward_phase_difference_deg(
+                phase_reference_operation["s_phase_deg"],
+                observed_operation["s_phase_deg"],
+            ),
             "op_mode_deg": float(operation_mode_deg),
             "phase_convention": PHASE_INPUT_CONVENTION,
         }
@@ -269,6 +296,132 @@ def build_coupler_cavity_parameter_table(
     if "is_valid" in output:
         output["is_valid"] = output["is_valid"].astype(object)
     return _sort_output(output)
+
+
+def _detuning_phase_pairs(
+    table: pd.DataFrame,
+    grouping_columns: list[str],
+) -> list[tuple[pd.DataFrame, pd.DataFrame]]:
+    states = [
+        group.copy()
+        for _group_values, group in table.groupby(grouping_columns, dropna=False, sort=False)
+    ]
+    if not states:
+        return []
+    if _is_geometry_phase_sweep(table):
+        return _geometry_detuning_phase_pairs(states)
+    return _position_detuning_phase_pairs(states)
+
+
+def _is_geometry_phase_sweep(table: pd.DataFrame) -> bool:
+    return (
+        "cpl_pos_basis" in table
+        and set(table["cpl_pos_basis"].dropna().astype(str).unique()) == {"geometry_sweep"}
+    )
+
+
+def _position_detuning_phase_pairs(
+    states: list[pd.DataFrame],
+) -> list[tuple[pd.DataFrame, pd.DataFrame]]:
+    pairs: list[tuple[pd.DataFrame, pd.DataFrame]] = []
+    for observed in states:
+        observed_row = observed.iloc[0]
+        try:
+            target_position = float(observed_row["cpl_pos_to"])
+            observed_position = float(observed_row["tune_position"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not math.isclose(observed_position, target_position, abs_tol=1e-9):
+            continue
+
+        candidates = [
+            reference
+            for reference in states
+            if _is_matching_position_reference(reference, observed_row)
+        ]
+        if len(candidates) == 1:
+            pairs.append((candidates[0], observed))
+    return pairs
+
+
+def _is_matching_position_reference(reference: pd.DataFrame, observed_row: pd.Series) -> bool:
+    reference_row = reference.iloc[0]
+    try:
+        reference_position = float(reference_row["tune_position"])
+        expected_position = float(observed_row["cpl_pos_from"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    if not math.isclose(reference_position, expected_position, abs_tol=1e-9):
+        return False
+    if not _same_pair_identity(reference_row, observed_row):
+        return False
+    return _source_variant_key(reference_row["source_file"], reference_position) == _source_variant_key(
+        observed_row["source_file"],
+        float(observed_row["tune_position"]),
+    )
+
+
+def _geometry_detuning_phase_pairs(
+    states: list[pd.DataFrame],
+) -> list[tuple[pd.DataFrame, pd.DataFrame]]:
+    references = [state for state in states if _state_num_depth(state) == 1]
+    observed_states = [state for state in states if _state_num_depth(state) == 2]
+    pairs: list[tuple[pd.DataFrame, pd.DataFrame]] = []
+    for observed in observed_states:
+        candidates = [
+            reference
+            for reference in references
+            if _same_pair_identity(reference.iloc[0], observed.iloc[0])
+        ]
+        if len(candidates) == 1:
+            pairs.append((candidates[0], observed))
+    return pairs
+
+
+def _state_num_depth(state: pd.DataFrame) -> int | None:
+    if "sim_NumDepth" not in state:
+        return None
+    try:
+        return int(float(state.iloc[0]["sim_NumDepth"]))
+    except (TypeError, ValueError):
+        return None
+
+
+def _same_pair_identity(reference: pd.Series, observed: pd.Series) -> bool:
+    for column in (
+        "dataset_id",
+        "data_kind",
+        "data_layer",
+        "port_side",
+        "s_name",
+        "marker_role",
+        "cpl_pair",
+        "cpl_pos_basis",
+        "scan_type",
+    ):
+        if column not in reference or column not in observed:
+            continue
+        reference_value = reference[column]
+        observed_value = observed[column]
+        if pd.isna(reference_value) and pd.isna(observed_value):
+            continue
+        if str(reference_value) != str(observed_value):
+            return False
+    return True
+
+
+def _source_variant_key(source_file: object, tune_position: float) -> str:
+    source = str(source_file).replace("\\", "/").rsplit("/", 1)[-1]
+    stem = source.rsplit(".", 1)[0]
+    integer = int(tune_position)
+    if math.isclose(tune_position, integer, abs_tol=1e-9):
+        token = rf"(?<![0-9]){integer}(?:[._p]0)?(?![0-9])"
+    else:
+        whole = int(math.floor(abs(tune_position)))
+        fraction = int(round((abs(tune_position) - whole) * 10))
+        sign = "-" if tune_position < 0 else ""
+        token = rf"(?<![0-9]){re.escape(sign + str(whole))}[._p]{fraction}(?![0-9])"
+    return re.sub(token, "{position}", stem, count=1, flags=re.IGNORECASE).lower()
 
 
 def _add_estimates(row: dict[str, object], *, coupling_k: float | None, coupling_k_source: str) -> None:
@@ -425,6 +578,8 @@ def _metadata_columns(table: pd.DataFrame) -> list[str]:
 
 
 def _filter_to_coupler_cavity_endpoints(table: pd.DataFrame) -> pd.DataFrame:
+    if _is_num_depth_geometry_sweep(table):
+        return _filter_to_geometry_sweep(table)
     if "tune_position" not in table:
         return _filter_to_geometry_sweep(table)
     endpoint_metadata = coupler_cavity_endpoint_metadata(table["tune_position"])
@@ -465,6 +620,9 @@ def _filter_to_geometry_sweep(table: pd.DataFrame) -> pd.DataFrame:
 
 
 def _has_coupler_geometry_sweep_context(table: pd.DataFrame) -> bool:
+    if _is_num_depth_geometry_sweep(table):
+        return True
+
     if "scan_type" in table:
         scan_types = {str(value) for value in table["scan_type"].dropna().unique()}
         if scan_types == {"geometry_sweep"}:
@@ -482,6 +640,23 @@ def _has_coupler_geometry_sweep_context(table: pd.DataFrame) -> bool:
         for endpoint in (start, end)
     }
     return any(abs(tune_position - endpoint) < 1e-9 for endpoint in endpoint_positions)
+
+
+def _is_num_depth_geometry_sweep(table: pd.DataFrame) -> bool:
+    if "sim_NumDepth" not in table:
+        return False
+    geometry_columns = [column for column in ("sim_r_c", "sim_w_c") if column in table]
+    if not geometry_columns:
+        return False
+
+    depths = pd.to_numeric(table["sim_NumDepth"], errors="coerce")
+    if not ({1, 2} <= set(depths.dropna().astype(int).unique())):
+        return False
+    observed = table.loc[depths == 2, geometry_columns].apply(
+        pd.to_numeric,
+        errors="coerce",
+    )
+    return len(observed.dropna(how="all").drop_duplicates()) > 1
 
 
 def _endpoint_metadata_for_position(

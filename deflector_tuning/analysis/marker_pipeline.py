@@ -89,6 +89,8 @@ def build_marker_analysis(
     loader: DataLoader | None = None,
     sparameter_table: pd.DataFrame | None = None,
     marker_correction: TemperatureHumidityCorrection | None = None,
+    geometry_sweep_axis: str | None = None,
+    geometry_sweep_base: float | None = None,
 ) -> AnalysisTables:
     """Build marker-frequency, marker-point, phase-advance, and summary tables.
 
@@ -120,7 +122,11 @@ def build_marker_analysis(
     phase_adv = _compute_phase_advance_when_supported(marker_points)
     phase_stats = summarize_phase_advance(phase_adv) if not phase_adv.empty else _empty_phase_summary()
     nodal_shift = compute_nodal_shift_errors(phase_adv) if not phase_adv.empty else _empty_nodal_shift()
-    geom_phase = compute_geometry_phase_response(marker_points)
+    geom_phase = compute_geometry_phase_response(
+        marker_points,
+        sweep_axis=geometry_sweep_axis,
+        sweep_base=geometry_sweep_base,
+    )
     return OrderedDict(
         [
             ("markers", markers),

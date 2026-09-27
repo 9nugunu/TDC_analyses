@@ -24,7 +24,7 @@ def _write_prepro_dataset(folder: Path) -> None:
     folder.mkdir(parents=True)
     for tune_position, phases in [
         (0.5, [10.0, 20.0, 30.0]),
-        (1.5, [-110.0, -100.0, -90.0]),
+        (1.5, [-110.0, -160.0, 150.0]),
     ]:
         filename = folder / f"{tune_position}_processed.csv"
         filename.write_text(
@@ -104,7 +104,11 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(
     assert len(result["kyhl_admit_pts"]) == 6
     assert len(result["kyhl_admit_steps"]) == 3
     assert result["cell_iris_cmp"].empty
-    assert len(result["coupler_params"]) == 2
+    assert len(result["coupler_params"]) == 1
+    assert result["coupler_params"]["source_file"].tolist() == ["1.5_processed.csv"]
+    assert result["coupler_params"]["phase_convention"].tolist() == [
+        "detuning_phase_difference_forward_wrapped_deg"
+    ]
     assert result["coupler_params"]["beta_status"].unique().tolist() == ["ok"]
     assert result["coupler_params"]["k_source"].unique().tolist() == [
         "marker_frequency_ratio_abs"
@@ -120,12 +124,58 @@ def test_build_marker_analysis_processes_one_folder_into_marker_phase_tables(
     }
     assert "s_phase_deg" in result["marker_pts"].columns
     assert result["phase_polar"]["f_2pi3_phase_deg"].tolist() == [10.0, -110.0]
-    assert result["phase_polar"]["f_mean_phase_deg"].tolist() == [20.0, -100.0]
-    assert result["phase_polar"]["f_pi2_phase_deg"].tolist() == [30.0, -90.0]
+    assert result["phase_polar"]["f_mean_phase_deg"].tolist() == [20.0, -160.0]
+    assert result["phase_polar"]["f_pi2_phase_deg"].tolist() == [30.0, 150.0]
     first_phase = result["phase_adv"].sort_values("marker_name").iloc[0]
     assert first_phase["pos_from"] == 0.5
     assert first_phase["pos_to"] == 1.5
     assert first_phase["position_family"] == "cell"
+
+
+def test_build_marker_analysis_forwards_explicit_geometry_axis_and_reference(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    sparameter_path = (
+        tmp_path / "data" / "prepro" / "prepro_sweep_260415_sample_prepro"
+    )
+    dispersion_path = (
+        tmp_path / "data" / "sim" / "sim_dispersion_260505_single_cell_step1"
+    )
+    _write_prepro_dataset(sparameter_path)
+    _write_dispersion_summary(dispersion_path)
+    captured: dict[str, object] = {}
+
+    def fake_geometry_response(
+        marker_points: pd.DataFrame,
+        *,
+        sweep_axis: str | None,
+        sweep_base: float | None,
+    ) -> pd.DataFrame:
+        captured["marker_count"] = len(marker_points)
+        captured["sweep_axis"] = sweep_axis
+        captured["sweep_base"] = sweep_base
+        return pd.DataFrame()
+
+    monkeypatch.setattr(
+        marker_pipeline,
+        "compute_geometry_phase_response",
+        fake_geometry_response,
+    )
+
+    build_marker_analysis(
+        sparameter_path=sparameter_path,
+        dispersion_path=dispersion_path,
+        marker_role="exp",
+        geometry_sweep_axis="sim_L_c",
+        geometry_sweep_base=29.148,
+    )
+
+    assert captured == {
+        "marker_count": 6,
+        "sweep_axis": "sim_L_c",
+        "sweep_base": 29.148,
+    }
 
 
 def test_build_marker_analysis_skips_transition_phase_advance_for_sim_260526_grid_scan(

@@ -36,14 +36,16 @@ class FolderLoader:
         )
 
     def list_files(self, path: str | Path) -> DataFiles:
-        """Group files directly inside a dataset folder by simple extension."""
+        """Group files directly inside the requested dataset or export folder."""
 
         data_root = _dataset_root_from_path(Path(path), self.data_layer)
+        requested_root = Path(path)
+        file_root = requested_root if requested_root.is_dir() else data_root
         touchstone_files: list[Path] = []
         csv_files: list[Path] = []
         other_files: list[Path] = []
 
-        for child in sorted(data_root.iterdir(), key=lambda item: item.name.lower()):
+        for child in sorted(file_root.iterdir(), key=lambda item: item.name.lower()):
             if not child.is_file():
                 continue
             suffix = child.suffix.lower()
