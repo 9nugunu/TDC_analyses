@@ -4,12 +4,37 @@ from pathlib import Path
 
 import pytest
 
+from deflector_tuning import tuning_campaign
+from deflector_tuning.campaigns import config, discovery, models
 from deflector_tuning.tuning_campaign import (
     find_tuning_campaign,
     is_tuning_dataset_id,
     load_tuning_campaign,
     tuning_torque_nm_from_dataset_id,
 )
+
+
+def test_public_campaign_imports_preserve_implementation_identity() -> None:
+    """Legacy workflow imports share the implementation's classes and functions."""
+
+    expected_exports = {
+        "PhaseReference": models.PhaseReference,
+        "MarkerCorrectionReference": models.MarkerCorrectionReference,
+        "SimulationReference": models.SimulationReference,
+        "TuningState": models.TuningState,
+        "PhaseOffsetSensitivity": models.PhaseOffsetSensitivity,
+        "TuningAuxMeasurement": models.TuningAuxMeasurement,
+        "TuningIssue": models.TuningIssue,
+        "TuningCampaign": models.TuningCampaign,
+        "TuningCampaignMatch": models.TuningCampaignMatch,
+        "load_tuning_campaign": config.load_tuning_campaign,
+        "find_tuning_campaign": discovery.find_tuning_campaign,
+        "is_tuning_dataset_id": discovery.is_tuning_dataset_id,
+        "tuning_torque_nm_from_dataset_id": discovery.tuning_torque_nm_from_dataset_id,
+    }
+    for name, implementation in expected_exports.items():
+        assert name in tuning_campaign.__all__
+        assert getattr(tuning_campaign, name) is implementation
 
 
 COMPACT_CAMPAIGN = """
