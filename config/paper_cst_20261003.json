@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "data_kind": "simulation",
+  "marker_source": "fig/analyses/sim_dispersion_260505_single_cell_step1/tables/dispersion/260505_regular_cell_phase_sweep_0p180_step1_modes01-10_cstxy_summary.csv",
+  "marker_mode_index": 1,
+  "markers": [
+    {"name": "f_2pi3", "source_column": "freq_120_GHz", "requested_GHz": 2.8571160335532, "target_delta_deg": 240},
+    {"name": "f_mean", "mean_of_columns": ["freq_120_GHz", "freq_90_GHz"], "requested_GHz": 2.8672804543714, "target_delta_deg": 180},
+    {"name": "f_pi2", "source_column": "freq_90_GHz", "requested_GHz": 2.8774448751896, "target_delta_deg": 120}
+  ],
+  "short_state_fields": ["NumDepth", "DepthPlunger"],
+  "pairs": [
+    {"name": "cell", "label": "Cell centers", "first_num_depth": 0.5, "second_num_depth": 1.5, "first_label": "C0", "second_label": "C1"},
+    {"name": "iris", "label": "Iris centers", "first_num_depth": 1.0, "second_num_depth": 2.0, "first_label": "I0", "second_label": "I1"}
+  ],
+  "cases": [
+    {"id": "full", "label": "Full-structure case", "dataset": "data/sim/sim_sweep_260620_FullstructureSweep_ports_swapped", "expected_parameters": {"NumCell": 9, "R_plunger": 8}, "exported_s_index": 0, "port_transform": {"original_dataset": "data/sim/sim_sweep_260620_FullstructureSweep", "column_permutation": [3, 2, 1, 0]}},
+    {"id": "half", "label": "Half-structure case", "dataset": "data/sim/sim_sweep_260620_Halfstructure", "expected_parameters": {"NumCell": 3, "R_plunger": 16}, "exported_s_index": 0}
+  ],
+  "radius_scan": {
+    "dataset": "data/sim/sim_grid_260701_1DRcFine",
+    "axis_parameter": "r_c",
+    "axis_unit": "mm",
+    "linked_equal_to_axis": ["coupler_path_h"],
+    "expected_grid": {"minimum": 56.09, "maximum": 57.09, "step": 0.01, "count": 101},
+    "expected_parameters": {"NumDepth": 2, "NumCell": 3, "R_plunger": 16, "w_c": 19.3224, "Nmesh": 180},
+    "nominal_radius": 56.59,
+    "nominal_reference_dataset": "data/sim/sim_sweep_260620_Halfstructure",
+    "nominal_reference_NumDepth": 2,
+    "exported_s_index": 0,
+    "phase_rule": "Unwrap along sorted radius, then add an integer multiple of 360 degrees to preserve the nominal raw phase."
+  },
+  "interpretation": {
+    "signal": "First exported S parameter (S11 under the exported port assignment); no renormalization.",
+    "reference": "R 0 denotes unrenormalized CST output, not a physical 0-ohm or 50-ohm reference.",
+    "delta": "degrees(arg(S_second / S_first)) mod 360",
+    "residual": "(delta - target + 180) mod 360 - 180",
+    "limitation": "Reference-phase residuals are not an independent matching proof. Cases differ in NumCell, R_plunger and other metadata; cross-case differences are not causal effects of shorting location."
+  }
+}
