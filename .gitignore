@@ -11,3 +11,6 @@ data/
 fig/
 *.zip
 outputs/
+
+# Temporary analysis, review, and smoke-check artifacts.
+/tmp/
