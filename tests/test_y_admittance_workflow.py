@@ -154,9 +154,9 @@ def test_run_folder_analysis_routes_y11_sweep_through_raw_y_figures(tmp_path: Pa
         rendered.append("grid_raw")
         return {"overview": tmp_path / "grid_raw.png"}
 
-    monkeypatch.setattr("deflector_tuning.runner.plot_y11_raw_frequency_with_markers", fake_frequency)
-    monkeypatch.setattr("deflector_tuning.runner.plot_y11_raw_polar_views", fake_polar)
-    monkeypatch.setattr("deflector_tuning.runner.plot_y11_raw_grid", fake_grid)
+    monkeypatch.setattr("deflector_tuning.workflows.one_port.plot_y11_raw_frequency_with_markers", fake_frequency)
+    monkeypatch.setattr("deflector_tuning.workflows.one_port.plot_y11_raw_polar_views", fake_polar)
+    monkeypatch.setattr("deflector_tuning.workflows.one_port.plot_y11_raw_grid", fake_grid)
 
     result = run_folder_analysis(
         sparameter_path=y_folder,
