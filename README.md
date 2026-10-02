@@ -2,6 +2,9 @@
 
 Clean-room, step-by-step deflector tuning analysis code.
 
+See the [analysis code map](docs/architecture.md) for execution paths, module
+responsibilities, campaign policy, cache rules, and the test layout.
+
 ## Design rules
 
 1. Keep the first routing decision centralized and obvious:
