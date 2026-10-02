@@ -1,7 +1,9 @@
 from pathlib import Path
 import json
+from dataclasses import replace
 
 import pandas as pd
+import pytest
 
 import deflector_tuning.runner as runner
 import deflector_tuning.workflows.marker_analysis as marker_workflow
@@ -120,34 +122,39 @@ def test_run_folder_analysis_tables_only_skips_plots_and_preserves_existing_figu
     assert manifest["table_contract"] == "standard"
 
 
-def test_run_folder_analysis_reuses_existing_grid_s11_figures_from_manifest(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("change", ["trace", "marker", "style", "missing", "legacy", "tables_only", "tables_only_missing"])
+def test_grid_s11_cache_reuses_only_unchanged_render_inputs(tmp_path: Path, monkeypatch, change) -> None:
     tables = _tables()
+    source_table = tables["marker_pts"].copy()
     output_dir = tmp_path / "out"
-    cached_s11 = output_dir / "figures" / "s11" / "s11_cached.png"
-    cached_s11.parent.mkdir(parents=True)
-    cached_s11.write_text("cached", encoding="utf-8")
-    (output_dir / "manifest.json").write_text(
-        json.dumps({"outputs": {"figures": {"s11": {"cached": str(cached_s11)}}}}),
-        encoding="utf-8",
-    )
+    load_calls = []
+    plot_calls = []
+    loader = runner.DataLoader()
 
-    monkeypatch.setattr(marker_workflow, "build_marker_analysis", lambda **_: tables)
+    def load(path):
+        load_calls.append(path)
+        return source_table
 
-    def fail_early_s11_load(self, path):
-        raise AssertionError("cached grid S11 figures should be checked before loading S-parameter data")
+    def build(**kwargs):
+        kwargs["loader"].load(kwargs["sparameter_path"])
+        return tables
 
-    monkeypatch.setattr(runner.DataLoader, "load", fail_early_s11_load)
+    monkeypatch.setattr(loader, "load", load)
+    monkeypatch.setattr(marker_workflow, "build_marker_analysis", build)
     monkeypatch.setattr(
         marker_workflow,
         "save_marker_analysis",
         lambda analysis_tables, output: {name: Path(output) / f"{name}.csv" for name in analysis_tables},
     )
 
-    def fail_s11_plot(*args, **kwargs):
-        raise AssertionError("cached grid S11 figures should be reused")
+    def plot_s11(*args, **kwargs):
+        plot_calls.append(1)
+        figures = fake_figure_plot("s11")(*args, **kwargs)
+        second = figures["overview"].with_name("second_s11.png")
+        second.write_text("second image")
+        return {**figures, "second": second}
 
-
-    monkeypatch.setattr(marker_figures, "plot_s11_with_markers", fail_s11_plot)
+    monkeypatch.setattr(marker_figures, "plot_s11_with_markers", plot_s11)
     monkeypatch.setattr(marker_figures, "plot_phase_advance", fake_figure_plot("phase_advance"))
     monkeypatch.setattr(marker_figures, "plot_nodal_shift", fake_figure_plot("nodal_shift"))
     monkeypatch.setattr(marker_figures, "plot_marker_phase_polar_views", fake_figure_plot("polar"))
@@ -158,14 +165,48 @@ def test_run_folder_analysis_reuses_existing_grid_s11_figures_from_manifest(tmp_
         fake_figure_plot("grid_scan_sparameter_phase_r_c_line_scan"),
     )
 
-    result = runner.run_folder_analysis(
+    options = dict(
         sparameter_path=tmp_path / "data" / "sim" / "sim_grid_260526_scan",
         dispersion_path=tmp_path / "data" / "sim" / "sim_dispersion_260505_case",
         output_dir=output_dir,
         marker_role="sim",
+        loader=loader,
     )
+    first = runner.run_folder_analysis(**options)
+    second = runner.run_folder_analysis(**options)
+    assert first.figures == second.figures
+    assert len(plot_calls) == 1
+    assert len(load_calls) == 2  # One load per run, even with analysis and drawing.
 
-    assert result.figures["s11"]["cached"] == cached_s11
+    manifest_path = output_dir / "manifest.json"
+    old_signature = json.loads(manifest_path.read_text())["figure_cache"]["s11"]
+    if change in {"trace", "tables_only"}:
+        source_table.loc[0, "s_db"] = -8.0
+    elif change == "marker":
+        tables["marker_pts"].loc[0, "freq_ghz"] = 2.858
+    elif change == "style":
+        options["project_defaults"] = replace(
+            runner.DEFAULT_PROJECT_DEFAULTS, ideal_phase_guide_angles_deg=(0.0, 90.0)
+        )
+    elif change in {"missing", "tables_only_missing"}:
+        first.figures["s11"]["overview"].unlink()
+    else:
+        payload = json.loads(manifest_path.read_text())
+        payload.pop("figure_cache")
+        manifest_path.write_text(json.dumps(payload))
+
+    if change.startswith("tables_only"):
+        runner.run_folder_analysis(**options, tables_only=True)
+        assert len(plot_calls) == 1
+        cached = json.loads(manifest_path.read_text())["figure_cache"]
+        if change == "tables_only_missing":
+            assert "s11" not in cached
+        else:
+            # Table-only refresh must not certify old figures against new inputs.
+            assert cached["s11"] == old_signature
+    runner.run_folder_analysis(**options)
+    assert len(plot_calls) == 2
+    assert len(load_calls) == (4 if change.startswith("tables_only") else 3)
 
 
 def test_run_folder_analysis_reuses_loaded_table_when_grid_cache_becomes_invalid(

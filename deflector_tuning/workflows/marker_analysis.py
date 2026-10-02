@@ -13,9 +13,11 @@ from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import TemperatureHumidityCorrection
 from deflector_tuning.table_export import TableSaveResult
 from deflector_tuning.visualization.plot_config import PlotConfig
+from deflector_tuning.workflows.figure_cache import s11_figure_signature
 from deflector_tuning.workflows.manifest import (
     cached_manifest_figures,
     cached_manifest_figure_group,
+    read_figure_signatures,
     write_manifest,
 )
 from deflector_tuning.workflows.marker_figures import load_s11_table_for_figures, render_marker_figures
@@ -58,7 +60,7 @@ def run_marker_analysis(
     geometry_sweep_axis: str | None = None,
     geometry_sweep_base: float | None = None,
 ) -> RunResult:
-    """Execute marker analysis, retaining one folder load and existing figure caches."""
+    """Execute marker analysis with one folder load and validated S11 reuse."""
     table_dir = output_dir / "tables"
     figure_root = output_dir / "figures"
     manifest_path = output_dir / "manifest.json"
@@ -71,19 +73,10 @@ def run_marker_analysis(
         sparameter_path,
         dispersion_path,
     )
-    cached_s11_figures = (
-        cached_manifest_figure_group(manifest_path, "s11")
-        if dataset_category == "grid" and not tables_only
-        else OrderedDict()
-    )
     sparameter_table: pd.DataFrame | None = None
     if tables_only:
         logger.info("Skipping figure-only S11 table load in tables-only mode")
-    elif cached_s11_figures:
-        logger.info(
-            "Skipping S11 table load because cached grid-scan S11 figures already exist"
-        )
-    elif sparameter_table is None:
+    else:
         sparameter_table = load_s11_table_for_figures(loader, sparameter_path)
     logger.info("Building marker analysis tables")
     tables = build_marker_analysis(
@@ -109,6 +102,23 @@ def run_marker_analysis(
     logger.info("Saved %d analysis tables", len(table_paths))
     modes = detect_analysis_modes(tables, dataset_category=dataset_category)
     logger.info("Enabled analysis modes: %s", ", ".join(modes))
+
+    cached_s11_figures = OrderedDict()
+    figure_cache = {}
+    if tables_only:
+        # A partial figure group must not inherit the complete group's identity.
+        # Otherwise a missing image could remain missing after the next full run.
+        figure_cache = {
+            group: signature
+            for group, signature in read_figure_signatures(manifest_path).items()
+            if cached_manifest_figure_group(manifest_path, group, expected_signature=signature)
+        }
+    if not tables_only and "grid_scan_spacing" in modes:
+        signature = s11_figure_signature(sparameter_table, tables["marker_pts"], plot_config)
+        cached_s11_figures = cached_manifest_figure_group(
+            manifest_path, "s11", expected_signature=signature
+        )
+        figure_cache["s11"] = signature
 
     if tables_only:
         figures = cached_manifest_figures(manifest_path)
@@ -142,6 +152,7 @@ def run_marker_analysis(
         table_constants=table_constants,
         geometry_sweep_axis=geometry_sweep_axis,
         geometry_sweep_base=geometry_sweep_base,
+        figure_cache=figure_cache,
     )
     logger.info(
         "Tables-only analysis completed successfully"

@@ -144,6 +144,7 @@ def write_manifest(
     table_constants: dict[str, dict[str, object]] | None = None,
     geometry_sweep_axis: str | None = None,
     geometry_sweep_base: float | None = None,
+    figure_cache: dict[str, str] | None = None,
 ) -> None:
     manifest = {
         "sparameter_path": str(sparameter_path),
@@ -169,6 +170,8 @@ def write_manifest(
             "sweep_axis": geometry_sweep_axis,
             "sweep_base": geometry_sweep_base,
         }
+    if figure_cache is not None:
+        manifest["figure_cache"] = figure_cache
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")
     try:
@@ -183,7 +186,7 @@ def write_manifest(
 
 
 def cached_manifest_figure_group(
-    manifest_path: Path, group: str
+    manifest_path: Path, group: str, *, expected_signature: str | None = None
 ) -> OrderedDict[str, Path]:
     if not manifest_path.exists():
         return OrderedDict()
@@ -191,6 +194,12 @@ def cached_manifest_figure_group(
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return OrderedDict()
+    if not isinstance(manifest, dict):
+        return OrderedDict()
+    if expected_signature is not None:
+        signatures = manifest.get("figure_cache", {})
+        if not isinstance(signatures, dict) or signatures.get(group) != expected_signature:
+            return OrderedDict()
     group_paths = manifest.get("outputs", {}).get("figures", {}).get(group, {})
     if not isinstance(group_paths, dict) or not group_paths:
         return OrderedDict()
@@ -202,6 +211,18 @@ def cached_manifest_figure_group(
             return OrderedDict()
         cached[str(name)] = path
     return cached
+
+
+def read_figure_signatures(manifest_path: Path) -> dict[str, str]:
+    """Retain the original render identity when only analysis tables change."""
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    signatures = manifest.get("figure_cache", {}) if isinstance(manifest, dict) else {}
+    if not isinstance(signatures, dict):
+        return {}
+    return {key: value for key, value in signatures.items() if isinstance(value, str)}
 
 
 def cached_manifest_figures(manifest_path: Path) -> FigurePaths:
