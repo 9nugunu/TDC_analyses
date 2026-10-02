@@ -14,18 +14,7 @@ from deflector_tuning.project_defaults import (
     DEFAULT_PROJECT_DEFAULTS,
     load_project_defaults,
 )
-from deflector_tuning.runner import run_folder_analysis
-from deflector_tuning.workflows.tuning_campaign import (
-    register_matching_tuning_campaign,
-    resolve_tuning_marker_correction,
-)
-from deflector_tuning.workflows.tuning_simulation_comparison import (
-    run_tuning_cmp,
-)
-from deflector_tuning.workflows.tuning_phase_shifts import (
-    run_tuning_campaign_phase_shifts,
-)
-from deflector_tuning.workflows.plunger_sensitivity import run_plunger_sensitivity
+from deflector_tuning.workflows.dataset_execution import run_dataset_analysis
 
 
 DESCRIPTION = "Run one folder through the standard deflector tuning analysis workflow."
@@ -273,15 +262,8 @@ def main(argv: list[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     args = parse_args(argv)
-    marker_correction = (
-        resolve_tuning_marker_correction(
-            _dataset_id_from_input(Path(args.sparameter_path)),
-            data_root=args.data_root,
-        )
-        if args.marker_role == "exp"
-        else None
-    )
-    result = run_folder_analysis(
+    execution = run_dataset_analysis(
+        dataset_id=_dataset_id_from_input(Path(args.sparameter_path)),
         sparameter_path=args.sparameter_path,
         dispersion_path=args.dispersion_path,
         output_dir=args.output_dir,
@@ -291,53 +273,13 @@ def main(argv: list[str] | None = None) -> int:
         plot_workers=args.plot_workers,
         tables_only=args.tables_only,
         project_defaults=args.project_defaults,
-        marker_correction=marker_correction,
         geometry_sweep_axis=getattr(args, "geometry_sweep_axis", None),
         geometry_sweep_base=getattr(args, "geometry_sweep_base", None),
     )
-    campaign_match = register_matching_tuning_campaign(
-        _dataset_id_from_input(Path(args.sparameter_path)),
-        manifest_path=result.manifest_path,
-        data_root=args.data_root,
-    )
-    tuning_cmp = None
-    if (
-        campaign_match is not None
-        and campaign_match.phase_offset_sensitivity is not None
-    ):
-        plunger_sensitivity = run_plunger_sensitivity(
-            campaign_match,
-            current_result=result,
-            render_figure=not args.tables_only,
-            project_defaults=args.project_defaults,
-        )
-    else:
-        plunger_sensitivity = None
-    if (
-        campaign_match is not None
-        and campaign_match.comparison_enabled
-        and not args.tables_only
-    ):
-        tuning_cmp = run_tuning_cmp(
-            campaign_match,
-            current_result=result,
-            data_root=args.data_root,
-            file_workers=args.file_workers,
-            plot_workers=args.plot_workers,
-            project_defaults=args.project_defaults,
-        )
-    phase_shifts = None
-    if (
-        campaign_match is not None
-        and getattr(campaign_match, "measurement_kind", None) == "state"
-        and not args.tables_only
-    ):
-        phase_shifts = run_tuning_campaign_phase_shifts(
-            campaign_match.campaign,
-            analysis_root=Path(result.output_dir).parent,
-            output_dir=result.output_dir,
-            current_state_id=getattr(campaign_match, "state_id", None),
-        )
+    result = execution.analysis
+    tuning_cmp = execution.tuning_cmp
+    plunger_sensitivity = execution.plunger_sensitivity
+    phase_shifts = execution.phase_shifts
 
     print(f"input_folder: {args.input_folder}")
     print(f"marker_role: {args.marker_role}")

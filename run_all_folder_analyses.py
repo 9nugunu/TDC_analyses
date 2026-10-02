@@ -16,7 +16,6 @@ from run_folder_analysis import (
     DEFAULT_DATA_ROOT,
     apply_inferred_defaults,
     prefixed_dataset_id,
-    run_folder_analysis,
 )
 from deflector_tuning.data_loading.dataset_naming import parse_dataset_id
 from deflector_tuning.dispersion import process_cst_dispersion_txt
@@ -34,11 +33,8 @@ from deflector_tuning.table_schema import (
 )
 from deflector_tuning.workflows.tuning_campaign import (
     register_matching_tuning_campaign,
-    resolve_tuning_marker_correction,
 )
-from deflector_tuning.workflows.tuning_simulation_comparison import (
-    run_tuning_cmp,
-)
+from deflector_tuning.workflows.dataset_execution import run_dataset_analysis
 from deflector_tuning.workflows.tuning_phase_shifts import (
     run_tuning_campaign_phase_shifts,
 )
@@ -312,15 +308,8 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         if task.dispersion_path is not None
         else None
     )
-    marker_correction = (
-        resolve_tuning_marker_correction(
-            task.sparameter_path.name,
-            data_root=task.data_root,
-        )
-        if task.marker_role == "exp"
-        else None
-    )
-    result = run_folder_analysis(
+    execution = run_dataset_analysis(
+        dataset_id=task.sparameter_path.name,
         sparameter_path=task.sparameter_path,
         dispersion_path=dispersion_path,
         output_dir=task.output_dir,
@@ -329,32 +318,8 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
         plot_workers=1,
         tables_only=task.tables_only,
         project_defaults=task.project_defaults,
-        marker_correction=marker_correction,
     )
-    campaign_match = register_matching_tuning_campaign(
-        task.sparameter_path.name,
-        manifest_path=result.manifest_path,
-        data_root=task.data_root,
-    )
-    if campaign_match is not None and not task.tables_only:
-        run_tuning_cmp(
-            campaign_match,
-            current_result=result,
-            data_root=task.data_root,
-            plot_workers=1,
-            project_defaults=task.project_defaults,
-        )
-    if (
-        campaign_match is not None
-        and getattr(campaign_match, "measurement_kind", None) == "state"
-        and not task.tables_only
-    ):
-        run_tuning_campaign_phase_shifts(
-            campaign_match.campaign,
-            analysis_root=Path(result.output_dir).parent,
-            output_dir=result.output_dir,
-            current_state_id=getattr(campaign_match, "state_id", None),
-        )
+    result = execution.analysis
     if task.tables_only:
         verify_table_contract_outputs(result.output_dir, result.manifest_path)
     return task.sparameter_path, result.output_dir

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from deflector_tuning.workflows import dataset_execution as workflow
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = PROJECT_ROOT / "run_all_folder_analyses.py"
@@ -383,7 +385,7 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
     monkeypatch.setattr(module, "prepare_batch_dispersion_input", lambda *args, **kwargs: None)
     correction = object()
     monkeypatch.setattr(
-        module,
+        workflow,
         "resolve_tuning_marker_correction",
         lambda *args, **kwargs: correction,
         raising=False,
@@ -396,14 +398,14 @@ def test_run_batch_task_disables_nested_plot_workers(monkeypatch) -> None:
             manifest_path=task.output_dir / "manifest.json",
         )
 
-    monkeypatch.setattr(module, "run_folder_analysis", fake_run_folder_analysis)
+    monkeypatch.setattr(workflow, "run_folder_analysis", fake_run_folder_analysis)
     monkeypatch.setattr(
         module,
         "verify_table_contract_outputs",
         lambda output_dir, manifest_path: verified.append((output_dir, manifest_path)),
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "register_matching_tuning_campaign",
         lambda dataset_id, **kwargs: registered.append(
             {"dataset_id": dataset_id, **kwargs}
@@ -442,7 +444,7 @@ def test_run_batch_task_generates_campaign_phase_shifts_for_a_tuning_state(monke
     captured: dict[str, object] = {}
     correction = object()
     monkeypatch.setattr(
-        module,
+        workflow,
         "run_folder_analysis",
         lambda **kwargs: captured.update(kwargs) or SimpleNamespace(
             output_dir=task.output_dir,
@@ -450,23 +452,25 @@ def test_run_batch_task_generates_campaign_phase_shifts_for_a_tuning_state(monke
         ),
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "resolve_tuning_marker_correction",
         lambda *args, **kwargs: correction,
         raising=False,
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "register_matching_tuning_campaign",
         lambda *args, **kwargs: SimpleNamespace(
             campaign=campaign,
             measurement_kind="state",
             state_id="s004",
+            comparison_enabled=True,
+            phase_offset_sensitivity=None,
         ),
     )
-    monkeypatch.setattr(module, "run_tuning_cmp", lambda *args, **kwargs: None)
+    monkeypatch.setattr(workflow, "run_tuning_cmp", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        module,
+        workflow,
         "run_tuning_campaign_phase_shifts",
         lambda campaign, **kwargs: phase_runs.append({"campaign": campaign, **kwargs}) or None,
         raising=False,
@@ -483,6 +487,86 @@ def test_run_batch_task_generates_campaign_phase_shifts_for_a_tuning_state(monke
         }
     ]
     assert captured["marker_correction"] is correction
+
+
+@pytest.mark.parametrize("tables_only", [False, True])
+def test_single_and_batch_write_equivalent_plunger_sensitivity_products(
+    monkeypatch, tmp_path: Path, tables_only: bool,
+) -> None:
+    import pandas as pd
+    import run_folder_analysis as single
+    from deflector_tuning.workflows import plunger_sensitivity
+
+    batch = _load_runner_module()
+    dataset_id = "raw_sweep_260721_tune_s003_plungersensitivity"
+    task = batch.BatchTask(
+        sparameter_path=Path("raw") / dataset_id,
+        dispersion_path=None,
+        output_dir=tmp_path / "batch" / dataset_id,
+        marker_role="exp",
+        data_root=tmp_path / "data",
+        tables_only=tables_only,
+    )
+    single_output = tmp_path / "single" / dataset_id
+    args = SimpleNamespace(
+        input_folder=task.sparameter_path, sparameter_path=task.sparameter_path,
+        dispersion_path=None, output_dir=single_output, marker_role=task.marker_role,
+        data_root=task.data_root, file_workers=1, plot_workers=1,
+        tables_only=tables_only, project_defaults=task.project_defaults,
+    )
+    match = SimpleNamespace(
+        phase_offset_sensitivity=SimpleNamespace(reference_offset_mm=0.0),
+        comparison_enabled=False, measurement_kind="auxiliary",
+    )
+    run_calls = []
+    rendered = []
+
+    def fake_analysis(**kwargs):
+        run_calls.append(kwargs)
+        output_dir = kwargs["output_dir"]
+        table_dir = output_dir / "tables"
+        table_dir.mkdir(parents=True)
+        marker_path = table_dir / "marker_pts.csv"
+        pd.DataFrame(
+            dict(dataset_id=[dataset_id] * 2, source_file=["zerooffset.s1p", "1mmoffset.s1p"],
+                 marker_name=["f_2pi3"] * 2, s_phase_deg=[179.0, -178.0], tune_position=[2.0] * 2)
+        ).to_csv(marker_path, index=False)
+        manifest_path = output_dir / "manifest.json"
+        manifest_path.write_text('{"outputs": {}}', encoding="utf-8")
+        return SimpleNamespace(output_dir=output_dir, manifest_path=manifest_path,
+                               tables={"marker_pts": marker_path}, figures={}, analysis_modes=("raw",))
+
+    def fake_plot(table, output_dir, **kwargs):
+        rendered.append(output_dir)
+        output_dir.mkdir(parents=True)
+        figure_path = output_dir / "phase_response.png"
+        figure_path.touch()
+        return figure_path
+
+    monkeypatch.setattr(single, "parse_args", lambda argv=None: args)
+    monkeypatch.setattr(workflow, "resolve_tuning_marker_correction", lambda *args, **kwargs: None)
+    monkeypatch.setattr(workflow, "run_folder_analysis", fake_analysis)
+    monkeypatch.setattr(workflow, "register_matching_tuning_campaign", lambda *args, **kwargs: match)
+    monkeypatch.setattr(workflow, "run_tuning_cmp", lambda *args, **kwargs: pytest.fail("disabled comparison ran"))
+    monkeypatch.setattr(workflow, "run_tuning_campaign_phase_shifts", lambda *args, **kwargs: pytest.fail("auxiliary phase summary ran"))
+    monkeypatch.setattr(plunger_sensitivity, "plot_phase_offset_response", fake_plot)
+    monkeypatch.setattr(batch, "verify_table_contract_outputs", lambda *args: None)
+
+    assert single.main([]) == 0
+    assert batch.run_batch_task(task) == (task.sparameter_path, task.output_dir)
+    single_table = pd.read_csv(single_output / "tables" / "phase_vs_plunger_offset.csv")
+    batch_table = pd.read_csv(task.output_dir / "tables" / "phase_vs_plunger_offset.csv")
+    pd.testing.assert_frame_equal(single_table, batch_table)
+    assert batch_table["phase_delta_deg"].tolist() == pytest.approx([0.0, 3.0])
+    assert len(rendered) == (0 if tables_only else 2)
+    for output_dir in (single_output, task.output_dir):
+        manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
+        product = manifest["outputs"]["plunger_sensitivity"]
+        assert Path(product["tables"]["phase_vs_plunger_offset"]).is_file()
+        assert bool(product["figures"]) is not tables_only
+    assert {key: value for key, value in run_calls[0].items() if key != "output_dir"} == {
+        key: value for key, value in run_calls[1].items() if key != "output_dir"
+    }
 
 
 def test_verify_standard_table_outputs_rejects_leftover_legacy_file(tmp_path: Path) -> None:

@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+from deflector_tuning.workflows import dataset_execution as workflow
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 RUNNER = PROJECT_ROOT / "run_folder_analysis.py"
@@ -44,7 +46,7 @@ def test_root_run_folder_analysis_cli_shows_help() -> None:
 def test_root_run_folder_analysis_cli_supports_import_without_running_analysis() -> None:
     source = RUNNER.read_text(encoding="utf-8")
 
-    assert "from deflector_tuning.runner import run_folder_analysis" in source
+    assert "from deflector_tuning.workflows.dataset_execution import run_dataset_analysis" in source
     assert "if __name__ == \"__main__\":" in source
 
 
@@ -261,23 +263,24 @@ def test_main_registers_matching_campaign_without_new_cli_arguments(
     match = SimpleNamespace(
         comparison_enabled=True,
         phase_offset_sensitivity=None,
+        measurement_kind="auxiliary",
     )
     monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
     run_arguments: list[dict[str, object]] = []
     correction = object()
     monkeypatch.setattr(
-        module,
+        workflow,
         "run_folder_analysis",
         lambda **kwargs: run_arguments.append(kwargs) or result,
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "resolve_tuning_marker_correction",
         lambda *args, **kwargs: correction,
         raising=False,
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "register_matching_tuning_campaign",
         lambda dataset_id, **kwargs: (
             registered.append({"dataset_id": dataset_id, **kwargs}) or match
@@ -285,7 +288,7 @@ def test_main_registers_matching_campaign_without_new_cli_arguments(
         raising=False,
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "run_tuning_cmp",
         lambda campaign_match, **kwargs: comparisons.append(
             {"campaign_match": campaign_match, **kwargs}
@@ -349,16 +352,16 @@ def test_main_generates_campaign_phase_shift_figures_for_a_tuning_state(
     )
     phase_runs: list[dict[str, object]] = []
     monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
-    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    monkeypatch.setattr(workflow, "run_folder_analysis", lambda **kwargs: result)
     monkeypatch.setattr(
-        module,
+        workflow,
         "resolve_tuning_marker_correction",
         lambda *args, **kwargs: None,
         raising=False,
     )
-    monkeypatch.setattr(module, "register_matching_tuning_campaign", lambda *args, **kwargs: match)
+    monkeypatch.setattr(workflow, "register_matching_tuning_campaign", lambda *args, **kwargs: match)
     monkeypatch.setattr(
-        module,
+        workflow,
         "run_tuning_campaign_phase_shifts",
         lambda campaign, **kwargs: phase_runs.append({"campaign": campaign, **kwargs}) or None,
         raising=False,
@@ -405,23 +408,24 @@ def test_main_skips_tuning_comparison_for_auxiliary_measurement(
     match = SimpleNamespace(
         comparison_enabled=False,
         phase_offset_sensitivity=object(),
+        measurement_kind="auxiliary",
     )
     monkeypatch.setattr(module, "parse_args", lambda argv=None: args)
-    monkeypatch.setattr(module, "run_folder_analysis", lambda **kwargs: result)
+    monkeypatch.setattr(workflow, "run_folder_analysis", lambda **kwargs: result)
     monkeypatch.setattr(
-        module,
+        workflow,
         "resolve_tuning_marker_correction",
         lambda *args, **kwargs: None,
         raising=False,
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "register_matching_tuning_campaign",
         lambda dataset_id, **kwargs: match,
         raising=False,
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "run_tuning_cmp",
         lambda campaign_match, **kwargs: comparisons.append(
             {"campaign_match": campaign_match, **kwargs}
@@ -429,7 +433,7 @@ def test_main_skips_tuning_comparison_for_auxiliary_measurement(
         raising=False,
     )
     monkeypatch.setattr(
-        module,
+        workflow,
         "run_plunger_sensitivity",
         lambda campaign_match, **kwargs: (
             sensitivities.append({"campaign_match": campaign_match, **kwargs})
