@@ -314,6 +314,35 @@ def test_build_polar_plot_plans_describes_outputs_before_rendering(tmp_path: Pat
     assert all(not plan.output_path.exists() for plan in plans)
 
 
+@pytest.mark.parametrize(
+    "marker_points_factory",
+    [
+        _marker_points,
+        _kyhl_pair_marker_points,
+        _grid_scan_marker_points,
+        _grid_scan_marker_points_with_tune_positions,
+        _plunger_offset_marker_points,
+    ],
+)
+def test_build_polar_plot_plans_preserves_input_without_rendering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, marker_points_factory
+) -> None:
+    marker_points = marker_points_factory()
+    original = marker_points.copy(deep=True)
+    output_dir = tmp_path / "planned_outputs"
+
+    def reject_rendering(*args, **kwargs):
+        raise AssertionError("planning must not create figures")
+
+    monkeypatch.setattr(plt, "subplots", reject_rendering)
+
+    plans = build_polar_plot_plans(marker_points, output_dir)
+
+    assert plans
+    assert not output_dir.exists()
+    pd.testing.assert_frame_equal(marker_points, original)
+
+
 def test_build_polar_plot_plans_places_no_port_extension_positions_in_subfolder(
     tmp_path: Path,
 ) -> None:
