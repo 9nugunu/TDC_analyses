@@ -36,7 +36,7 @@ from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_st
 
 LOGGER = logging.getLogger(__name__)
 MARKER_NAMES = ("f_2pi3", "f_mean", "f_pi2")
-MARKER_LABELS = (r"$f_{2\pi/3}$", r"$f_{\mathrm{mean}}$", r"$f_{\pi/2}$")
+MARKER_LABELS = (r"$f_{2\pi/3}$", r"$f_m$", r"$f_{\pi/2}$")
 DEFAULT_MARKERS_GHZ = (2.8571160335532, 2.8672804543714, 2.8774448751896)
 DEFAULT_SOURCE = "data/sim/sim_sweep_260620_FullstructureSweep_ports_swapped"
 
@@ -187,7 +187,7 @@ def _plot_predictions(rows: list[dict], summaries: list[dict], marker_values: li
     plt.rcParams.update({"font.size": 8, "pdf.fonttype": 42, "ps.fonttype": 42,
                          "axes.linewidth": 0.7})
     fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.9), sharey=True)
-    colors = {"cell": "#d55e00", "iris": "#0072b2"}
+    colors = {"cell": "C0", "iris": "C1"}
     markers = {"cell": "o", "iris": "s"}
     labels = {"cell": "Cell-centered", "iris": "Iris-centered"}
     min_depth = min(row["NumDepth"] for row in rows)

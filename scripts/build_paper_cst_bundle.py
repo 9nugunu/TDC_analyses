@@ -475,7 +475,7 @@ def draw_figures(output_root: Path, config: dict[str, Any], rows: list[dict]) ->
     output_paths = []
     markers = config["markers"]
     tick_labels = [r"$f_{2\pi/3}$" + "\n" + f"{markers[0]['requested_GHz']:.6f}",
-                   r"$f_{\mathrm{mean}}$" + "\n" + f"{markers[1]['requested_GHz']:.6f}",
+                   r"$f_m$" + "\n" + f"{markers[1]['requested_GHz']:.6f}",
                    r"$f_{\pi/2}$" + "\n" + f"{markers[2]['requested_GHz']:.6f}"]
     x = np.arange(len(markers), dtype=float)
     residual_limit = max(10, int(np.ceil(max(abs(row["signed_target_residual_deg"])
@@ -543,7 +543,7 @@ def draw_radius_figure(output_root: Path, config: dict[str, Any], rows: list[dic
     # draw_figures has applied the shared style and embedded TrueType policy.
     fig, ax = plt.subplots(figsize=(3.40, 3.05))
     fig.subplots_adjust(left=0.20, right=0.97, bottom=0.24, top=0.89)
-    labels = [r"$f_{2\pi/3}$", r"$f_{\mathrm{mean}}$", r"$f_{\pi/2}$"]
+    labels = [r"$f_{2\pi/3}$", r"$f_m$", r"$f_{\pi/2}$"]
     for marker, label, symbol, color in zip(config["markers"], labels, ("o", "s", "^"), ("C0", "C1", "C2")):
         points = sorted((row for row in rows if row["marker"] == marker["name"]), key=lambda row: row["r_c_mm"])
         ax.plot([row["r_c_mm"] for row in points], [row["unwrapped_phase_deg"] for row in points],
