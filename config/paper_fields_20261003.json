@@ -1,0 +1,18 @@
+{
+  "data_kind": "simulation",
+  "field_dataset": "data/sim/sim_profile_260723_3DEMfield",
+  "field_cases": [
+    {"id": "NoPlunger", "label": "Reference", "depth": null},
+    {"id": "Numdepth0.5", "label": "Cell 0.5", "depth": 0.5},
+    {"id": "Numdepth1.0", "label": "Iris 1.0", "depth": 1.0},
+    {"id": "NumDepth1.5", "label": "Cell 1.5", "depth": 1.5},
+    {"id": "NumDepth2.0", "label": "Iris 2.0", "depth": 2.0}
+  ],
+  "fixed_axis": "x",
+  "requested_coordinate_mm": 0.0,
+  "cached_energy_table": "fig/analyses/sim_profile_260723_3DEMfield/tables/field3d_energy.csv",
+  "dispersion_source": "data/sim/sim_dispersion_260505_single_cell_step1/260505_regular_cell_phase_sweep_0p180_step1_modes01-10_cstxy.txt",
+  "mode_index": 1,
+  "scattering_config": "config/paper_cst_20261003.json",
+  "interpretation": "Within-dataset normalized field sections. Full geometry, port power normalization, and exact identity with the June scattering configurations are not supplied by the field headers. No absolute field or matching comparison is made between datasets."
+}
