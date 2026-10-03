@@ -1,0 +1,93 @@
+{
+  "name": "lps_publication_rf_v1",
+  "reference_repository": "LPS-PyTomo",
+  "reference_class": "LPS_shared.visualization.PlotConfig",
+  "source_sha256": {
+    "LPS_shared/visualization.py": "dbed4888504e223c9f2d11bfbf923cd708d8be03b26a9f2fcc774bc5f20873be",
+    "LPS_shared/figure_styles.py": "1110455cd23995131f0e9306da0c967ce2730cbabdf904ecb3659207562567d9",
+    "LPS_shared/FIGURE_STYLES.md": "bd1a83ea84ffb862b36ba704f420c99e3b92f47ecebeadef74459d97ea72414e",
+    "analysis/v09_snr_quality_20260929/bars.py": "35f09d416ec778b850d26e19bb058bfa0b9859cc5c73d3f5a7a20b5641279b5a"
+  },
+  "source_config": {
+    "label_size": 32,
+    "label_weight": "bold",
+    "font_weight": "bold",
+    "font_size": 30,
+    "cmap": "turbo",
+    "title_size": 32,
+    "title_weight": "bold",
+    "legend_fontsize": 16,
+    "line_width": 4,
+    "marker_size": 8,
+    "zero_transparent": true,
+    "usetex": true,
+    "draw_chirp": true,
+    "show_title": false,
+    "show_gaussian_fit": true,
+    "figure_ext": "pdf",
+    "figure_dpi": 600
+  },
+  "source_reconstruction_style": {
+    "name": "lps_paper_v1",
+    "intensity_cut_fraction": 0.01,
+    "renormalize": false,
+    "marginal_source": "post_cut",
+    "color_mode": "integrated_intensity",
+    "cumulative_boundaries": [
+      0,
+      50,
+      75,
+      90,
+      100
+    ],
+    "colors": [
+      "#e43b35",
+      "#ffd43b",
+      "#35a853",
+      "#2455f5"
+    ],
+    "elabs_inset": [
+      -0.6,
+      0.0,
+      -0.04,
+      0.01
+    ],
+    "xfel_inset": [
+      0.5,
+      1.2,
+      -1.6,
+      -0.9
+    ],
+    "elabs_inset_bounds": [
+      0.1,
+      0.53,
+      0.25,
+      0.25
+    ],
+    "xfel_inset_bounds": [
+      0.1,
+      0.07,
+      0.3,
+      0.3
+    ]
+  },
+  "reference_font_scale_10x6": 0.8660254037844386,
+  "approved_legend_points": 22.273765879661063,
+  "legend_to_label_ratio": 0.8037352954055635,
+  "application": {
+    "label_points": 11.5,
+    "line_points": 2.0,
+    "marker_points": 5.0,
+    "major_tick_width": 1.1,
+    "spine_width": 1.0,
+    "save_pad_inches": 0.07,
+    "field_color_mapping": "continuous interpolation through reversed LPS colors; no intensity cut, no cumulative-intensity remapping",
+    "line_colors": [
+      "#0000FF",
+      "#FF7F00",
+      "#2ca02c",
+      "#CC00CC"
+    ]
+  },
+  "tex_preamble": "\\usepackage[T1]{fontenc} \\usepackage{amsmath,bm,amssymb} \\usepackage{type1cm} \\boldmath \\renewcommand{\\familydefault}{\\rmdefault} \\renewcommand{\\seriesdefault}{b} \\AtBeginDocument{\\boldmath\\bfseries}"
+}

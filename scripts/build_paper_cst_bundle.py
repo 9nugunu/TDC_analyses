@@ -31,7 +31,7 @@ if str(ROOT) not in sys.path:
 
 from deflector_tuning.data_loading.loaders.sim_loader import _read_cst_parameter_header
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_style
+from deflector_tuning.visualization.lps_paper_style import apply_lps_style, finish_axes, save_paper_figure
 
 
 def sha256(path: Path) -> str:
@@ -465,12 +465,7 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 def draw_figures(output_root: Path, config: dict[str, Any], rows: list[dict]) -> list[Path]:
     """Plot absolute phases and target residuals on matched, full-width axes."""
-    style = replace(PlotConfig(), font_family=("DejaVu Sans",),
-                    title_size=9, label_size=9, tick_size=8, legend_size=8,
-                    label_weight="normal", title_weight="normal", tick_weight="normal")
-    apply_plot_style(style)
-    plt.rcParams.update({"font.size": 8, "pdf.fonttype": 42, "ps.fonttype": 42,
-                         "mathtext.fontset": "dejavusans"})
+    style = apply_lps_style()
     colors = ["C0", "C1"]
     output_paths = []
     markers = config["markers"]
@@ -532,7 +527,9 @@ def draw_figures(output_root: Path, config: dict[str, Any], rows: list[dict]) ->
             metadata = {"Creator": "build_paper_cst_bundle.py"}
             if suffix == "pdf":
                 metadata.update({"CreationDate": None, "ModDate": None})
-            fig.savefig(path, dpi=style.dpi, metadata=metadata)
+            for ax in axes.flat:
+                finish_axes(ax, scale=0.85)
+            save_paper_figure(fig, path, metadata=metadata)
             output_paths.append(path)
         plt.close(fig)
     return output_paths
@@ -540,36 +537,32 @@ def draw_figures(output_root: Path, config: dict[str, Any], rows: list[dict]) ->
 
 def draw_radius_figure(output_root: Path, config: dict[str, Any], rows: list[dict]) -> list[Path]:
     """Draw the full configured radius scan at a readable single-column size."""
-    # draw_figures has applied the shared style and embedded TrueType policy.
-    fig, ax = plt.subplots(figsize=(3.40, 3.05))
-    fig.subplots_adjust(left=0.20, right=0.97, bottom=0.24, top=0.89)
+    apply_lps_style()
+    fig, ax = plt.subplots(figsize=(3.40, 2.8), layout="constrained")
     labels = [r"$f_{2\pi/3}$", r"$f_m$", r"$f_{\pi/2}$"]
     for marker, label, symbol, color in zip(config["markers"], labels, ("o", "s", "^"), ("C0", "C1", "C2")):
         points = sorted((row for row in rows if row["marker"] == marker["name"]), key=lambda row: row["r_c_mm"])
         ax.plot([row["r_c_mm"] for row in points], [row["unwrapped_phase_deg"] for row in points],
-                label=label, color=color, lw=1.1, marker=symbol, markevery=20,
-                markersize=3, markerfacecolor="white", markeredgewidth=0.8)
+                label=label, color=color, lw=2, marker=symbol, markevery=20,
+                markersize=5, markerfacecolor="white", markeredgewidth=1.2)
     nominal = config["radius_scan"]["nominal_radius"]
     ax.axvline(nominal, color="0.4", lw=0.9, ls="--", zorder=0)
     grid = config["radius_scan"]["expected_grid"]
     padding = 2 * grid["step"]
-    ax.set(xlabel="$r_c$ (mm)", ylabel="Continuous raw $S_{11}$ phase (deg)",
+    ax.set(xlabel="$r_c$ [mm]", ylabel="$S_{11}$ phase [deg]",
            xlim=(grid["minimum"] - padding, grid["maximum"] + padding))
     ax.tick_params(labelsize=8)
     ax.set_axisbelow(True)
     ax.grid(color="0.90", lw=0.6)
-    fig.legend(*ax.get_legend_handles_labels(), loc="upper center", bbox_to_anchor=(0.57, 0.995),
-               ncol=3, fontsize=7.5, frameon=False, handlelength=1.5, columnspacing=1.1,
-               handletextpad=0.4)
-    fig.text(0.57, 0.075, f"CST; NumDepth=2; dashed: nominal {nominal:g} mm", ha="center", fontsize=6.7)
-    fig.text(0.57, 0.025, "Linked geometry: coupler_path_h = $r_c$", ha="center", fontsize=7)
+    ax.legend(loc="lower left", handlelength=1.6, handletextpad=0.4)
+    finish_axes(ax)
     outputs = []
     for suffix in ("pdf", "png"):
         path = output_root / "fig" / f"fig05-iris-radius-response.{suffix}"
         metadata = {"Creator": "build_paper_cst_bundle.py"}
         if suffix == "pdf":
             metadata.update({"CreationDate": None, "ModDate": None})
-        fig.savefig(path, dpi=PlotConfig().dpi, metadata=metadata)
+        save_paper_figure(fig, path, metadata=metadata)
         outputs.append(path)
     plt.close(fig)
     return outputs
@@ -596,7 +589,8 @@ def main(argv: list[str] | None = None) -> Path:
     source_files = [Path(__file__).resolve(), config_path,
                     ROOT / "deflector_tuning/data_loading/readers/touchstone_reader.py",
                     ROOT / "deflector_tuning/data_loading/loaders/sim_loader.py",
-                    ROOT / "deflector_tuning/visualization/plot_config.py"]
+                    ROOT / "deflector_tuning/visualization/lps_paper_style.py",
+                    ROOT / "config/lps_publication_style.json"]
     manifest = {"schema_version": 1, "generated_utc": datetime.now(timezone.utc).isoformat(),
                 "data_kind": "simulation", "config": config,
                 "generator": {"argv": [sys.executable, *sys.argv],

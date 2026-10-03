@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -28,7 +27,9 @@ from deflector_tuning.analysis.field_sections import load_field_section, normali
 from deflector_tuning.data_loading.field3d import find_field3d_pairs, EPSILON_0_F_PER_M, MU_0_H_PER_M
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
 from deflector_tuning.dispersion.cst import load_cst_dispersion_txt
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_style
+from deflector_tuning.visualization.lps_paper_style import (
+    PRESET_PATH, apply_lps_style, field_colormap, finish_axes, save_paper_figure,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def save(fig, paper, stem):
     paths = []
     for extension in ("pdf", "png"):
         path = paper / "fig" / f"{stem}.{extension}"
-        fig.savefig(path, dpi=300)
+        save_paper_figure(fig, path)
         paths.append(path)
     plt.close(fig)
     return paths
@@ -60,12 +61,11 @@ def field_figure(root, paper, config):
     pairs = {pair.case_id: pair for pair in find_field3d_pairs(dataset)}
     with (root / config["cached_energy_table"]).open(encoding="utf-8") as stream:
         cached = {row["case_id"]: row for row in csv.DictReader(stream)}
-    fig, axes = plt.subplots(2, len(config["field_cases"]), figsize=(7.08, 4.05),
+    fig, axes = plt.subplots(2, len(config["field_cases"]), figsize=(7.08, 3.35),
                              sharex=True, sharey=True)
-    fig.subplots_adjust(left=0.12, right=0.875, bottom=0.23, top=0.89,
-                        wspace=0.12, hspace=0.24)
-    cmap = plt.get_cmap("viridis").copy()
-    cmap.set_bad("0.90")
+    fig.subplots_adjust(left=0.10, right=0.87, bottom=0.15, top=0.89,
+                        wspace=0.12, hspace=0.18)
+    cmap = field_colormap()
     records, sections, arrays = [], [], {}
     reference_grid = None
     for col, case in enumerate(config["field_cases"]):
@@ -123,17 +123,14 @@ def field_figure(root, paper, config):
             if row == 0:
                 ax.set_title(case["label"], fontsize=8.5, pad=6)
             if col == 0:
-                ax.set_ylabel((r"$|\mathbf{E}|$" if row == 0 else r"$|\mathbf{H}|$") + "\n$y$ (mm)", fontsize=9)
+                ax.set_ylabel((r"$|\mathbf{E}|$" if row == 0 else r"$|\mathbf{H}|$") + "\n$y$ [mm]")
             if row == 1:
-                ax.set_xlabel("$z$ (mm)", fontsize=8)
-    cax = fig.add_axes([0.9, 0.29, 0.014, 0.50])
+                ax.set_xlabel("$z$ [mm]")
+            finish_axes(ax, scale=0.8, grid=False)
+    cax = fig.add_axes([0.90, 0.22, 0.014, 0.58])
     colorbar = fig.colorbar(mesh, cax=cax, ticks=[0, 0.5, 1])
-    cax.tick_params(labelsize=7)
-    colorbar.set_label("Normalized magnitude",fontsize=8,labelpad=6)
-    fig.text(0.49, 0.05,
-             f"CST field exports: f = 2.857 GHz (file label); x = {reference_grid.actual_coordinate_mm:.3f} mm\n"
-             "Gray: zero in both exported fields; dashed: detected axial zero-region onset",
-             ha="center", fontsize=7)
+    cax.tick_params(labelsize=8)
+    colorbar.set_label("Normalized magnitude", fontsize=9.2, labelpad=7)
     arrays["transverse_mm"] = reference_grid.transverse_mm
     arrays["z_mm"] = reference_grid.z_mm
     array_path = paper / "tables/paper-field-sections.npz"
@@ -156,22 +153,22 @@ def dispersion_figure(root, paper, config, markers):
     values = dict(zip(data.phase_deg, data.freq_GHz))
     np.testing.assert_allclose([values[120], (values[90]+values[120])/2, values[90]],
                                [m["requested_GHz"] for m in markers], rtol=0, atol=1e-12)
-    fig, axes = plt.subplots(1, 2, figsize=(7.08, 2.75))
-    fig.subplots_adjust(left=0.095, right=0.98, bottom=0.25, top=0.86, wspace=0.34)
+    fig, axes = plt.subplots(1, 2, figsize=(7.08, 2.85), layout="constrained")
     for ax in axes:
-        ax.plot(data.phase_deg, data.freq_GHz, color="C0", lw=1.5)
-        ax.plot([90, 120], [values[90], values[120]], "o", color="C1", ms=4)
-        ax.grid(color="0.90", lw=0.6)
-        ax.set_xlabel("Cell phase advance (deg)")
-    axes[0].set(xlim=(0,180), xticks=[0,60,90,120,180], ylabel="Frequency (GHz)")
+        ax.plot(data.phase_deg, data.freq_GHz, color="C0", lw=2)
+        ax.plot([90, 120], [values[90], values[120]], "o", color="C1", ms=5)
+        ax.set_xlabel("Cell phase advance [deg]")
+    axes[0].set(xlim=(0,180), xticks=[0,60,90,120,180], ylabel="Frequency [GHz]")
     axes[0].set_title("(a) CST Mode 1", fontsize=9)
     axes[1].set(xlim=(80,130), ylim=(2.851,2.892), xticks=[90,105,120])
-    axes[1].set_title("(b) Reference-frequency interval", fontsize=9)
+    axes[1].set_title("(b) Reference frequencies")
     for frequency, label in ((values[90], r"$f_{\pi/2}$"),
                               ((values[90]+values[120])/2,r"$f_m$"),
                               (values[120],r"$f_{2\pi/3}$")):
         axes[1].axhline(frequency,color="0.5",ls="--",lw=0.7)
-        axes[1].text(129,frequency+0.0007,label,ha="right",va="bottom",fontsize=8)
+        axes[1].text(129,frequency+0.0007,label,ha="right",va="bottom",fontsize=10)
+    for ax in axes:
+        finish_axes(ax)
     paths = save(fig,paper,"fig-cst-dispersion-markers")
     out = paper / "tables/paper-dispersion-mode1.csv"
     data.to_csv(out,index=False)
@@ -188,8 +185,8 @@ def reflection_figure(root,paper,config):
     marks=np.array([m["requested_GHz"] for m in config["markers"]])
     span=marks[-1]-marks[0]
     limits=(marks[0]-0.15*span,marks[-1]+0.15*span)
-    fig,axes=plt.subplots(2,2,figsize=(7.08,4.6),sharey="row")
-    fig.subplots_adjust(left=.11,right=.985,bottom=.16,top=.84,wspace=.16,hspace=.36)
+    fig,axes=plt.subplots(2,2,figsize=(7.08,4.8),sharey="row")
+    fig.subplots_adjust(left=.12,right=.985,bottom=.08,top=.82,wspace=.14,hspace=.44)
     traces,inputs=[],{}
     for col,case in enumerate(config["cases"]):
         axes[0,col].set_title(("(a) Extended" if col==0 else "(b) Reduced"),fontsize=9,pad=6)
@@ -213,26 +210,26 @@ def reflection_figure(root,paper,config):
                 display[np.r_[False,np.abs(np.diff(display))>180]]=np.nan
                 label=row[f"{state}_label"]
                 axes[0,col].plot(freq[keep],display,color=f"C{pair_index}",
-                                 ls="--" if state_index==0 else "-",lw=1.2,label=label)
+                                 ls="--" if state_index==0 else "-",lw=2,label=label)
                 for f,v in zip(freq[keep],values[keep]):
                     traces.append({"case":case["id"],"state":label,"frequency_GHz":f,"real":v.real,"imag":v.imag})
             offset=(-.06,.06)[pair_index]
             axes[1,col].plot(np.arange(3)+offset,[float(r["signed_target_residual_deg"]) for r in selected],
                              ls="none",marker=("o","s")[pair_index],color=f"C{pair_index}",ms=5,
-                             label=pair["label"])
+                             markerfacecolor="white", markeredgewidth=1.4, label=pair["label"])
         for m in marks:
             axes[0,col].axvline(m,color="0.65",ls=":",lw=.7,zorder=0)
-        axes[0,col].set(xlim=limits,ylim=(-195,195),yticks=[-180,-90,0,90,180],xlabel="Frequency (GHz)")
+        axes[0,col].set(xlim=limits,ylim=(-195,195),yticks=[-180,-90,0,90,180],xlabel="Frequency [GHz]")
         axes[1,col].set(xticks=[0,1,2],xticklabels=[r"$f_{2\pi/3}$",r"$f_m$",r"$f_{\pi/2}$"],
                         ylim=(-180,180),yticks=[-150,0,150],xlim=(-.3,2.3))
         axes[1,col].axhline(0,color=".4",ls="--",lw=.8)
-        for ax in axes[:,col]: ax.grid(axis="y",color=".90",lw=.6)
-    axes[0,0].set_ylabel("Raw reflection phase (deg)")
-    axes[1,0].set_ylabel("Reference residual (deg)")
+    axes[0,0].set_ylabel("Reflection phase [deg]")
+    axes[1,0].set_ylabel("Reference residual [deg]")
     handles,labels=axes[0,0].get_legend_handles_labels()
-    fig.legend(handles,labels,loc="upper center",ncol=4,frameon=False,bbox_to_anchor=(.53,.98))
-    axes[1,1].legend(loc="lower left",frameon=False,fontsize=7)
-    fig.text(.54,.04,"CST simulations; native port references retained; three-frequency residuals shown below",ha="center",fontsize=7)
+    fig.legend(handles,labels,loc="upper center",ncol=4,bbox_to_anchor=(.55,.99))
+    axes[1,1].legend(loc="lower left")
+    for ax in axes.flat:
+        finish_axes(ax)
     paths=save(fig,paper,"fig-cst-phase-comparison")
     out=paper/"tables/paper-reflection-curves.csv"
     write_rows(out,traces)
@@ -255,9 +252,7 @@ def main():
     scattering=json.loads((root/config["scattering_config"]).read_text(encoding="utf-8"))
     protected={path:digest(path) for path in (paper/"tables").glob("*.csv")}
     for folder in ("fig","tables","docs/evidence"):(paper/folder).mkdir(parents=True,exist_ok=True)
-    apply_plot_style(replace(PlotConfig(),font_family=("DejaVu Sans",),label_size=9,tick_size=8,
-                            title_size=9,legend_size=8,label_weight="normal",title_weight="normal",tick_weight="normal"))
-    plt.rcParams.update({"font.size":8,"pdf.fonttype":42,"ps.fonttype":42,"mathtext.fontset":"dejavusans"})
+    apply_lps_style()
     outputs,fields=field_figure(root,paper,config)
     paths,dispersion=dispersion_figure(root,paper,config,scattering["markers"]); outputs+=paths
     paths,reflection=reflection_figure(root,paper,scattering); outputs+=paths
@@ -268,7 +263,9 @@ def main():
             "config":config,"field_comparison":fields,"dispersion":dispersion,"reflection":reflection,
             "previous_numerical_tables_unchanged":unchanged,
             "code_sha256":{str(Path(__file__).relative_to(root)):digest(__file__),
-                            "deflector_tuning/analysis/field_sections.py":digest(root/"deflector_tuning/analysis/field_sections.py")},
+                            "deflector_tuning/analysis/field_sections.py":digest(root/"deflector_tuning/analysis/field_sections.py"),
+                            "deflector_tuning/visualization/lps_paper_style.py":digest(root/"deflector_tuning/visualization/lps_paper_style.py"),
+                            PRESET_PATH.relative_to(ROOT).as_posix():digest(PRESET_PATH)},
             "outputs":[{"path":p.relative_to(paper).as_posix(),"sha256":digest(p)} for p in outputs]}
     (paper/"docs/evidence/field-comparison-manifest.json").write_text(json.dumps(record,indent=2,allow_nan=False)+"\n",encoding="utf-8")
     LOGGER.info("PASS: five E/H cases, dispersion and combined reflection plots; prior numeric tables unchanged")

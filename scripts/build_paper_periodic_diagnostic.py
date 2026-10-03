@@ -31,7 +31,7 @@ from deflector_tuning.analysis.periodic_reflection import evaluate_held_out_sequ
 from deflector_tuning.data_loading.loaders.sim_loader import _read_cst_parameter_header
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
 from deflector_tuning.data_loading.source_layer import DataLayer, detect_data_layer
-from deflector_tuning.visualization.plot_config import PlotConfig, apply_plot_style
+from deflector_tuning.visualization.lps_paper_style import apply_lps_style, finish_axes, save_paper_figure
 
 
 LOGGER = logging.getLogger(__name__)
@@ -180,13 +180,8 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 
 def _plot_predictions(rows: list[dict], summaries: list[dict], marker_values: list[float],
                       depth_groups: dict, training_count: int, fig_dir: Path) -> list[Path]:
-    style = replace(PlotConfig(), font_family=("DejaVu Sans",), title_size=8, label_size=8,
-                    tick_size=7, legend_size=8, label_weight="normal", title_weight="normal",
-                    tick_weight="normal", legend_weight="normal", math_bold=False)
-    apply_plot_style(style)
-    plt.rcParams.update({"font.size": 8, "pdf.fonttype": 42, "ps.fonttype": 42,
-                         "axes.linewidth": 0.7})
-    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.9), sharey=True)
+    apply_lps_style()
+    fig, axes = plt.subplots(1, 3, figsize=(7.08, 2.9), sharey=True)
     colors = {"cell": "C0", "iris": "C1"}
     markers = {"cell": "o", "iris": "s"}
     labels = {"cell": "Cell-centered", "iris": "Iris-centered"}
@@ -197,31 +192,24 @@ def _plot_predictions(rows: list[dict], summaries: list[dict], marker_values: li
             selected = [row for row in rows if row["marker"] == name and row["sequence"] == sequence]
             ax.plot([row["NumDepth"] for row in selected],
                     [row["absolute_phase_error_deg"] for row in selected],
-                    color=colors[sequence], marker=markers[sequence], markersize=3.5,
-                    linewidth=1.0, label=labels[sequence])
-        actual = next(item["actual_frequency_GHz"] for item in summaries if item["marker"] == name)
-        ax.set_title(f"({chr(97 + panel)}) {label}\n{actual:.5f} GHz", pad=5)
-        ax.set_xlabel("Plunger depth, NumDepth")
+                    color=colors[sequence], marker=markers[sequence], markersize=5,
+                    markerfacecolor="white", markeredgewidth=1.3,
+                    linewidth=2, label=labels[sequence])
+        ax.set_title(f"({chr(97 + panel)}) {label}", pad=8)
+        ax.set_xlabel("NumDepth")
         ax.set_xticks(np.arange(np.floor(min_depth), np.floor(max_depth) + 1))
         ax.set_xlim(np.floor(min_depth) - 0.1, max_depth + 0.3)
         ax.set_ylim(bottom=0)
-        ax.grid(axis="y", color="0.88", linewidth=0.5)
-        ax.spines[["top", "right"]].set_visible(False)
-    axes[0].set_ylabel("Absolute phase prediction error (deg)")
+    axes[0].set_ylabel("Phase prediction error [deg]")
     fig.legend(*axes[0].get_legend_handles_labels(), loc="upper center", ncol=2,
-               bbox_to_anchor=(0.53, 1.005), frameon=False)
-    cell_end = depth_groups["cell"][training_count]
-    iris_end = depth_groups["iris"][training_count]
-    fig.text(0.53, 0.865,
-             f"Training ends: cell {cell_end:g}; iris {iris_end:g}  |  Held-out predictions only",
-             ha="center", fontsize=7)
-    fig.text(0.53, 0.025, "Empirical recurrence / open-loop prediction; coupler matching is not tested.",
-             ha="center", fontsize=7)
-    fig.subplots_adjust(left=0.09, right=0.99, bottom=0.23, top=0.68, wspace=0.18)
+               bbox_to_anchor=(0.55, 1.02))
+    fig.subplots_adjust(left=0.09, right=0.99, bottom=0.19, top=0.73, wspace=0.18)
+    for ax in axes:
+        finish_axes(ax)
     outputs = []
     for suffix in ("pdf", "png"):
         path = fig_dir / f"fig06-periodic-prediction.{suffix}"
-        fig.savefig(path, dpi=300, metadata={"Title": "Held-out empirical reflection recurrence"})
+        save_paper_figure(fig, path, metadata={"Title": "Held-out empirical reflection recurrence"})
         outputs.append(path)
     plt.close(fig)
     return outputs
@@ -294,7 +282,8 @@ def build_diagnostic(args: argparse.Namespace) -> dict:
                   ROOT / "tests/test_periodic_reflection.py",
                   ROOT / "deflector_tuning/data_loading/readers/touchstone_reader.py",
                   ROOT / "deflector_tuning/data_loading/loaders/sim_loader.py",
-                  ROOT / "deflector_tuning/visualization/plot_config.py"]
+                  ROOT / "deflector_tuning/visualization/lps_paper_style.py",
+                  ROOT / "config/lps_publication_style.json"]
     manifest = {
         "generated_utc": datetime.now(timezone.utc).isoformat(), "schema_version": 1,
         "scope": "Empirical reflection recurrence and held-out depth prediction; not coupler-matching validation",
