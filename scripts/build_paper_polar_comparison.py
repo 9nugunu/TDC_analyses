@@ -105,7 +105,7 @@ def main() -> None:
                ncol=3, columnspacing=2, handlelength=2)
     role_handles = [Line2D([],[],color=".25",marker="o",mfc="white",ls=":",lw=1.5),
                     Line2D([],[],color=".25",marker="o",mfc=".25",ls="-",lw=1.5)]
-    fig.legend(role_handles, ["Reference plane: $C_0$ / $I_0$", "First tuning plane: $C_1$ / $I_1$"],
+    fig.legend(role_handles, ["Reference position: $C_0$ / $I_0$", "First tuning position: $C_1$ / $I_1$"],
                loc="upper center", bbox_to_anchor=(.51,.937), ncol=2, columnspacing=1.1)
     outputs = []
     for suffix in ("pdf", "png"):
