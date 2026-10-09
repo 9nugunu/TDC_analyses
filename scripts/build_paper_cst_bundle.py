@@ -189,6 +189,27 @@ def resolve_markers(root: Path, config: dict[str, Any]) -> tuple[list[dict[str, 
                      "markers": markers}
 
 
+def original_export_path(root: Path, folder: Path, transform: dict[str, Any], path: Path) -> Path:
+    """Locate the raw export a port-reordered file was made from.
+
+    ``original_dataset`` holds same-named raw files; ``source_map`` names a CSV in
+    the delivery folder (``delivered_file`` -> ``source_file``/``source_sha256``)
+    for deliveries assembled from several batches.
+    """
+    if "source_map" not in transform:
+        return simulation_path(root, transform["original_dataset"]) / path.name
+    with (folder / transform["source_map"]).open(newline="", encoding="utf-8") as stream:
+        matches = [row for row in csv.DictReader(stream) if row["delivered_file"] == path.name]
+    if len(matches) != 1:
+        raise ValueError(f"{transform['source_map']}: expected one row for {path.name}")
+    original = (root / matches[0]["source_file"]).resolve()
+    if not original.is_relative_to((root / "data" / "sim").resolve()):
+        raise ValueError(f"Only simulation data/sim paths are permitted: {matches[0]['source_file']}")
+    if sha256(original) != matches[0]["source_sha256"]:
+        raise ValueError(f"Source digest differs from {transform['source_map']}: {original.name}")
+    return original
+
+
 def load_case(root: Path, case: dict[str, Any], depths: list[float]) -> tuple[dict[float, dict], dict]:
     """Select unique metadata-defined states and read raw exported S parameters."""
     folder = simulation_path(root, case["dataset"])
@@ -230,7 +251,7 @@ def load_case(root: Path, case: dict[str, Any], depths: list[float]) -> tuple[di
                     "exported_port_1_assignment": metadata["port_assignments"][0]}
         if "port_transform" in case:
             transform = case["port_transform"]
-            original_path = simulation_path(root, transform["original_dataset"]) / path.name
+            original_path = original_export_path(root, folder, transform, path)
             original = read_touchstone(original_path)
             reordered = np.asarray(original.values)[:, transform["column_permutation"]]
             exact = (original.header == parsed.header
@@ -263,6 +284,8 @@ def make_tables(root: Path, config: dict[str, Any]) -> tuple[list[dict], list[di
     metrics, geometry, case_audits = [], [], []
     for case in config["cases"]:
         states, audit = load_case(root, case, depths)
+        # Per-run CST projects (one project file per batch run) are recorded, not rejected.
+        same_project = case.get("require_same_project", True)
         checks = []
         for depth, state in states.items():
             identity = state["identity"]
@@ -278,7 +301,8 @@ def make_tables(root: Path, config: dict[str, Any]) -> tuple[list[dict], list[di
             second = states[float(pair["second_num_depth"])]
             identities = [first["identity"], second["identity"]]
             check = validate_pair_metadata(identities[0]["metadata"], identities[1]["metadata"],
-                                           config["short_state_fields"])
+                                           config["short_state_fields"],
+                                           require_same_project=same_project)
             if not np.array_equal(first["frequency_GHz"], second["frequency_GHz"]):
                 raise ValueError(f"Frequency-grid mismatch within {case['id']}/{pair['name']}")
             checks.append({"pair": pair["name"], **check, "identical_frequency_grids": True})
@@ -307,7 +331,8 @@ def make_tables(root: Path, config: dict[str, Any]) -> tuple[list[dict], list[di
         # All four selected states also share the same non-state metadata.
         for depth in depths[1:]:
             validate_pair_metadata(states[depths[0]]["identity"]["metadata"],
-                                   states[depth]["identity"]["metadata"], config["short_state_fields"])
+                                   states[depth]["identity"]["metadata"], config["short_state_fields"],
+                                   require_same_project=same_project)
         audit["pair_consistency_checks"] = checks
         audit["all_selected_states_non_state_metadata_consistent"] = True
         case_audits.append(audit)

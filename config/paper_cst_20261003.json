@@ -14,9 +14,10 @@
     {"name": "iris", "label": "Iris centers", "first_num_depth": 1.0, "second_num_depth": 2.0, "first_label": "I0", "second_label": "I1"}
   ],
   "cases": [
-    {"id": "full", "label": "Full-structure case", "dataset": "data/sim/sim_sweep_260620_FullstructureSweep_ports_swapped", "expected_parameters": {"NumCell": 9, "R_plunger": 8}, "exported_s_index": 0, "port_transform": {"original_dataset": "data/sim/sim_sweep_260620_FullstructureSweep", "column_permutation": [3, 2, 1, 0]}},
+    {"id": "full", "label": "Full-structure case", "dataset": "data/sim/sim_sweep_261009_R07_extended_recomputed_ports_swapped", "expected_parameters": {"NumCell": 9, "R_plunger": 8, "NumTune": 5}, "exported_s_index": 0, "require_same_project": false, "port_transform": {"source_map": "source_map.csv", "column_permutation": [3, 2, 1, 0]}, "_comment": "CST 2026.5 recomputation (author decision D3, round-07 B3v2 mesh1x + B8); one CST project per run. Previous source: data/sim/sim_sweep_260620_FullstructureSweep_ports_swapped (original_dataset data/sim/sim_sweep_260620_FullstructureSweep)."},
     {"id": "half", "label": "Half-structure case", "dataset": "data/sim/sim_sweep_260620_Halfstructure", "expected_parameters": {"NumCell": 3, "R_plunger": 16}, "exported_s_index": 0}
   ],
+  "periodic_diagnostic": {"case": "full", "_comment": "build_paper_periodic_diagnostic.py reads its source dataset and project policy from this case"},
   "radius_scan": {
     "dataset": "data/sim/sim_grid_260701_1DRcFine",
     "axis_parameter": "r_c",

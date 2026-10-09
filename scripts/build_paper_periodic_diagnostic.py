@@ -38,7 +38,7 @@ LOGGER = logging.getLogger(__name__)
 MARKER_NAMES = ("f_2pi3", "f_mean", "f_pi2")
 MARKER_LABELS = (r"$f_{2\pi/3}$", r"$f_m$", r"$f_{\pi/2}$")
 DEFAULT_MARKERS_GHZ = (2.8571160335532, 2.8672804543714, 2.8774448751896)
-DEFAULT_SOURCE = "data/sim/sim_sweep_260620_FullstructureSweep_ports_swapped"
+DEFAULT_CONFIG = ROOT / "config" / "paper_cst_20261003.json"
 
 
 def _sha256(path: Path) -> str:
@@ -82,9 +82,23 @@ def _navigator(path: Path) -> dict[int, dict]:
     return result
 
 
+def source_case(config: dict) -> dict:
+    """Return the scattering case named by the config's ``periodic_diagnostic`` section."""
+    case_id = config["periodic_diagnostic"]["case"]
+    matches = [case for case in config["cases"] if case["id"] == case_id]
+    if len(matches) != 1:
+        raise ValueError(f"Expected one configured case {case_id!r}")
+    return matches[0]
+
+
 def _load_sequences(source: Path, depth_groups: dict[str, list[float]], markers: list[float],
-                    expected_num_tune: float) -> tuple[dict, list[dict], dict]:
-    """Route to simulation data and match source headers to the navigator."""
+                    expected_num_tune: float, *, require_same_project: bool = True,
+                    ) -> tuple[dict, list[dict], dict]:
+    """Route to simulation data and match source headers to the navigator.
+
+    With ``require_same_project=False`` (one CST project per run) the project
+    name is recorded per source and excluded from the fixed-metadata check.
+    """
     if detect_data_layer(source) is not DataLayer.SIM:
         raise ValueError("This CST diagnostic accepts only data/sim sources")
     navigator_path = source / "result_navigator.csv"
@@ -118,7 +132,8 @@ def _load_sequences(source: Path, depth_groups: dict[str, list[float]], markers:
             '! Touchstone port 2 = CST MWS port 1 ("")',
         ]:
             raise ValueError(f"Expected swapped CST port assignments: {path.name}")
-        fixed = {key: value for key, value in metadata.items() if key != "header_comments"}
+        ignored = {"header_comments"} if require_same_project else {"header_comments", "project"}
+        fixed = {key: value for key, value in metadata.items() if key not in ignored}
         fixed["parameters"] = {key: value for key, value in parameters.items()
                                if key not in {"NumDepth", "DepthPlunger"}}
         if baseline_metadata is None:
@@ -167,6 +182,8 @@ def _load_sequences(source: Path, depth_groups: dict[str, list[float]], markers:
         ])
     audit = {"path": navigator_path.relative_to(ROOT).as_posix(), "sha256": _sha256(navigator_path),
              "selected_headers_match_navigator": True, "fixed_metadata_consistent": True,
+             "project_name_policy": ("identical project required" if require_same_project
+                                     else "one CST project per run; names recorded per source"),
              "excluded_exported_states": excluded}
     return sequence_arrays, [selected[depth] for depth in sorted(selected)], audit
 
@@ -199,7 +216,9 @@ def _plot_predictions(rows: list[dict], summaries: list[dict], marker_values: li
         ax.set_xlabel("NumDepth")
         ax.set_xticks(np.arange(np.floor(min_depth), np.floor(max_depth) + 1))
         ax.set_xlim(np.floor(min_depth) - 0.1, max_depth + 0.3)
-        ax.set_ylim(bottom=0)
+    # Fix the shared y range only after every panel is drawn; fixing it inside the
+    # loop froze the top at the first panel's data and clipped later panels.
+    axes[0].set_ylim(bottom=0)
     axes[0].set_ylabel("Phase prediction error [deg]")
     fig.legend(*axes[0].get_legend_handles_labels(), loc="upper center", ncol=2,
                bbox_to_anchor=(0.55, 1.02))
@@ -217,10 +236,16 @@ def _plot_predictions(rows: list[dict], summaries: list[dict], marker_values: li
 
 def build_diagnostic(args: argparse.Namespace) -> dict:
     """Write a reproducible six-case held-out diagnostic from raw CST exports."""
+    config = json.loads(args.config.read_text(encoding="utf-8"))
+    case = source_case(config)
+    if args.source is None:
+        args.source = case["dataset"]
     source = (ROOT / args.source).resolve()
     destination = (ROOT / args.manuscript_dir).resolve()
     depth_groups = {"cell": args.cell_depths, "iris": args.iris_depths}
-    arrays, sources, navigator = _load_sequences(source, depth_groups, args.marker_ghz, args.num_tune)
+    arrays, sources, navigator = _load_sequences(
+        source, depth_groups, args.marker_ghz, args.num_tune,
+        require_same_project=case.get("require_same_project", True))
     predictions, summaries, sequence_audits = [], [], []
     for sequence, depths in depth_groups.items():
         for marker_index, (name, requested) in enumerate(zip(MARKER_NAMES, args.marker_ghz)):
@@ -278,7 +303,7 @@ def build_diagnostic(args: argparse.Namespace) -> dict:
     for item in [*sources, navigator]:
         if _sha256(ROOT / item["path"]) != item["sha256"]:
             raise RuntimeError(f"Source changed during diagnostic: {item['path']}")
-    code_paths = [Path(__file__), ROOT / "deflector_tuning/analysis/periodic_reflection.py",
+    code_paths = [Path(__file__), args.config.resolve(), ROOT / "deflector_tuning/analysis/periodic_reflection.py",
                   ROOT / "tests/test_periodic_reflection.py",
                   ROOT / "deflector_tuning/data_loading/readers/touchstone_reader.py",
                   ROOT / "deflector_tuning/data_loading/loaders/sim_loader.py",
@@ -316,7 +341,10 @@ def build_diagnostic(args: argparse.Namespace) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", default=DEFAULT_SOURCE, help="Simulation directory relative to the repository")
+    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
+                        help="Paper CST config; its periodic_diagnostic.case selects the source")
+    parser.add_argument("--source", default=None,
+                        help="Simulation directory relative to the repository (default: from --config)")
     parser.add_argument("--manuscript-dir", default="../TDC-AcademicPaper")
     parser.add_argument("--marker-ghz", nargs=3, type=float, default=list(DEFAULT_MARKERS_GHZ))
     parser.add_argument("--cell-depths", nargs="+", type=float, default=np.arange(1.5, 10, 1).tolist())

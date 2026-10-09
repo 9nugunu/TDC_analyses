@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "description": "Extended configuration (NumCell 9, R_plunger 8 mm, NumTune 5) short-state sequence NumDepth 0.5-9.5, recomputed in CST 2026.5 from the round-07 B0 geometry seed with the automatic mesh policy (StepsPerBoxNear 10). Replaces sim_sweep_260620_FullstructureSweep_ports_swapped for the paper (author decision D3). NumDepth 0.5/1/1.5/2 are the B3v2 mesh1x production runs; the rest are batch B8.",
+  "output_dataset": "data/sim/sim_sweep_261009_R07_extended_recomputed_ports_swapped",
+  "file_stem": "R07_extended_recomputed",
+  "reference_navigator": "data/sim/sim_sweep_260620_FullstructureSweep_ports_swapped/result_navigator.csv",
+  "varying_parameter": "NumDepth",
+  "expected_values": [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5],
+  "batches": [
+    {"dataset": "data/sim/sim_mesh_261008_R07_B3v2_extended", "label_pattern": "^mesh1x-(C0|I0|C1|I1)$",
+     "input_port_touchstone_index": 2},
+    {"dataset": "data/sim/sim_sweep_261009_R07_B8_extended_depthSequence", "label_pattern": "^depthseq-D",
+     "input_port_touchstone_index": 2}
+  ]
+}

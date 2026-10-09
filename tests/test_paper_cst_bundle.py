@@ -100,3 +100,36 @@ def test_nominal_geometry_link_can_record_different_project_names_explicitly():
     result = validate_pair_metadata(first, second, [], require_same_project=False)
     assert result["consistent"]
     assert result["different_project_names"] == ["case.cst", "radius_scan.cst"]
+
+
+def test_port_transform_source_map_locates_and_verifies_the_raw_export(tmp_path):
+    import hashlib
+
+    from scripts.build_paper_cst_bundle import original_export_path
+
+    raw = tmp_path / "data/sim/sim_sweep_000000_batch/r01-run.s2p"
+    raw.parent.mkdir(parents=True)
+    raw.write_text("raw", encoding="utf-8")
+    delivery = tmp_path / "data/sim/sim_sweep_000000_delivery"
+    delivery.mkdir()
+    digest = hashlib.sha256(b"raw").hexdigest()
+    (delivery / "source_map.csv").write_text(
+        "delivered_file,source_file,source_sha256\n"
+        f"run_1.s2p,data/sim/sim_sweep_000000_batch/r01-run.s2p,{digest}\n", encoding="utf-8")
+    transform = {"source_map": "source_map.csv", "column_permutation": [3, 2, 1, 0]}
+    assert original_export_path(tmp_path, delivery, transform, delivery / "run_1.s2p") == raw.resolve()
+    raw.write_text("changed", encoding="utf-8")
+    with pytest.raises(ValueError, match="digest"):
+        original_export_path(tmp_path, delivery, transform, delivery / "run_1.s2p")
+
+
+def test_periodic_diagnostic_source_comes_from_the_configured_case():
+    import json
+    from pathlib import Path
+
+    from scripts.build_paper_periodic_diagnostic import DEFAULT_CONFIG, source_case
+
+    config = json.loads(Path(DEFAULT_CONFIG).read_text(encoding="utf-8"))
+    case = source_case(config)
+    assert case["id"] == config["periodic_diagnostic"]["case"]
+    assert case["dataset"].startswith("data/sim/")
