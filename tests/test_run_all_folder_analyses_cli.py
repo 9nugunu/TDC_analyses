@@ -739,3 +739,48 @@ def test_main_uses_default_worker_count_when_nonpositive(monkeypatch, tmp_path: 
 
     assert exit_code == 0
     assert recorded_workers == [6]
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_batch_and_single_choose_the_same_configured_reference(tmp_path, explicit):
+    from deflector_tuning.project_defaults import ProjectDefaults
+    from deflector_tuning.runner import resolve_input_paths
+    module = _load_runner_module()
+    data_root = tmp_path / "data"
+    configured = data_root / "reference" / "configured"
+    discovered = data_root / "sim" / "sim_dispersion_260505_other"
+    override = data_root / "reference" / "override"
+    for folder in (configured, discovered, override):
+        folder.mkdir(parents=True)
+        (folder / "summary.csv").write_text("mode_index,freq_90_GHz,freq_120_GHz\n1,2.87,2.85\n")
+    defaults = ProjectDefaults(default_dispersion_subpath=Path("reference/configured"))
+    cli_path = override if explicit else None
+    task, = module.build_batch_tasks(
+        [Path("raw/raw_sweep_260722_sample")], output_root=tmp_path / "out",
+        marker_role="exp", dispersion_path=cli_path, data_root=data_root, project_defaults=defaults,
+    )
+    _, single = resolve_input_paths(task.sparameter_path, dispersion_path=cli_path,
+                                   data_root=data_root, default_dispersion_subpath=defaults.default_dispersion_subpath)
+    assert task.dispersion_path == single == (override if explicit else configured)
+
+
+def test_batch_does_not_replace_missing_configured_reference_by_discovery(tmp_path):
+    from deflector_tuning.project_defaults import ProjectDefaults
+    module = _load_runner_module()
+    data_root = tmp_path / "data"
+    unrelated = data_root / "sim/sim_dispersion_260505_other"
+    unrelated.mkdir(parents=True)
+    (unrelated / "summary.csv").write_text("placeholder")
+    task, = module.build_batch_tasks(
+        [Path("raw/raw_sweep_260722_sample")], output_root=tmp_path / "out",
+        marker_role="exp", dispersion_path=None, data_root=data_root,
+        project_defaults=ProjectDefaults(default_dispersion_subpath=Path("reference/missing")),
+    )
+    assert task.dispersion_path == data_root / "reference/missing"
+
+
+def test_batch_accepts_an_explicit_dispersion_summary_csv(tmp_path):
+    module = _load_runner_module()
+    summary = tmp_path / "chosen_summary.csv"
+    summary.write_text("mode_index,freq_90_GHz,freq_120_GHz\n1,2.87,2.85\n")
+    assert module.prepare_batch_dispersion_input(summary, data_root=tmp_path) == summary

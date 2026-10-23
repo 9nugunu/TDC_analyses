@@ -174,10 +174,20 @@ def build_batch_tasks(
     """Resolve all per-dataset runtime arguments for the batch runner."""
 
     tasks: list[BatchTask] = []
-    prepared_dispersion_path = prepare_batch_dispersion_input(
-        dispersion_path,
+    # Share the lower runner's explicit > configured reference policy. Discovery
+    # remains an explicit utility; it must never replace a configured reference.
+    from deflector_tuning.runner import resolve_input_paths
+
+    _, selected_dispersion = resolve_input_paths(
+        sparameter_path=data_root,
+        dispersion_path=dispersion_path,
         data_root=data_root,
-        allow_missing_default=True,
+        default_dispersion_subpath=project_defaults.default_dispersion_subpath,
+    )
+    prepared_dispersion_path = (
+        prepare_batch_dispersion_input(selected_dispersion, data_root=data_root)
+        if selected_dispersion.exists() or dispersion_path is not None
+        else selected_dispersion
     )
     for dataset_input in dataset_inputs:
         dataset_args = apply_inferred_defaults(
@@ -217,6 +227,8 @@ def prepare_batch_dispersion_input(
         return _prepare_discovered_dispersion_input(data_root=data_root, allow_missing=allow_missing_default)
 
     if resolved_path.is_file():
+        if resolved_path.suffix.lower() == ".csv":
+            return resolved_path
         if resolved_path.suffix.lower() != ".txt":
             raise ValueError(f"Dispersion input must be a CST .txt export or processed folder: {resolved_path}")
         logger.info("Processing CST dispersion export: %s", resolved_path)
@@ -305,8 +317,8 @@ def run_batch_task(task: BatchTask) -> tuple[Path, Path]:
 
     dispersion_path = (
         prepare_batch_dispersion_input(task.dispersion_path, data_root=task.data_root)
-        if task.dispersion_path is not None
-        else None
+        if task.dispersion_path is not None and task.dispersion_path.exists()
+        else task.dispersion_path
     )
     execution = run_dataset_analysis(
         dataset_id=task.sparameter_path.name,
