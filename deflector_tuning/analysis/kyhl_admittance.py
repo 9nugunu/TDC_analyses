@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.analysis.coupler_position_gate import is_allowed_coupler_cavity_transition
+from deflector_tuning.data_contracts import simulation_geometry_columns
 
 GROUP_COLUMNS: list[str] = [
     "dataset_id",
@@ -18,7 +19,6 @@ GROUP_COLUMNS: list[str] = [
     "port_side",
     "s_name",
 ]
-TUNE_SWEEP_METADATA_COLUMNS: frozenset[str] = frozenset({"sim_NumTune", "sim_NumDepth"})
 F2PI3_MARKER = "f_2pi3"
 F2PI3_AUDIT_COLUMNS: list[str] = [
     "dataset_id",
@@ -161,7 +161,7 @@ def compute_kyhl_admittance_points(
         rows.append(
             {
                 **{column: point[column] for column in GROUP_COLUMNS},
-                **{column: point[column] for column in _metadata_columns(table)},
+                **{column: point[column] for column in _point_metadata_columns(table)},
                 "source_file": point.get("source_file", pd.NA),
                 "tune_position": point["tune_position"],
                 "freq_target_ghz": point.get("freq_target_ghz", pd.NA),
@@ -243,7 +243,7 @@ def compute_f2pi3_normalized_admittance_audit(
         rows.append(
             {
                 **{column: point[column] for column in GROUP_COLUMNS},
-                **{column: point[column] for column in _metadata_columns(table)},
+                **{column: point[column] for column in _point_metadata_columns(table)},
                 "source_file": point.get("source_file", pd.NA),
                 "tune_position": point["tune_position"],
                 "freq_target_ghz": point.get("freq_target_ghz", pd.NA),
@@ -509,14 +509,12 @@ def _validate_axis_sign(axis_sign: int) -> int:
 
 
 def _metadata_columns(table: pd.DataFrame) -> list[str]:
-    return [
-        column
-        for column in table.columns
-        if column not in GROUP_COLUMNS
-        and column not in TUNE_SWEEP_METADATA_COLUMNS
-        and column not in OUTPUT_COLUMNS
-        and column.startswith("sim_")
-    ]
+    return simulation_geometry_columns(table)
+
+
+def _point_metadata_columns(table: pd.DataFrame) -> list[str]:
+    """Keep per-observation geometry and tuning state in point/audit products."""
+    return [column for column in table if column.startswith("sim_")]
 
 
 def _output_columns(table: pd.DataFrame) -> list[str]:
@@ -526,13 +524,13 @@ def _output_columns(table: pd.DataFrame) -> list[str]:
 
 
 def _point_output_columns(table: pd.DataFrame) -> list[str]:
-    metadata_columns = _metadata_columns(table)
+    metadata_columns = _point_metadata_columns(table)
     insert_index = POINT_OUTPUT_COLUMNS.index("source_file")
     return [*POINT_OUTPUT_COLUMNS[:insert_index], *metadata_columns, *POINT_OUTPUT_COLUMNS[insert_index:]]
 
 
 def _f2pi3_audit_output_columns(table: pd.DataFrame) -> list[str]:
-    metadata_columns = _metadata_columns(table)
+    metadata_columns = _point_metadata_columns(table)
     insert_index = F2PI3_AUDIT_COLUMNS.index("source_file")
     return [*F2PI3_AUDIT_COLUMNS[:insert_index], *metadata_columns, *F2PI3_AUDIT_COLUMNS[insert_index:]]
 

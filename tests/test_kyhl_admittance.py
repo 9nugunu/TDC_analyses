@@ -218,3 +218,30 @@ def _marker_point(*, tune_position: float, phase_deg: float) -> dict[str, object
         "reference_ohm": 50.0,
         "is_normalized": True,
     }
+
+
+def test_kyhl_transitions_share_state_identity_but_preserve_geometry_offsets():
+    rows = []
+    for offset in [0.0, 1.0]:
+        for position, depth, phase in [(0.5, 1.0, 0.0), (1.5, 2.0, -120.0)]:
+            rows.append({**_marker_point(tune_position=position, phase_deg=phase),
+                         "sim_NumDepth": depth, "sim_DepthPlunger": depth * 2.0,
+                         "sim_DepthPlunger_offset": offset, "sim_r_c": 3.0})
+    table = pd.DataFrame(rows)
+    result = compute_kyhl_admittance_transitions(table)
+    assert len(result) == 2
+    assert result.sim_DepthPlunger_offset.tolist() == [0.0, 1.0]
+    assert result.pos_from.tolist() == [0.5, 0.5]
+    assert result.pos_to.tolist() == [1.5, 1.5]
+    for compute in [compute_kyhl_admittance_points, compute_f2pi3_normalized_admittance_audit]:
+        points = compute(table)
+        assert sorted(points.sim_DepthPlunger) == [2.0, 2.0, 4.0, 4.0]
+        assert sorted(points.sim_NumDepth) == [1.0, 1.0, 2.0, 2.0]
+
+
+def test_kyhl_transitions_do_not_pair_different_depth_offsets():
+    table = pd.DataFrame([
+        {**_marker_point(tune_position=0.5, phase_deg=0), "sim_DepthPlunger_offset": 1.0},
+        {**_marker_point(tune_position=1.5, phase_deg=-120), "sim_DepthPlunger_offset": 2.0},
+    ])
+    assert compute_kyhl_admittance_transitions(table).empty
