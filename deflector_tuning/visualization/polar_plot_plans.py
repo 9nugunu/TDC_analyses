@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TypeAlias
 
 import pandas as pd
 
 from deflector_tuning.visualization.marker_styles import MARKER_LABELS
+from deflector_tuning.data_contracts import varying_condition_columns
+from deflector_tuning.visualization.polar_grouping import _safe_label
 from deflector_tuning.visualization.polar_grouping import (
     _grouping_mode,
     _is_no_port_extension_position,
@@ -102,6 +104,21 @@ def build_polar_plot_plans(
     """Build polar output plans without creating figures or files."""
 
     folder = Path(output_dir)
+    condition_columns = varying_condition_columns(marker_points)
+    # Grid coordinates are already represented by the existing grid plans.
+    condition_columns = [c for c in condition_columns if not c.startswith("sim_") or (_grouping_mode(marker_points) == "grid_point" and c not in {"sim_r_c", "sim_w_c"})]
+    if condition_columns:
+        plans = []
+        for values, group in marker_points.groupby(condition_columns, dropna=False, sort=True):
+            values = values if isinstance(values, tuple) else (values,)
+            label = ", ".join(f"{c}={v}" for c, v in zip(condition_columns, values, strict=True))
+            suffix = _safe_label(label)
+            for plan in build_polar_plot_plans(group, folder, title_prefix=f"{title_prefix} | {label}"):
+                changes = {"key": f"{plan.key}_{suffix}", "output_path": plan.output_path.with_stem(f"{plan.output_path.stem}_{suffix}")}
+                if hasattr(plan, "title") and label not in plan.title:
+                    changes["title"] = f"{plan.title} | {label}"
+                plans.append(replace(plan, **changes))
+        return plans
     grouping_mode = _grouping_mode(marker_points)
     groups = list(_iter_position_groups(marker_points))
     plans: list[PolarPlotPlan] = []

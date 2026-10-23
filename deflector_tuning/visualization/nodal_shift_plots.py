@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.analysis.nodal_shift import MARKER_ORDER
+from deflector_tuning.data_contracts import varying_condition_columns
+from deflector_tuning.visualization.polar_grouping import _safe_label
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
 from deflector_tuning.visualization.grid_scan_spacing_maps import _default_design_point, _draw_design_crosshair
 from deflector_tuning.visualization.plot_config import (
@@ -50,6 +52,19 @@ def plot_nodal_shift(
     missing = [column for column in REQUIRED_COLUMNS if column not in nodal_shift]
     if missing:
         raise ValueError(f"nodal_shift is missing required columns: {missing}")
+
+    conditions = [c for c in varying_condition_columns(nodal_shift) if c not in {"sim_r_c", "sim_w_c"}]
+    if conditions:
+        paths = OrderedDict()
+        for values, group in nodal_shift.groupby(conditions, dropna=False, sort=True):
+            values = values if isinstance(values, tuple) else (values,)
+            label = ", ".join(f"{c}={v}" for c, v in zip(conditions, values, strict=True))
+            suffix = _safe_label(label)
+            group = group.copy()
+            group.attrs["condition_label"] = label
+            for key, path in plot_nodal_shift(group, Path(output_dir) / suffix, config=config).items():
+                paths[f"{key}_{suffix}"] = path
+        return paths
 
     config = config or PlotConfig()
     apply_plot_style(config)
@@ -189,7 +204,7 @@ def _plot_family_bar(table: pd.DataFrame, output_path: Path, *, family: str, con
         ax,
         xlabel="Transition",
         ylabel="Phase error from target [deg]",
-        title=f"{family.title()} nodal-shift target error",
+        title=f"{family.title()} nodal-shift target error" + _condition_summary(table),
         config=config,
     )
     ax.set_xticks(x)
@@ -271,7 +286,7 @@ def _plot_marker_bar(
     )
     if reference_line is not None:
         ax.axhline(reference_line, color="0.25", linestyle="--", linewidth=1.0)
-    apply_axis_text_style(ax, xlabel=f"Regular-{family} transition", ylabel=ylabel, title=title, config=config)
+    apply_axis_text_style(ax, xlabel=f"Regular-{family} transition", ylabel=ylabel, title=title + _condition_summary(table), config=config)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right")
     ax.grid(True, axis="y", color="0.88", linewidth=0.8)
@@ -300,7 +315,7 @@ def _plot_marker_cumulative_phase(
         marker="o",
         linewidth=1.8,
         color=MARKER_COLORS.get(marker),
-        label="Measured",
+        label="Mean measured" if varying_condition_columns(table) else "Measured",
     )
     if "target_cumulative_phase_deg" in cumulative:
         ax.plot(
@@ -315,7 +330,7 @@ def _plot_marker_cumulative_phase(
         ax,
         xlabel=f"Regular-{family} transition",
         ylabel="Cumulative phase advance [deg]",
-        title=f"Regular-{family} {MARKER_LABELS.get(marker, marker)} cumulative phase advance",
+        title=f"Regular-{family} {MARKER_LABELS.get(marker, marker)} cumulative phase advance" + _condition_summary(table),
         config=config,
     )
     ax.set_xticks(steps)
@@ -354,7 +369,7 @@ def _plot_marker_cumulative_error(
         ax,
         xlabel=f"Regular-{family} transition",
         ylabel="Error [deg]",
-        title=f"Regular-{family} {MARKER_LABELS.get(marker, marker)} cumulative phase error",
+        title=f"Regular-{family} {MARKER_LABELS.get(marker, marker)} cumulative phase error" + _condition_summary(table),
         config=config,
     )
     ax.set_xticks(steps)
@@ -394,6 +409,8 @@ def _target_phase_advance(table: pd.DataFrame) -> float | None:
     targets = pd.to_numeric(table["phase_target_deg"], errors="coerce").dropna().unique()
     if len(targets) == 0:
         return None
+    if len(targets) > 1:
+        raise ValueError("Nodal plot contains multiple phase targets; select one target")
     return float(targets[0])
 
 
@@ -508,3 +525,15 @@ def _position_family_order(table: pd.DataFrame) -> list[str]:
     family_order = [family for family in ("cell", "iris") if family in set(table["position_family"])]
     family_order.extend(family for family in table["position_family"].dropna().unique() if family not in family_order)
     return family_order
+
+
+def _condition_summary(table: pd.DataFrame) -> str:
+    """Disclose the conditions and any intentional grid ensemble mean."""
+    parts = []
+    if table.attrs.get("condition_label"):
+        parts.append(table.attrs["condition_label"])
+    columns = varying_condition_columns(table)
+    if columns:
+        count = len(table[columns].drop_duplicates())
+        parts.append(f"Mean over {count} conditions: " + ", ".join(columns))
+    return "\n" + "; ".join(parts) if parts else ""

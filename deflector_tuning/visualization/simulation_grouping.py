@@ -4,6 +4,8 @@ from typing import SupportsFloat, SupportsIndex
 
 import pandas as pd
 
+from deflector_tuning.data_contracts import simulation_geometry_columns
+
 SIMULATION_PARAMETER_DECIMALS: dict[str, int] = {
     "sim_r_c": 2,
     "sim_w_c": 4,
@@ -17,16 +19,11 @@ def grid_point_depth_group_columns(table: pd.DataFrame) -> list[str]:
 
 
 def varying_sim_sweep_columns(table: pd.DataFrame) -> list[str]:
-    columns = []
-    for column in table.columns:
-        if not column.startswith("sim_"):
-            continue
-        metadata_name = column.removeprefix("sim_")
-        if metadata_name.lower().startswith("num"):
-            continue
-        if table[column].dropna().nunique() > 1:
-            columns.append(column)
-    return columns
+    return [
+        column for column in simulation_geometry_columns(table)
+        if table[column].nunique(dropna=False) > 1
+    ]
+
 
 
 def format_grid_value(value: object) -> str:

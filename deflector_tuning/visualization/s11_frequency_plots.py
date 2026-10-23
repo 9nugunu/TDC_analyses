@@ -25,6 +25,7 @@ from deflector_tuning.visualization.plot_config import (
 )
 from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
+from deflector_tuning.data_contracts import varying_condition_columns
 from deflector_tuning.visualization.simulation_grouping import (
     format_grid_value as _shared_format_grid_value,
     format_simulation_parameter_token as _format_simulation_parameter_token,
@@ -33,13 +34,12 @@ from deflector_tuning.visualization.simulation_grouping import (
     varying_sim_sweep_columns as _shared_varying_sim_sweep_columns,
 )
 
-REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db", "s_phase_deg")
+REQUIRED_SPARAMETER_COLUMNS: tuple[str, ...] = ("source_file", "freq_ghz", "s_db")
 REQUIRED_MARKER_COLUMNS: tuple[str, ...] = (
     "source_file",
     "marker_name",
     "freq_ghz",
     "s_db",
-    "s_phase_deg",
 )
 MARKER_ORDER: tuple[str, ...] = ("f_2pi3", "f_mean", "f_pi2")
 PORT_SIDE_STYLES: dict[str, dict[str, object]] = {
@@ -186,7 +186,7 @@ def plot_s11_with_markers(
     if s_table.empty:
         raise ValueError("sparameter_table has no S11 rows")
     require_finite_plot_columns(s_table, columns=("freq_ghz", "s_db"), context="S11 sparameter_table")
-    require_finite_plot_columns(m_table, columns=("freq_ghz", "s_db", "s_phase_deg"), context="S11 marker_points")
+    require_finite_plot_columns(m_table, columns=("freq_ghz", "s_db"), context="S11 marker_points")
     plans = build_s11_plot_plans(
         s_table,
         m_table,
@@ -267,10 +267,15 @@ def _plot_one(
     config: PlotConfig,
 ) -> Path:
     fig, ax = plt.subplots(figsize=(10.0, 6.2))
-    for source_file, group in s_table.groupby("source_file", sort=False):
+    condition_columns = varying_condition_columns(s_table)
+    for _, group in s_table.groupby(["source_file", *condition_columns], dropna=False, sort=False):
+        source_file = group["source_file"].iloc[0]
         group = group.sort_values("freq_ghz")
         plot_group = _thin_trace_for_plot(group)
         label = _source_label(source_file, group)
+        label_columns = [c for c in condition_columns if c != "port_side"]
+        if label_columns:
+            label += " | " + ", ".join(f"{c}={group[c].iloc[0]}" for c in label_columns)
         style = _source_style(group)
         ax.plot(
             plot_group["freq_ghz"],
@@ -372,7 +377,7 @@ def _collapse_unlabelled_duplicate_rows(table: pd.DataFrame) -> pd.DataFrame:
     if "port_side" in table and table["port_side"].notna().any():
         return table.copy()
 
-    group_columns = [column for column in DUPLICATE_ID_COLUMNS if column in table]
+    group_columns = list(dict.fromkeys([column for column in DUPLICATE_ID_COLUMNS if column in table] + [column for column in table if column.startswith("sim_")]))
     if not group_columns:
         return table.copy()
 
@@ -408,7 +413,10 @@ def _circular_mean_deg(values: pd.Series) -> float:
 
 def _marker_annotation(point: pd.Series) -> str:
     label = MARKER_LABELS.get(str(point["marker_name"]), str(point["marker_name"]))
-    return f"{label}\n{float(point['s_phase_deg']):+.1f}°"
+    phase = point.get("s_phase_deg")
+    if phase is None or pd.isna(phase):
+        return label
+    return f"{label}\n{float(phase):+.1f}°"
 
 
 def _source_label(source_file: object, group: pd.DataFrame) -> str:

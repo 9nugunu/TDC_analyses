@@ -20,6 +20,7 @@ from deflector_tuning.visualization.plot_config import (
 )
 from deflector_tuning.visualization.marker_styles import MARKER_COLORS, MARKER_LABELS
 from deflector_tuning.progress import progress_iter
+from deflector_tuning.data_contracts import simulation_geometry_columns
 from deflector_tuning.visualization.simulation_grouping import (
     format_simulation_parameter_token as _format_simulation_parameter_token,
     format_simulation_parameter_value as _format_simulation_parameter_value,
@@ -265,7 +266,7 @@ def _select_s11_rows(table: pd.DataFrame) -> pd.DataFrame:
 
 
 def _iter_plot_facets(table: pd.DataFrame):
-    facet_columns = [column for column in FACET_COLUMNS if _needs_faceting(table, column)]
+    facet_columns = [column for column in simulation_geometry_columns(table) if _needs_faceting(table, column)]
     if not facet_columns:
         yield "", "", table
         return
@@ -278,7 +279,6 @@ def _iter_plot_facets(table: pd.DataFrame):
         parts = [
             (column, value)
             for column, value in zip(facet_columns, facet_values, strict=True)
-            if not pd.isna(value)
         ]
         facet_stem = "_".join(_facet_suffix_part(column, value) for column, value in parts)
         title = ""
@@ -300,8 +300,8 @@ def _phase_advance_key(family: str, facet_stem: str) -> str:
 def _needs_faceting(table: pd.DataFrame, column: str) -> bool:
     if column not in table:
         return False
-    values = table[column].dropna().astype(str)
-    return values.nunique() > 1
+    values = table[column].astype(str)
+    return values.nunique(dropna=False) > 1
 
 
 def _facet_label(column: str) -> str:
@@ -309,15 +309,10 @@ def _facet_label(column: str) -> str:
 
 
 def _facet_suffix_part(column: str, value: object) -> str:
-    prefix = {"sim_r_c": "r_c", "sim_w_c": "w_c"}.get(column)
-    label = (
-        _format_simulation_parameter_token(column, value)
-        if prefix is not None
-        else _safe_label(value)
-    )
-    if prefix is None:
-        return label
+    prefix = column.removeprefix("sim_")
+    label = _format_simulation_parameter_token(column, value)
     return f"{prefix}_{label}"
+
 
 
 def _facet_display_value(column: str, value: object) -> object:

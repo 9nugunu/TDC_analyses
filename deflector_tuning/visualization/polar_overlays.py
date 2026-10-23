@@ -49,6 +49,7 @@ def _draw_family_overlay(
     radius_values = np.linspace(0.22, 1.0, len(positions))
     for radius, tune_position in zip(radius_values, positions, strict=True):
         position_rows = family_table[family_table["tune_position"] == tune_position]
+        _require_unique_overlay_rows(position_rows, ["marker_name"])
         by_marker = {row["marker_name"]: row for _, row in position_rows.iterrows()}
         label_anchor_angle: float | None = None
         for marker in [name for name in marker_names if name in by_marker]:
@@ -114,6 +115,7 @@ def _draw_kyhl_phase_pair_overlay(
         marker_rows = pair_table[pair_table["marker_name"] == marker]
         if marker_rows["_pair_endpoint"].nunique() < 2:
             continue
+        _require_unique_overlay_rows(marker_rows, ["_pair_endpoint"])
         by_endpoint = {row["_pair_endpoint"]: row for _, row in marker_rows.iterrows()}
         if "start" not in by_endpoint or "end" not in by_endpoint:
             continue
@@ -266,3 +268,9 @@ def _annotate_overlay_position(ax, angle: float, radius: float, label: str, *, c
         bbox={"boxstyle": "round,pad=0.14", "facecolor": "white", "edgecolor": "0.85", "alpha": 0.88},
     )
     text.set_clip_on(False)
+
+
+def _require_unique_overlay_rows(table: pd.DataFrame, columns: list[str]) -> None:
+    """Reject source ambiguity instead of choosing the last trace by row order."""
+    if table.duplicated(columns, keep=False).any():
+        raise ValueError("Ambiguous polar overlay: multiple source traces for the same position/marker/endpoint; select a source explicitly")
