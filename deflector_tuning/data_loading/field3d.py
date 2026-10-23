@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from itertools import islice
 from pathlib import Path
+from tempfile import TemporaryFile
 
 import numpy as np
 
@@ -133,6 +134,8 @@ def summarize_field3d_file(
     row_count = 0
 
     for rows in _iter_numeric_chunks(source, chunk_rows=chunk_rows):
+        if not np.isfinite(rows).all():
+            raise ValueError(f"Non-finite field coordinates or values in {source}")
         if rows.shape[1] != 9:
             raise ValueError(
                 f"Expected nine numeric columns in {source}; got {rows.shape[1]}"
@@ -185,6 +188,7 @@ def summarize_field3d_file(
             f"Expected rectangular grid with {expected_rows} rows in {source}; "
             f"found {row_count}"
         )
+    _validate_grid_occupancy(source, axis_values, chunk_rows=chunk_rows)
     voxel_volume_m3 = float(np.prod(spacing_mm)) * 1.0e-9
     material_factor = (
         EPSILON_0_F_PER_M if field_kind == "e" else MU_0_H_PER_M
@@ -214,6 +218,28 @@ def summarize_field3d_file(
         region_energy_j=float(component_energy.sum()),
         axis_abs2_by_z=axis_abs2_by_z,
     )
+
+
+def _validate_grid_occupancy(source: Path, axes: tuple[np.ndarray, ...], *, chunk_rows: int) -> None:
+    """Check each voxel once using a disk-backed byte map and bounded chunks.
+
+    Equal row and Cartesian grid counts are already checked by the caller;
+    rejecting duplicates therefore also proves that no grid point is missing.
+    """
+    shape = tuple(len(axis) for axis in axes)
+    with TemporaryFile() as storage:
+        storage.truncate(int(np.prod(shape)))
+        occupied = np.memmap(storage, dtype=np.uint8, mode="r+", shape=(int(np.prod(shape)),))
+        try:
+            for rows in _iter_numeric_chunks(source, chunk_rows=chunk_rows):
+                coordinates = tuple(np.searchsorted(axis, rows[:, index]) for index, axis in enumerate(axes))
+                indices = np.ravel_multi_index(coordinates, shape)
+                unique_indices = np.unique(indices)
+                if len(unique_indices) != len(indices) or occupied[unique_indices].any():
+                    raise ValueError(f"Duplicate field grid coordinate in {source}")
+                occupied[unique_indices] = 1
+        finally:
+            occupied._mmap.close()
 
 
 def iter_field3d_chunks(

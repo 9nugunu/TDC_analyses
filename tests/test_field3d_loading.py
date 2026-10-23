@@ -5,6 +5,25 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+
+@pytest.mark.parametrize("chunk_rows", [2, 20])
+def test_grid_rejects_duplicate_replacing_missing_coordinate(tmp_path, chunk_rows):
+    path = _write_field3d(tmp_path / "e-field.txt", kind="e")
+    lines = path.read_text().splitlines()
+    lines[-1] = lines[2]
+    path.write_text("\n".join(lines) + "\n")
+    with pytest.raises(ValueError, match="Duplicate.*coordinate"):
+        summarize_field3d_file(path, chunk_rows=chunk_rows)
+
+
+def test_grid_occupancy_accepts_arbitrary_row_order(tmp_path):
+    path = _write_field3d(tmp_path / "e-field.txt", kind="e")
+    expected = summarize_field3d_file(path, chunk_rows=2)
+    lines = path.read_text().splitlines()
+    path.write_text("\n".join(lines[:2] + lines[2:][::-1]) + "\n")
+    actual = summarize_field3d_file(path, chunk_rows=3)
+    assert actual == expected
+
 from deflector_tuning.data_loading.field3d import (
     field3d_kind_from_header,
     find_field3d_pairs,
