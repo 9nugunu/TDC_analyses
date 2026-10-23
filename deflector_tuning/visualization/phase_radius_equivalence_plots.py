@@ -109,6 +109,7 @@ def plot_raw_phase_position_on_simulation_line(
     baseline_r_c_mm: float,
     target_r_c_mm: float,
     fixed_w_c_mm: float,
+    measured_state_label: str = "Measured state",
     config: PlotConfig | None = None,
 ) -> Path:
     """Show the raw tuning state on a port-2 simulated ``r_c`` phase line.
@@ -144,7 +145,7 @@ def plot_raw_phase_position_on_simulation_line(
             label=f"{label}: Δφ = {first_row['phase_delta_deg']:+.2f}°",
         )
     first_axis.set_xlim(-0.22, 1.22)
-    first_axis.set_xticks([x_before, x_after], ["before", "Torque 13.5"])
+    first_axis.set_xticks([x_before, x_after], ["before", measured_state_label])
     apply_axis_text_style(
         first_axis,
         xlabel="First iris / port 1 raw measurement",
@@ -189,7 +190,7 @@ def plot_raw_phase_position_on_simulation_line(
             edgecolor="black",
             linewidth=0.5,
             zorder=5,
-            label="raw Torque 13.5" if marker_name == marker_order[0] else None,
+            label=f"raw {measured_state_label}" if marker_name == marker_order[0] else None,
         )
 
     current_r_c_mm = float(second_iris_position["shared_equivalent_r_c_mm"].iloc[0])
@@ -227,7 +228,7 @@ def plot_raw_phase_position_on_simulation_line(
     apply_legend_text_style(legend, config)
     match_legend_text_colors_to_handles(legend)
     figure.suptitle(
-        rf"Torque 13.5 state located on the simulated $r_c$ phase scan ($w_c={fixed_w_c_mm:g}$ mm)",
+        rf"{measured_state_label} located on the simulated $r_c$ phase scan ($w_c={fixed_w_c_mm:g}$ mm)",
         fontsize=config.compact_title_size,
         fontweight=config.title_weight,
     )

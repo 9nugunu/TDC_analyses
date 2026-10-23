@@ -27,7 +27,7 @@ def main() -> None:
     parser.add_argument("--before-label")
     parser.add_argument("--target-r-c-mm", type=float)
     parser.add_argument("--target-label")
-    parser.add_argument("--fixed-w-c-mm", type=float, default=19.3224)
+    parser.add_argument("--fixed-w-c-mm", type=float, default=None)
     args = parser.parse_args()
 
     rc_fit = pd.DataFrame(
@@ -44,6 +44,9 @@ def main() -> None:
         rc_fit,
         args.output_path,
         fixed_w_c=args.fixed_w_c_mm,
+        candidate_label=args.candidate_label,
+        before_label=args.before_label,
+        target_label=args.target_label,
     )
     print(path)
 

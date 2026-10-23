@@ -51,7 +51,10 @@ def plot_y11_raw_frequency_with_markers(
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     paths: OrderedDict[str, Path] = OrderedDict()
-    for key, group in _sweep_groups(y11_table):
+    groups = list(_sweep_groups(y11_table))
+    if len({key for key, _ in groups}) != len(groups):
+        raise ValueError("Y11 output filename collision; select distinct sources")
+    for key, group in groups:
         marker_group = _matching_group(marker_points, group)
         path = folder / f"{key}.png"
         fig, axes = plt.subplots(2, 1, figsize=config.figure_size, sharex=True)
@@ -117,7 +120,10 @@ def plot_y11_raw_polar_views(
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     paths: OrderedDict[str, Path] = OrderedDict()
-    for key, group in _sweep_groups(marker_points):
+    groups = list(_sweep_groups(marker_points))
+    if len({key for key, _ in groups}) != len(groups):
+        raise ValueError("Y11 output filename collision; select distinct sources")
+    for key, group in groups:
         values = group.set_index("marker_name").reindex(MARKER_ORDER).dropna(
             subset=["y_re_siemens", "y_im_siemens"]
         )
@@ -260,13 +266,17 @@ def _matching_group(table: pd.DataFrame, reference_group: pd.DataFrame) -> pd.Da
 
 def _group_title(group: pd.DataFrame) -> str:
     if "sim_r_c" in group and group["sim_r_c"].notna().any():
-        return f"r_c={float(group['sim_r_c'].dropna().iloc[0]):.2f} mm"
+        return f"r_c={float(group['sim_r_c'].dropna().iloc[0])} mm"
     return str(group["source_file"].iloc[0])
 
 
 def _number_token(value: object) -> str:
     try:
-        return f"r_c_{float(value):.2f}".replace(".", "p")
+        token = str(float(value))
+        if "e" not in token.lower():
+            whole, fraction = token.split(".")
+            token = whole + "." + fraction.ljust(2, "0")
+        return f"r_c_{token}".replace(".", "p")
     except (TypeError, ValueError):
         return Path(str(value)).stem
 

@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from deflector_tuning.analysis.grid_rc_line_scan import (
-    DEFAULT_GRID_RC_LINE_SCAN_W_C,
     extract_fixed_width_rc_line_scan,
 )
 from deflector_tuning.visualization.finite_checks import require_finite_plot_columns
@@ -27,6 +26,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     match_legend_text_colors_to_handles,
     save_figure,
+    resolve_line_scan_width,
 )
 
 PHASE_LINE_SCAN_REQUIRED_COLUMNS: Final[tuple[str, ...]] = (
@@ -47,7 +47,7 @@ def plot_grid_scan_sparameter_phase_r_c_line_scan(
     marker_points: pd.DataFrame,
     output_dir: str | Path,
     *,
-    fixed_w_c: float = DEFAULT_GRID_RC_LINE_SCAN_W_C,
+    fixed_w_c: float | None = None,
     config: PlotConfig | None = None,
 ) -> OrderedDict[str, Path]:
     if marker_points.empty:
@@ -57,6 +57,7 @@ def plot_grid_scan_sparameter_phase_r_c_line_scan(
         raise ValueError(f"marker_points is missing required columns: {missing}")
 
     config = config or PlotConfig()
+    fixed_w_c = resolve_line_scan_width(config, fixed_w_c)
     apply_plot_style(config)
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
@@ -86,7 +87,10 @@ def plot_phase_rc_map(
     rc_fit: pd.DataFrame,
     output_path: str | Path,
     *,
-    fixed_w_c: float = DEFAULT_GRID_RC_LINE_SCAN_W_C,
+    candidate_label: str | None = None,
+    before_label: str | None = None,
+    target_label: str | None = None,
+    fixed_w_c: float | None = None,
     config: PlotConfig | None = None,
 ) -> Path:
     """Plot a phase line scan with fitted baseline/current and design guides."""
@@ -102,6 +106,7 @@ def plot_phase_rc_map(
     if missing_states:
         raise ValueError(f"rc_fit is missing required states: {missing_states}")
     config = config or PlotConfig()
+    fixed_w_c = resolve_line_scan_width(config, fixed_w_c)
     apply_plot_style(config)
     require_finite_plot_columns(
         line_scan,
@@ -115,11 +120,11 @@ def plot_phase_rc_map(
         fixed_w_c=fixed_w_c,
         config=config,
         candidate_r_c=float(radii["current"]),
-        candidate_label=rf"Torque 13.5: $r_c={float(radii['current']):.3f}$ mm",
+        candidate_label=candidate_label or rf"Current: $r_c={float(radii['current']):.3f}$ mm",
         before_r_c=float(radii["baseline"]),
-        before_label=rf"Before tuning: $r_c={float(radii['baseline']):.3f}$ mm",
+        before_label=before_label or rf"Before tuning: $r_c={float(radii['baseline']):.3f}$ mm",
         target_r_c=float(radii["design"]),
-        target_label=rf"Design: $r_c={float(radii['design']):.3f}$ mm",
+        target_label=target_label or rf"Design: $r_c={float(radii['design']):.3f}$ mm",
         show_design_reference=False,
         annotate_design_phase_values=True,
         design_r_c=float(radii["design"]),
@@ -133,15 +138,25 @@ def plot_phase_rc_states(
     *,
     before_r_c_mm: float,
     current_r_c_mm: float,
-    s003_r_c_mm: float,
+    additional_r_c_mm: float | None = None,
+    s003_r_c_mm: float | None = None,
+    current_label: str | None = None,
+    additional_label: str | None = None,
+    before_label: str | None = None,
+    target_label: str | None = None,
     design_r_c_mm: float,
     f_mean_zero_r_c_mm: float,
-    fixed_w_c: float = DEFAULT_GRID_RC_LINE_SCAN_W_C,
+    fixed_w_c: float | None = None,
     config: PlotConfig | None = None,
 ) -> Path:
-    """Plot the named tuning states on one simulated ``r_c`` scan."""
+    """Plot labeled tuning states; ``s003_r_c_mm`` is a legacy radius alias."""
+
+    if additional_r_c_mm is not None and s003_r_c_mm is not None:
+        raise ValueError("supply additional_r_c_mm or legacy s003_r_c_mm, not both")
+    additional_r_c_mm = additional_r_c_mm if additional_r_c_mm is not None else s003_r_c_mm
 
     config = config or PlotConfig()
+    fixed_w_c = resolve_line_scan_width(config, fixed_w_c)
     apply_plot_style(config)
     require_finite_plot_columns(
         line_scan,
@@ -155,13 +170,13 @@ def plot_phase_rc_states(
         fixed_w_c=fixed_w_c,
         config=config,
         candidate_r_c=float(current_r_c_mm),
-        candidate_label=rf"s002 (13.5 N·m): $r_c={float(current_r_c_mm):.3f}$ mm",
-        s003_r_c=float(s003_r_c_mm),
-        s003_label=rf"s003 tuning: $r_c={float(s003_r_c_mm):.3f}$ mm",
+        candidate_label=current_label or rf"Current: $r_c={float(current_r_c_mm):.3f}$ mm",
+        additional_r_c=additional_r_c_mm,
+        additional_label=additional_label,
         before_r_c=float(before_r_c_mm),
-        before_label=rf"Initial: $r_c={float(before_r_c_mm):.3f}$ mm",
+        before_label=before_label or rf"Initial: $r_c={float(before_r_c_mm):.3f}$ mm",
         target_r_c=float(f_mean_zero_r_c_mm),
-        target_label="f_mean phase = 0°",
+        target_label=target_label or "f_mean phase = 0°",
         show_design_reference=True,
         design_r_c=float(design_r_c_mm),
         design_label=None,
@@ -195,13 +210,14 @@ def _sparameter_phase_line_scan_table(marker_points: pd.DataFrame, *, fixed_w_c:
     for optional_column in ("sim_NumDepth", "run_id", "source_file"):
         if optional_column in sorted_table:
             sort_columns.append(optional_column)
-    deduplicated = (
+    if sorted_table.duplicated(subset=["marker_name", "sim_r_c"]).any():
+        raise ValueError("multiple phases at one marker/radius; select a single simulation state")
+    ordered = (
         sorted_table.sort_values(sort_columns, kind="mergesort")
-        .drop_duplicates(subset=["marker_name", "sim_r_c"], keep="last")
         .drop(columns=["_marker_order"])
         .reset_index(drop=True)
     )
-    return deduplicated
+    return ordered
 
 
 def _plot_sparameter_phase_line_scan(
@@ -212,8 +228,8 @@ def _plot_sparameter_phase_line_scan(
     config: PlotConfig,
     candidate_r_c: float | None = None,
     candidate_label: str | None = None,
-    s003_r_c: float | None = None,
-    s003_label: str | None = None,
+    additional_r_c: float | None = None,
+    additional_label: str | None = None,
     before_r_c: float | None = None,
     before_label: str | None = None,
     target_r_c: float | None = None,
@@ -326,17 +342,17 @@ def _plot_sparameter_phase_line_scan(
             bbox={"boxstyle": "round,pad=0.25", "facecolor": "white", "edgecolor": "#8c510a", "alpha": 0.92},
             zorder=7,
         )
-    if s003_r_c is not None:
+    if additional_r_c is not None:
         ax.axvline(
-            s003_r_c,
+            additional_r_c,
             color="#2b8cbe",
             linestyle=(0, (5, 2)),
             linewidth=1.7,
             zorder=5,
         )
         ax.annotate(
-            s003_label or rf"S003 tuning $r_c={s003_r_c:.3f}$ mm",
-            xy=(s003_r_c, 0.60),
+            additional_label or rf"Additional state: $r_c={additional_r_c:.3f}$ mm",
+            xy=(additional_r_c, 0.60),
             xycoords=("data", "axes fraction"),
             xytext=(-7, -5),
             textcoords="offset points",

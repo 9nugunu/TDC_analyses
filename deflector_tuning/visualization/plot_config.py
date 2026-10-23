@@ -8,11 +8,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
+import matplotlib as mpl
 import numpy as np
 from matplotlib import colormaps
 import matplotlib.pyplot as plt
 
 from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS
+from deflector_tuning.visualization.lps_paper_style import LPS_STYLE_RC_KEYS
 
 MATPLOTLIB_MATHTEXT_LOGGER = "matplotlib.mathtext"
 
@@ -76,11 +78,25 @@ class PlotConfig:
     ideal_phase_guide_angles_deg: tuple[float, ...] = IDEAL_PHASE_GUIDE_ANGLES_DEG
 
 
+def resolve_line_scan_width(config: PlotConfig, fixed_w_c: float | None = None) -> float:
+    """Resolve explicit width, configured width, then the project default.
+
+    A partial/empty design-point mapping disables guides without disabling
+    the line-scan calculation or changing its default width.
+    """
+    if fixed_w_c is not None:
+        return float(fixed_w_c)
+    return float(config.design_point_by_axis.get(
+        "sim_w_c", DEFAULT_PROJECT_DEFAULTS.design_point_by_axis["sim_w_c"],
+    ))
+
+
 def apply_plot_style(config: PlotConfig | None = None) -> None:
     """Apply shared Matplotlib rcParams for project figures."""
 
     config = config or PlotConfig()
     suppress_matplotlib_mathtext_info_logs()
+    plt.rcParams.update({key: mpl.rcParamsDefault[key] for key in LPS_STYLE_RC_KEYS})
     plt.rcParams.update(
         {
             "font.family": "sans-serif",

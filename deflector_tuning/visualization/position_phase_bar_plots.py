@@ -570,7 +570,7 @@ def plot_position_phase_advance_bars(
     apply_axis_text_style(
         advance_axis,
         ylabel="Phase advance [deg]",
-        title="Phase advance: position 1.0 to 2.0",
+        title=f"Phase advance: position {_format_position(requested_positions[0])} to {_format_position(requested_positions[1])}",
         config=config,
         compact=True,
     )
@@ -581,7 +581,7 @@ def plot_position_phase_advance_bars(
 
 
 def _format_position(position: float) -> str:
-    return f"{position:.1f}"
+    return str(float(position))
 
 
 def _ideal_phase_for_position(

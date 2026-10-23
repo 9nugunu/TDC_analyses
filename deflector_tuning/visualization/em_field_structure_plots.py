@@ -231,11 +231,11 @@ def _draw_phase_traces(ax: plt.Axes, traces: tuple[FieldPhaseTrace, ...], *, con
 
 
 def _trace_legend_label(trace: FieldPhaseTrace) -> str:
-    if trace.field_kind.lower().startswith("e"):
-        return "$E_x$ phase"
-    if trace.field_kind.lower().startswith("h"):
-        return "$H_y$ phase"
-    return trace.label
+    symbol = trace.field_kind[:1].upper()
+    if symbol not in {"E", "H"}:
+        return trace.label
+    component = f"_{trace.component.lower()}" if trace.component != "?" else ""
+    return f"${symbol}{component}$ phase"
 
 
 def _profile_legend_label(trace: FieldProfileTrace) -> str:

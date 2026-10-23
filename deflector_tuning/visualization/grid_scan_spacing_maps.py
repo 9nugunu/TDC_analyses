@@ -28,6 +28,7 @@ from deflector_tuning.visualization.plot_config import (
     apply_plot_style,
     contour_contrast_color,
     save_figure,
+    resolve_line_scan_width,
 )
 
 ERROR_METRICS: OrderedDict[str, tuple[str, str]] = OrderedDict(
@@ -79,7 +80,11 @@ def plot_grid_scan_spacing_error_maps(
     folder = Path(output_dir)
     folder.mkdir(parents=True, exist_ok=True)
     spacing_summary.to_csv(folder / "grid_scan_spacing_summary.csv", index=False)
-    write_fixed_width_rc_line_scan_csv(spacing_summary, folder / rc_line_scan_filename("grid_scan_spacing"))
+    write_fixed_width_rc_line_scan_csv(
+        spacing_summary,
+        folder / rc_line_scan_filename("grid_scan_spacing", resolve_line_scan_width(config)),
+        fixed_w_c=resolve_line_scan_width(config),
+    )
 
     paths: OrderedDict[str, Path] = OrderedDict()
     for column, (key, label) in ERROR_METRICS.items():
@@ -127,7 +132,8 @@ def plot_grid_scan_phase_sensitivity_maps(
     sensitivity_summary.to_csv(folder / "grid_scan_phase_sensitivity_summary.csv", index=False)
     write_fixed_width_rc_line_scan_csv(
         sensitivity_summary,
-        folder / rc_line_scan_filename("grid_scan_phase_sensitivity"),
+        folder / rc_line_scan_filename("grid_scan_phase_sensitivity", resolve_line_scan_width(config)),
+        fixed_w_c=resolve_line_scan_width(config),
     )
 
     paths: OrderedDict[str, Path] = OrderedDict()
@@ -194,6 +200,11 @@ def _plot_grid_value_map(
     cmap: str,
     draw_best: bool,
 ) -> Path:
+    axis_labels = {"sim_r_c": r"$r_c$ [mm]", "sim_w_c": r"$w_c$ [mm]"}
+    if {x_column, y_column} != set(axis_labels):
+        raise ValueError("grid maps require distinct sim_r_c and sim_w_c axes")
+    # Render and mark the minimum of the same explicitly averaged coordinate table.
+    table = table.groupby([x_column, y_column], as_index=False)[value_column].mean()
     x_values = np.array(sorted(table[x_column].dropna().unique()), dtype=float)
     y_values = np.array(sorted(table[y_column].dropna().unique()), dtype=float)
     pivot = table.pivot_table(index=y_column, columns=x_column, values=value_column, aggfunc="mean").reindex(index=y_values, columns=x_values)
@@ -226,8 +237,8 @@ def _plot_grid_value_map(
         _draw_design_crosshair(ax, design_point)
     apply_axis_text_style(
         ax,
-        xlabel=r"$r_c$ [mm]",
-        ylabel=r"$w_c$ [mm]",
+        xlabel=axis_labels[x_column],
+        ylabel=axis_labels[y_column],
         title=value_label,
         config=config,
     )

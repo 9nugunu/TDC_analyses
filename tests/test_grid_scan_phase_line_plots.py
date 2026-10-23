@@ -2,6 +2,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import pytest
 
 import deflector_tuning.visualization.grid_scan_phase_line_plots as phase_line_plots
 from deflector_tuning.visualization.grid_scan_phase_line_plots import (
@@ -130,7 +131,7 @@ def test_plot_phase_rc_map_uses_concise_state_labels_and_design_annotations(
 
     phase_line_plots.plot_phase_rc_map(line_scan, rc_fit, tmp_path / "phase_rc_map.png")
 
-    assert captured["candidate_label"] == "Torque 13.5: $r_c=56.237$ mm"
+    assert captured["candidate_label"] == "Current: $r_c=56.237$ mm"
     assert captured["before_label"] == "Before tuning: $r_c=56.179$ mm"
     assert captured["target_label"] == "Design: $r_c=56.590$ mm"
     assert captured["annotate_design_phase_values"] is True
@@ -162,10 +163,10 @@ def test_plot_phase_rc_states_uses_concise_state_labels(tmp_path: Path, monkeypa
         f_mean_zero_r_c_mm=56.566,
     )
 
-    assert captured["candidate_label"] == "s002 (13.5 N·m): $r_c=56.237$ mm"
+    assert captured["candidate_label"] == "Current: $r_c=56.237$ mm"
     assert captured["before_label"] == "Initial: $r_c=56.179$ mm"
-    assert captured["s003_label"] == "s003 tuning: $r_c=56.470$ mm"
-    assert captured["s003_r_c"] == 56.47
+    assert captured["additional_label"] is None
+    assert captured["additional_r_c"] == 56.47
     assert captured["target_label"] == "f_mean phase = 0°"
     assert captured["design_label"] is None
     assert captured["show_design_reference"] is True
@@ -234,13 +235,8 @@ def test_plot_grid_scan_sparameter_phase_r_c_line_scan_keeps_one_point_per_radiu
         ]
     )
 
-    plot_grid_scan_sparameter_phase_r_c_line_scan(marker_points, tmp_path)
-
-    csv = pd.read_csv(tmp_path / "sparameter_phase_vs_r_c_at_w_c_19p3224.csv")
-    assert csv["s_phase_deg"].tolist() == [62.0]
-    assert "s_phase_deg_0_360" not in csv
-    assert "s_phase_deg_unwrapped" not in csv
-    assert csv["source_file"].tolist() == ["run_2.s1p"]
+    with pytest.raises(ValueError, match="multiple phases"):
+        plot_grid_scan_sparameter_phase_r_c_line_scan(marker_points, tmp_path)
 
 
 def test_design_phase_annotations_mask_the_line_and_show_the_anchor() -> None:

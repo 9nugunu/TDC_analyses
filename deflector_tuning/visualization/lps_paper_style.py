@@ -17,6 +17,17 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.text import Text
 from cycler import cycler
 
+# Every rcParam set by this preset; general plotting resets this set to defaults.
+LPS_STYLE_RC_KEYS = (
+    "text.usetex", "text.latex.preamble", "font.family", "font.serif",
+    "font.weight", "font.size", "axes.labelsize", "axes.labelweight",
+    "axes.titlesize", "axes.titleweight", "xtick.labelsize", "ytick.labelsize",
+    "xtick.major.width", "ytick.major.width", "axes.linewidth", "axes.unicode_minus",
+    "axes.prop_cycle", "lines.linewidth", "lines.markersize", "legend.fontsize",
+    "legend.frameon", "legend.framealpha", "legend.edgecolor", "legend.fancybox",
+    "axes.axisbelow", "pdf.fonttype", "ps.fonttype", "savefig.dpi",
+)
+
 PRESET_PATH = Path(__file__).resolve().parents[2] / "config/lps_publication_style.json"
 
 
