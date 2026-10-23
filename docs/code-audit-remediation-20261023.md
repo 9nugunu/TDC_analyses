@@ -130,4 +130,43 @@ The harnesses are `validate_real_samples.py` and `validate_final_samples.py`.
 This is representative coverage, not a full production campaign rerun or a
 claim about physical tuning quality.
 
-Commits remain local; push requires a separate user request.
+The implementation and local verification record were pushed to `origin/main`
+at `e9a0d88` after the user's explicit push request.
+
+## SSH workstation verification (2026-10-23)
+
+The user requested an update to the latest code and a full test run on `ws`.
+The actual analysis checkout is `G:\gw\Documents\CST-Python`; the similarly
+named `G:\gw\Documents\TDC-analyses-Python` directory was empty.
+
+- The checkout had only local `main` and remote `origin/main`, with one worktree.
+  It was fast-forwarded from `3cd2d8c` to `e9a0d88` (29 commits), with no merge
+  or reset. The existing deletions of `data/NAMING.md` and
+  `data/datasets_manifest.csv` were preserved exactly before and after testing.
+- The existing `workstation` conda environment could not start pytest because
+  `pluggy` was missing. No tests ran in that environment, and it was not modified.
+- A separate environment was created at
+  `tmp/audit_validation_20261023_ws/venv` using Python 3.13.15. Installed versions
+  included NumPy 2.5.4, pandas 3.1.0, Matplotlib 3.11.2, PyYAML 6.0.3, and
+  pytest 9.1.1. This validates that isolated environment, not the original conda
+  environment.
+
+From the workstation checkout, the exact successful test command was:
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE = '1'
+$env:MPLBACKEND = 'Agg'
+& '.\tmp\audit_validation_20261023_ws\venv\Scripts\python.exe' -B -m pytest -q -p no:cacheprovider
+```
+
+Result: **689 passed, 1 warning in 143.43 seconds**, exit code 0, at
+`e9a0d88c51dd2e033e912177e4ac807974ac2124`. The warning is a pandas future
+compatibility notice for numeric `fillna("<NA>")` in
+`visualization/phase_advance_plots.py:204`; it did not fail the current run.
+The install and test logs are retained on the workstation under the ignored
+`tmp/audit_validation_20261023_ws/` directory.
+
+This run covers the full automated test suite. The inspected analysis checkout
+contained no experimental/simulation input data, so no workstation production
+campaign was reprocessed. CST solvers were not rerun. The separate local
+representative-data checks above remain the evidence for real-data comparisons.
