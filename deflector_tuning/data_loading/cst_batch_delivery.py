@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import tempfile
 from typing import Any
 
 from deflector_tuning.data_loading.loaders.sim_loader import _read_cst_parameter_header
@@ -182,14 +183,79 @@ def _header_comments(path: Path) -> list[str]:
 
 def assemble_delivery(root: Path, config: dict[str, Any], config_name: str, *,
                       overwrite: bool = False) -> dict[str, Any]:
-    """Build the delivery folder described by ``config``; return the source map rows.
+    """Validate a complete delivery before publishing it; return the source map rows.
 
     ``config_name`` is recorded in the generated README as the provenance of the folder.
+    Overwrite rejects stale or unmanaged entries; use a new output directory when
+    reducing the selected run set. A failed build leaves the previous delivery intact.
+    Directory publication rolls back on ordinary rename failures; concurrent writers
+    to the same output directory and process termination during publication are unsupported.
     """
-    root = Path(root)
+    root = Path(root).resolve()
+    stem = config["file_stem"]
+    if not stem or "/" in stem or "\\" in stem or ":" in stem or stem in {".", ".."}:
+        raise ValueError("Delivery file_stem must be a filename stem without path components")
     output = root / config["output_dataset"]
+    if output.is_symlink() or getattr(output, "is_junction", lambda: False)():
+        raise ValueError(f"Delivery output must not be a symbolic link or junction: {output}")
+    output = output.resolve()
+    source_dirs = [(root / config["reference_navigator"]).resolve().parent]
+    source_dirs.extend((root / batch["dataset"]).resolve() for batch in config["batches"])
+    if (output == root or not output.is_relative_to(root)
+            or any(output.is_relative_to(source) or source.is_relative_to(output)
+                   for source in source_dirs)):
+        raise ValueError(f"Delivery output must be within the project and not overlap sources: {output}")
     if output.exists() and any(output.iterdir()) and not overwrite:
         raise FileExistsError(f"Delivery folder is not empty: {output}")
+    # A private sibling keeps renames on one filesystem. Only this owned temporary
+    # directory is recursively cleaned, never the user-configured output path.
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix=".cst-delivery-", dir=output.parent)).resolve()
+    prepared, previous = temporary / "prepared", temporary / "previous"
+    preserve_backup = False
+    publication_complete = False
+    try:
+        result = _build_delivery(root, config, config_name, prepared)
+        expected_names = {path.name for path in prepared.iterdir()}
+        if output.exists():
+            unexpected = sorted(path.name for path in output.iterdir()
+                                if path.name not in expected_names or not path.is_file()
+                                or path.is_symlink())
+            if unexpected:
+                raise FileExistsError(f"Delivery contains stale or unmanaged entries: {unexpected}; "
+                                      "use a new output directory")
+        try:
+            if output.exists():
+                output.rename(previous)
+            prepared.rename(output)
+            publication_complete = True
+        except BaseException:
+            if previous.exists():
+                try:
+                    previous.rename(output)
+                except BaseException as restore_error:
+                    preserve_backup = True
+                    raise RuntimeError(f"Delivery publication and rollback failed; previous delivery "
+                                       f"is preserved at {previous}") from restore_error
+            raise
+        return {**result, "output": output}
+    finally:
+        # Even interruption between rename and the next Python statement must
+        # never let temporary cleanup discard the only recoverable old delivery.
+        if previous.exists() and not publication_complete:
+            preserve_backup = True
+        if not preserve_backup:
+            resolved_temporary = temporary.resolve()
+            if (temporary.is_symlink() or resolved_temporary != temporary
+                    or resolved_temporary.parent != output.parent
+                    or not resolved_temporary.name.startswith(".cst-delivery-")):
+                raise RuntimeError(f"Refusing cleanup outside owned temporary directory: {temporary}")
+            shutil.rmtree(resolved_temporary)
+
+
+def _build_delivery(root: Path, config: dict[str, Any], config_name: str,
+                    output: Path) -> dict[str, Any]:
+    """Prepare all exports and provenance files in an isolated directory."""
     reference_path = root / config["reference_navigator"]
     reference_rows = read_cst_navigator(reference_path)
     columns = list(reference_rows[0])

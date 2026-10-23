@@ -20,7 +20,10 @@ LOGGER = logging.getLogger(__name__)
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config", type=Path, help="Delivery config, e.g. config/delivery_261009_R07_extended_recomputed.json")
-    parser.add_argument("--overwrite", action="store_true", help="Rewrite files in an existing delivery folder")
+    parser.add_argument(
+        "--overwrite", action="store_true",
+        help="Replace a validated delivery; reject stale or unmanaged files in the output folder",
+    )
     return parser
 
 

@@ -1,6 +1,7 @@
 """Check assembly of CST-Run-Analyze batch exports into a navigator-indexed dataset."""
 
 import hashlib
+import csv
 import json
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from deflector_tuning.data_loading.cst_batch_delivery import (
     reference_run_id,
 )
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
+from deflector_tuning.data_loading.loaders.sim_loader import SimLoader
+from deflector_tuning.data_loading import cst_batch_delivery
 
 REFERENCE_NAVIGATOR = ('" 3D Run ID"\t"NumDepth"\t"NumTune"\r\n"1"\t"0.5"\t"5"\r\n"2"\t"0.5"\t"4"\r\n'
                        '"12"\t"1"\t"5"\r\n')
@@ -112,3 +115,148 @@ def test_reference_run_id_requires_one_matching_row(workspace: Path) -> None:
     assert reference_run_id(rows, {"NumDepth": 0.5, "NumTune": 4})[" 3D Run ID"] == "2"
     with pytest.raises(ValueError, match="found 0"):
         reference_run_id(rows, {"NumDepth": 0.5, "NumTune": 3})
+
+
+def _snapshot(folder: Path) -> dict[str, bytes]:
+    return {str(path.relative_to(folder)): path.read_bytes() for path in folder.rglob("*") if path.is_file()}
+
+
+def test_shrinking_delivery_rejects_stale_files_without_modification(workspace: Path) -> None:
+    output = assemble_delivery(workspace, _config([0.5, 1]), "original.json")["output"]
+    before = _snapshot(output)
+    config = _config([0.5])
+    config["batches"][0]["label_pattern"] = r"^seq-D0\.5$"
+    with pytest.raises(FileExistsError, match="delivery_12.s2p.*new output"):
+        assemble_delivery(workspace, config, "smaller.json", overwrite=True)
+    assert _snapshot(output) == before
+
+
+@pytest.mark.parametrize("unexpected", ["notes.txt", "extra/note.txt"])
+def test_overwrite_preserves_unmanaged_entries(workspace: Path, unexpected: str) -> None:
+    output = assemble_delivery(workspace, _config([0.5, 1]), "original.json")["output"]
+    extra = output / unexpected
+    extra.parent.mkdir(exist_ok=True)
+    extra.write_text("keep me", encoding="utf-8")
+    before = _snapshot(output)
+    with pytest.raises(FileExistsError, match="new output"):
+        assemble_delivery(workspace, _config([0.5, 1]), "updated.json", overwrite=True)
+    assert _snapshot(output) == before
+
+
+@pytest.mark.parametrize("failure", ["expected_values", "second_export"])
+def test_failed_build_preserves_previous_delivery(workspace: Path, monkeypatch, failure: str) -> None:
+    output = assemble_delivery(workspace, _config([0.5, 1]), "original.json")["output"]
+    before = _snapshot(output)
+    config = _config([0.5, 1])
+    config["batches"][0]["input_port_touchstone_index"] = 1
+    if failure == "expected_values":
+        config["expected_values"] = [0.5, 1, 1.5]
+    else:
+        original = cst_batch_delivery.deliver_run
+
+        def fail_second(run, input_port, target):
+            if run.label == "seq-D1":
+                raise ValueError("Invalid second export")
+            return original(run, input_port, target)
+
+        monkeypatch.setattr(cst_batch_delivery, "deliver_run", fail_second)
+    with pytest.raises(ValueError):
+        assemble_delivery(workspace, config, "updated.json", overwrite=True)
+    assert _snapshot(output) == before
+
+
+def test_failed_new_build_leaves_no_partial_output(workspace: Path) -> None:
+    config = _config([0.5, 1, 1.5])
+    with pytest.raises(ValueError, match="differ from configured"):
+        assemble_delivery(workspace, config, "invalid.json")
+    assert not (workspace / config["output_dataset"]).exists()
+
+
+def test_same_set_overwrite_has_consistent_manifest_map_and_loader(workspace: Path) -> None:
+    config = _config([0.5, 1])
+    output = assemble_delivery(workspace, config, "original.json")["output"]
+    result = assemble_delivery(workspace, config, "updated.json", overwrite=True)
+    assert result["output"] == output
+    assert "updated.json" in (output / "README.md").read_text(encoding="utf-8")
+    manifest = read_sha256_manifest(output / "MANIFEST.sha256")
+    assert set(manifest) == {path.name for path in output.iterdir()} - {"MANIFEST.sha256"}
+    for name, digest in manifest.items():
+        assert hashlib.sha256((output / name).read_bytes()).hexdigest() == digest
+    with (output / "source_map.csv").open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    loaded = SimLoader().load_touchstone(output)
+    assert set(loaded["source_file"]) == {row["delivered_file"] for row in rows}
+    assert set(loaded["run_id"]) == {int(row["run_id"]) for row in rows}
+    assert set(loaded["sim_NumDepth"]) == {float(row["NumDepth"]) for row in rows}
+
+
+@pytest.mark.parametrize("error_type", [OSError, KeyboardInterrupt, SystemExit])
+def test_publication_failure_restores_previous_directory(workspace: Path, monkeypatch, error_type) -> None:
+    output = assemble_delivery(workspace, _config([0.5, 1]), "original.json")["output"]
+    before = _snapshot(output)
+    original = Path.rename
+
+    def fail_publication(path, target):
+        if path.name == "prepared" and Path(target) == output:
+            raise error_type("Publication failed")
+        return original(path, target)
+
+    monkeypatch.setattr(Path, "rename", fail_publication)
+    with pytest.raises(error_type, match="Publication failed"):
+        assemble_delivery(workspace, _config([0.5, 1]), "updated.json", overwrite=True)
+    assert _snapshot(output) == before
+
+
+def test_interrupt_immediately_after_backup_restores_previous_directory(workspace: Path, monkeypatch) -> None:
+    output = assemble_delivery(workspace, _config([0.5, 1]), "original.json")["output"]
+    before = _snapshot(output)
+    original = Path.rename
+
+    def interrupt_after_backup(path, target):
+        result = original(path, target)
+        if path == output and Path(target).name == "previous":
+            raise KeyboardInterrupt("Interrupted after backup rename")
+        return result
+
+    monkeypatch.setattr(Path, "rename", interrupt_after_backup)
+    with pytest.raises(KeyboardInterrupt):
+        assemble_delivery(workspace, _config([0.5, 1]), "updated.json", overwrite=True)
+    assert _snapshot(output) == before
+
+
+@pytest.mark.parametrize("destination", [".", "data", "data/sim/reference", "data/sim/sim_sweep_000000_batch"])
+def test_rejects_output_overlapping_sources(workspace: Path, destination: str) -> None:
+    config = _config([0.5, 1])
+    config["output_dataset"] = destination
+    before = _snapshot(workspace)
+    with pytest.raises(ValueError, match="overlap"):
+        assemble_delivery(workspace, config, "invalid.json", overwrite=True)
+    assert _snapshot(workspace) == before
+
+
+def test_failed_rollback_retains_recoverable_backup(workspace: Path, monkeypatch) -> None:
+    output = assemble_delivery(workspace, _config([0.5, 1]), "original.json")["output"]
+    before = _snapshot(output)
+    original = Path.rename
+
+    def fail_publication_and_rollback(path, target):
+        if path.name in {"prepared", "previous"} and Path(target) == output:
+            raise OSError("Destination unavailable")
+        return original(path, target)
+
+    monkeypatch.setattr(Path, "rename", fail_publication_and_rollback)
+    with pytest.raises(RuntimeError, match="previous delivery is preserved"):
+        assemble_delivery(workspace, _config([0.5, 1]), "updated.json", overwrite=True)
+    backups = list(output.parent.glob(".cst-delivery-*/previous"))
+    assert len(backups) == 1
+    assert _snapshot(backups[0]) == before
+
+
+@pytest.mark.parametrize("stem", ["../delivery", r"..\delivery", "C:delivery"])
+def test_rejects_file_stem_path_components(workspace: Path, stem: str) -> None:
+    config = _config([0.5, 1])
+    config["file_stem"] = stem
+    before = _snapshot(workspace)
+    with pytest.raises(ValueError, match="filename stem"):
+        assemble_delivery(workspace, config, "invalid.json")
+    assert _snapshot(workspace) == before
