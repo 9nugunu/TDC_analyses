@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 from deflector_tuning.analysis.grid_scan_spacing import summarize_marker_spacing_for_grid_scan
-from deflector_tuning.analysis.sparameter_selection import select_s11_rows
+from deflector_tuning.analysis.sparameter_selection import select_s11_rows, select_phase_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.visualization.grid_scan_phase_line_plots import plot_grid_scan_sparameter_phase_r_c_line_scan
 from deflector_tuning.visualization.grid_scan_spacing_maps import plot_grid_scan_spacing_error_maps
@@ -50,6 +50,7 @@ def render_marker_figures(
 ) -> tuple[FigurePaths, DetectionReport]:
     """Render enabled figures and return the table-based detection report."""
     figures: FigurePaths = OrderedDict()
+    phase_points = select_phase_rows(tables["marker_pts"])
     if "grid_scan_spacing" in modes and cached_s11_figures:
         logger.info(
             "Skipping S11 figures because cached grid-scan S11 figures already exist"
@@ -134,14 +135,14 @@ def render_marker_figures(
         logger.info(
             "Skipping geometry phase-response figures because geometry_phase_response is missing or empty"
         )
-    if _has_rows(tables.get("marker_pts")):
+    if not phase_points.empty:
         logger.info("Rendering polar phase figures")
         figures["polar"] = OrderedDict(
             plot_marker_phase_polar_views(
-                tables["marker_pts"], figure_root / "polar", config=plot_config
+                phase_points, figure_root / "polar", config=plot_config
             )
         )
-        phase_bar_inputs = _select_position_phase_bar_inputs(tables["marker_pts"])
+        phase_bar_inputs = _select_position_phase_bar_inputs(phase_points)
         if phase_bar_inputs is not None:
             logger.info("Rendering position phase bar figures")
             phase_bar_dir = figure_root / "phase_bar"
@@ -166,7 +167,7 @@ def render_marker_figures(
             )
     else:
         logger.info(
-            "Skipping polar phase figures because marker_points is missing or empty"
+            "Skipping polar phase figures because no finite phase measurements are available"
         )
     if _has_rows(tables.get("kyhl_admit_audit")):
         logger.info("Rendering f_2pi3 normalized admittance figure")
@@ -187,7 +188,7 @@ def render_marker_figures(
     if "grid_scan_spacing" in modes:
         logger.info("Rendering grid-scan spacing figures")
         spacing_summary = summarize_marker_spacing_for_grid_scan(
-            tables["marker_pts"]
+            phase_points
         )
         figures["grid_scan_spacing"] = OrderedDict(
             plot_grid_scan_spacing_error_maps(
@@ -199,7 +200,7 @@ def render_marker_figures(
         logger.info("Rendering grid-scan S-parameter phase r_c line scan")
         figures["grid_scan_sparameter_phase_r_c_line_scan"] = OrderedDict(
             plot_grid_scan_sparameter_phase_r_c_line_scan(
-                tables["marker_pts"],
+                phase_points,
                 figure_root / "grid_scan_sparameter_phase_r_c_line_scan",
                 config=plot_config,
             )

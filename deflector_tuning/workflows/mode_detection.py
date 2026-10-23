@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from deflector_tuning.analysis.sparameter_selection import select_phase_rows
 from deflector_tuning.workflows.models import DetectionReport
 
 BASE_ANALYSIS_MODES: tuple[str, ...] = (
@@ -22,8 +23,9 @@ def detect_analysis_modes(
     *,
     dataset_category: str | None = None,
 ) -> tuple[str, ...]:
-    modes = list(BASE_ANALYSIS_MODES)
     report = detection_report(tables, dataset_category=dataset_category)
+    modes = list(BASE_ANALYSIS_MODES if report["phase_measurements"]["enabled"]
+                 else ("marker_analysis", "s11"))
     for mode in (
         "coupler_cavity_parameters",
         "cell_iris_response",
@@ -41,6 +43,7 @@ def detection_report(
     dataset_category: str | None = None,
 ) -> DetectionReport:
     marker_points = tables.get("marker_pts")
+    phase_points = select_phase_rows(marker_points) if marker_points is not None else pd.DataFrame()
     grid_enabled, grid_reason = _is_simulation_grid_scan(
         marker_points,
         dataset_category=dataset_category,
@@ -59,6 +62,10 @@ def detection_report(
         tables.get("geom_phase")
     )
     return {
+        "phase_measurements": {
+            "enabled": not phase_points.empty,
+            "reason": f"{len(phase_points)} marker rows contain finite measured phase",
+        },
         "coupler_cavity_parameters": {
             "enabled": coupler_enabled,
             "reason": coupler_reason,
@@ -108,6 +115,9 @@ def _is_simulation_grid_scan(
     missing = sorted(GRID_SCAN_REQUIRED_COLUMNS.difference(marker_points.columns))
     if missing:
         return False, f"marker_points is missing required columns: {missing}"
+    marker_points = select_phase_rows(marker_points)
+    if marker_points.empty:
+        return False, "marker_points has no finite measured phase"
     data_kinds = set(
         marker_points["data_kind"].astype(str).str.lower().dropna().unique()
     )
@@ -122,6 +132,17 @@ def _is_simulation_grid_scan(
             f"marker_points is missing complete grid-scan markers: {missing_markers}",
         )
 
+    identity_columns = [
+        column for column in marker_points
+        if column in {"dataset_id", "source_file", "run_id", "port_side", "s_name", "marker_role"}
+        or column.startswith("sim_")
+    ]
+    complete = marker_points.groupby(identity_columns, dropna=False)["marker_name"].transform(
+        lambda values: GRID_SCAN_REQUIRED_MARKERS.issubset(set(values.dropna()))
+    )
+    marker_points = marker_points.loc[complete]
+    if marker_points.empty:
+        return False, "no independent run has a complete set of finite phase markers"
     grid_points = marker_points[["sim_r_c", "sim_w_c"]].dropna().drop_duplicates()
     if len(grid_points) < 2:
         return False, "fewer than two unique sim_r_c/sim_w_c grid points"
