@@ -9,6 +9,9 @@ from typing import Literal
 
 import pandas as pd
 
+from deflector_tuning.data_loading.central_loader import DataLoader
+from deflector_tuning.data_loading.source_layer import detect_data_layer
+
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
 from deflector_tuning.markers.frequency_markers import MARKER_ORDER, extract_marker_frequencies
 
@@ -78,7 +81,20 @@ def load_one_port_matrix_folder(path: str | Path, lane: Lane) -> pd.DataFrame:
     if not files:
         raise FileNotFoundError(f"No {spec.suffix} files found in {folder}")
 
-    navigator = _result_navigator_by_run_id(folder)
+    # Standalone CST exports retain their historical simulation identity.
+    # Paths inside data/ always use the same source routing as the central loader.
+    try:
+        detect_data_layer(folder)
+    except ValueError:
+        if "data" in (part.lower() for part in folder.parts):
+            raise
+        dataset_id, data_kind, data_layer = folder.name, "sim", "sim"
+    else:
+        identity = DataLoader().load_folder(folder)
+        dataset_id = identity.dataset_id
+        data_kind = identity.data_kind.value
+        data_layer = identity.data_layer.folder_name
+    navigator = _result_navigator_by_run_id(folder) if data_layer == "sim" else {}
     rows: list[dict[str, object]] = []
     for matrix_file in files:
         data = read_touchstone(matrix_file)
@@ -96,9 +112,9 @@ def load_one_port_matrix_folder(path: str | Path, lane: Lane) -> pd.DataFrame:
             value = values[0]
             rows.append(
                 {
-                    "dataset_id": folder.name,
-                    "data_kind": "sim",
-                    "data_layer": "sim",
+                    "dataset_id": dataset_id,
+                    "data_kind": data_kind,
+                    "data_layer": data_layer,
                     "source_file": matrix_file.name,
                     "run_id": run_id,
                     "freq_ghz": _frequency_to_ghz(
@@ -278,6 +294,9 @@ def _result_navigator_by_run_id(folder: Path) -> dict[int, dict[str, object]]:
     if "3D Run ID" not in table:
         return {}
     table = table.rename(columns={"3D Run ID": "run_id"})
+    run_ids = pd.to_numeric(table["run_id"], errors="raise")
+    if run_ids.isna().any() or run_ids.duplicated().any() or (run_ids % 1 != 0).any():
+        raise ValueError("Navigator run_id must contain unique non-null integer IDs")
     rows: dict[int, dict[str, object]] = {}
     for _, row in table.iterrows():
         run_id = int(row["run_id"])

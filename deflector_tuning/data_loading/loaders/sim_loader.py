@@ -41,13 +41,13 @@ class SimLoader(FolderLoader):
                     "source_file": txt_file.name,
                     "freq_ghz": freq_ghz,
                     "s_name": "S11",
-                    "s_real": float(10.0 ** (s_db / 20.0)),
-                    "s_imag": 0.0,
+                    "s_real": np.nan,
+                    "s_imag": np.nan,
                     "s_db": s_db,
-                    "s_phase_deg": 0.0,
+                    "s_phase_deg": np.nan,
                     "source_format": "cst_txt_magnitude",
-                    "reference_ohm": 50.0,
-                    "is_normalized": True,
+                    "reference_ohm": np.nan,
+                    "is_normalized": pd.NA,
                     "tune_position": None,
                     "port_side": None,
                 }
@@ -114,7 +114,9 @@ def _merge_navigator_metadata(
 ) -> pd.DataFrame:
     """Merge Navigator metadata, preferring its non-null values on collisions."""
 
-    merged = table.merge(navigator, on=on, how="left", suffixes=("", "_navigator"))
+    if navigator[on].isna().any() or navigator[on].duplicated().any():
+        raise ValueError(f"Navigator join key {on!r} must be non-null and unique")
+    merged = table.merge(navigator, on=on, how="left", suffixes=("", "_navigator"), validate="many_to_one")
     for column in navigator.columns:
         if column == on:
             continue

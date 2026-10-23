@@ -2,6 +2,31 @@ from pathlib import Path
 
 import pandas as pd
 
+
+def test_pipeline_uses_configured_line_width(tmp_path):
+    folder = tmp_path / "data/sim/sim_grid_260723_width"
+    dispersion = tmp_path / "reference"
+    _write_rc_line_grid_sim_dataset(folder)
+    _write_dispersion_summary(dispersion)
+    tables = build_marker_analysis(sparameter_path=folder, dispersion_path=dispersion, marker_role="sim", fixed_w_c=18.3224)
+    assert tables["rc_line"].sim_w_c.tolist() == [18.3224]
+
+
+def test_standard_workflow_propagates_project_design_width(tmp_path):
+    from dataclasses import replace
+    from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS
+    from deflector_tuning.runner import run_folder_analysis
+    folder = tmp_path / "data/sim/sim_grid_260723_width"
+    dispersion = tmp_path / "reference"
+    _write_rc_line_grid_sim_dataset(folder)
+    _write_dispersion_summary(dispersion)
+    defaults = replace(DEFAULT_PROJECT_DEFAULTS, design_point_by_axis={"sim_r_c": 56.0, "sim_w_c": 18.3224})
+    result = run_folder_analysis(sparameter_path=folder, dispersion_path=dispersion, marker_role="sim",
+                                 output_dir=tmp_path / "out", tables_only=True, project_defaults=defaults)
+    line = pd.read_csv(result.tables["rc_line"])
+    assert len(line) == 1
+    assert line.source_file.tolist() == ["run_3.s1p"]
+
 import deflector_tuning.analysis.marker_pipeline as marker_pipeline
 from deflector_tuning.analysis.marker_pipeline import (
     build_marker_analysis,

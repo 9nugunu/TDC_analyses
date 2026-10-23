@@ -12,7 +12,7 @@ from deflector_tuning.analysis.marker_pipeline import build_marker_analysis, sav
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.markers.frequency_markers import TemperatureHumidityCorrection
 from deflector_tuning.table_export import TableSaveResult
-from deflector_tuning.visualization.plot_config import PlotConfig
+from deflector_tuning.visualization.plot_config import PlotConfig, resolve_line_scan_width
 from deflector_tuning.workflows.figure_cache import s11_figure_signature
 from deflector_tuning.workflows.manifest import (
     cached_manifest_figures,
@@ -88,6 +88,7 @@ def run_marker_analysis(
         marker_correction=marker_correction,
         geometry_sweep_axis=geometry_sweep_axis,
         geometry_sweep_base=geometry_sweep_base,
+        fixed_w_c=resolve_line_scan_width(plot_config),
     )
     logger.info("Built analysis tables: %s", ", ".join(tables.keys()))
     logger.info("Saving analysis tables to %s", table_dir)

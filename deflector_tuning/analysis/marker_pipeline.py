@@ -38,9 +38,10 @@ from deflector_tuning.analysis.nodal_shift import compute_nodal_shift_errors
 from deflector_tuning.analysis.geometry_phase_response import (
     compute_geometry_phase_response,
 )
-from deflector_tuning.analysis.grid_rc_line_scan import extract_fixed_width_rc_line_scan
-from deflector_tuning.analysis.sparameter_selection import select_s11_rows
+from deflector_tuning.analysis.grid_rc_line_scan import DEFAULT_GRID_RC_LINE_SCAN_W_C, extract_fixed_width_rc_line_scan
+from deflector_tuning.analysis.sparameter_selection import select_phase_rows, select_s11_rows
 from deflector_tuning.data_loading.central_loader import DataLoader
+from deflector_tuning.data_contracts import simulation_geometry_columns
 from deflector_tuning.markers.frequency_markers import (
     TemperatureHumidityCorrection,
     extract_marker_frequencies,
@@ -63,6 +64,8 @@ POLAR_PHASE_COLUMNS: dict[str, str] = {
 }
 POLAR_ID_COLUMN_CANDIDATES: tuple[str, ...] = (
     "dataset_id",
+    "data_kind",
+    "data_layer",
     "source_file",
     "run_id",
     "tune_position",
@@ -91,6 +94,7 @@ def build_marker_analysis(
     marker_correction: TemperatureHumidityCorrection | None = None,
     geometry_sweep_axis: str | None = None,
     geometry_sweep_base: float | None = None,
+    fixed_w_c: float = DEFAULT_GRID_RC_LINE_SCAN_W_C,
 ) -> AnalysisTables:
     """Build marker-frequency, marker-point, phase-advance, and summary tables.
 
@@ -108,22 +112,26 @@ def build_marker_analysis(
         correction=marker_correction,
     )
     marker_points = sample_nearest_markers(sparameter_table, markers)
-    phase_polar = build_marker_phase_polar_table(marker_points)
-    rc_line = extract_fixed_width_rc_line_scan(phase_polar)
-    kyhl_admit_audit = _compute_f2pi3_normalized_admittance_audit_when_supported(marker_points)
-    kyhl_admit_pts = _compute_kyhl_admittance_points_when_supported(marker_points)
-    kyhl_admit_steps = _compute_kyhl_admittance_transitions_when_supported(marker_points)
+    phase_points = select_phase_rows(marker_points)
+    # Magnitude/phase CSV observations are also valid complex input; KYHL's
+    # established conversion accepts either representation.
+    complex_points = phase_points
+    phase_polar = build_marker_phase_polar_table(phase_points)
+    rc_line = extract_fixed_width_rc_line_scan(phase_polar, fixed_w_c=fixed_w_c)
+    kyhl_admit_audit = _compute_f2pi3_normalized_admittance_audit_when_supported(complex_points)
+    kyhl_admit_pts = _compute_kyhl_admittance_points_when_supported(complex_points)
+    kyhl_admit_steps = _compute_kyhl_admittance_transitions_when_supported(complex_points)
     cell_iris_cmp = (
         compare_cell_and_iris_responses(kyhl_admit_steps)
         if not kyhl_admit_steps.empty
         else _empty_cell_iris_response_comparison()
     )
-    coupler_params = build_coupler_cavity_parameter_table(marker_points, markers)
-    phase_adv = _compute_phase_advance_when_supported(marker_points)
+    coupler_params = build_coupler_cavity_parameter_table(phase_points, markers)
+    phase_adv = _compute_phase_advance_when_supported(phase_points)
     phase_stats = summarize_phase_advance(phase_adv) if not phase_adv.empty else _empty_phase_summary()
     nodal_shift = compute_nodal_shift_errors(phase_adv) if not phase_adv.empty else _empty_nodal_shift()
     geom_phase = compute_geometry_phase_response(
-        marker_points,
+        phase_points,
         sweep_axis=geometry_sweep_axis,
         sweep_base=geometry_sweep_base,
     )
@@ -162,13 +170,15 @@ def build_marker_phase_polar_table(marker_points: pd.DataFrame) -> pd.DataFrame:
     if marker_points.empty or not required_columns.issubset(marker_points.columns):
         return pd.DataFrame(columns=_polar_phase_output_columns(marker_points))
 
-    table = marker_points[marker_points["marker_name"].isin(POLAR_MARKER_ORDER)].copy()
+    table = select_phase_rows(marker_points[marker_points["marker_name"].isin(POLAR_MARKER_ORDER)])
     if table.empty:
         return pd.DataFrame(columns=_polar_phase_output_columns(marker_points))
 
     id_columns = _polar_phase_id_columns(table)
     if not id_columns:
         id_columns = ["source_file"] if "source_file" in table else []
+    if table.duplicated([*id_columns, "marker_name"]).any():
+        raise ValueError("Duplicate polar marker observations for the same source and conditions")
     wide = (
         table.groupby([*id_columns, "marker_name"], dropna=False)["s_phase_deg"]
         .first()
@@ -232,7 +242,8 @@ def _empty_cell_iris_response_comparison() -> pd.DataFrame:
 
 
 def _polar_phase_id_columns(table: pd.DataFrame) -> list[str]:
-    id_columns = [column for column in POLAR_ID_COLUMN_CANDIDATES if column in table]
+    candidates = dict.fromkeys([*POLAR_ID_COLUMN_CANDIDATES, *simulation_geometry_columns(table)])
+    id_columns = [column for column in candidates if column in table]
     if not id_columns:
         return []
     complete_columns: list[str] = []

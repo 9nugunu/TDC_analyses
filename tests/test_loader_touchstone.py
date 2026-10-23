@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import pandas as pd
 
 from deflector_tuning.data_loading.central_loader import DataLoader
 from deflector_tuning.data_loading.records import DataKind
@@ -202,7 +203,11 @@ def test_sim_loader_reads_cst_txt_magnitude_export(tmp_path: Path) -> None:
     assert row["freq_ghz"] == pytest.approx(2.6)
     assert row["s_name"] == "S11"
     assert row["s_db"] == pytest.approx(-0.0089373164991483)
-    assert row["s_phase_deg"] == pytest.approx(0.0)
+    assert pd.isna(row["s_phase_deg"])
+    assert pd.isna(row["s_real"])
+    assert pd.isna(row["s_imag"])
+    assert pd.isna(row["reference_ohm"])
+    assert pd.isna(row["is_normalized"])
     assert row["source_format"] == "cst_txt_magnitude"
     assert row["sim_NumTune"] == 0
     assert row["sim_r_c"] == pytest.approx(52.09)

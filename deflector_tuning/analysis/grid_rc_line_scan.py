@@ -5,7 +5,9 @@ from typing import Final
 
 import pandas as pd
 
-DEFAULT_GRID_RC_LINE_SCAN_W_C: Final[float] = 19.3224
+from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS
+
+DEFAULT_GRID_RC_LINE_SCAN_W_C: Final[float] = float(DEFAULT_PROJECT_DEFAULTS.design_point_by_axis["sim_w_c"])
 GRID_RC_LINE_SCAN_TOLERANCE: Final[float] = 1e-9
 GRID_RC_LINE_SCAN_COORDINATES: Final[tuple[str, str]] = ("sim_r_c", "sim_w_c")
 RC_LINE_SCAN_TIE_COLUMNS: Final[tuple[str, ...]] = ("sim_NumDepth", "run_id", "source_file", "marker_name")
