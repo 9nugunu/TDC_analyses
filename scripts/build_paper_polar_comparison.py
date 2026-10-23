@@ -24,6 +24,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
+from deflector_tuning.workflows.paper_plot_contracts import marker_labels, validate_comparison_layout, case_label
 from deflector_tuning.visualization.lps_paper_style import (
     PRESET_PATH, apply_lps_style, save_paper_figure,
 )
@@ -42,6 +43,7 @@ def main() -> None:
     args = parser.parse_args()
     paper = args.paper_root.resolve()
     config = json.loads(args.config.read_text(encoding="utf-8"))
+    validate_comparison_layout(config)
     source = paper / "tables/paper-short-state-metrics.csv"
     before = digest(source)
     with source.open(encoding="utf-8") as stream:
@@ -51,7 +53,7 @@ def main() -> None:
     fig.subplots_adjust(left=.06, right=.96, bottom=.04, top=.79, wspace=.25, hspace=.60)
     colors = ["C0", "C1", "C2"]
     symbols = ["o", "s", "^"]
-    labels = [r"$f_{2\pi/3}$", r"$f_m$", r"$f_{\pi/2}$"]
+    labels = marker_labels(config)
     points, source_hashes, loaded = [], {}, {}
     for row_index, case in enumerate(config["cases"]):
         for col_index, pair in enumerate(config["pairs"]):
@@ -68,9 +70,9 @@ def main() -> None:
             ax.grid(color=".78", linewidth=.6)
             ax.spines["polar"].set_linewidth(1)
             ax.tick_params(labelsize=8, pad=1)
-            case_label = ("Extended", "Reduced")[row_index]
+            label_for_case = case_label(case)
             letter = chr(97 + 2 * row_index + col_index)
-            ax.set_title(f"({letter}) {case_label}: {pair['label']}", fontsize=10.5, pad=16)
+            ax.set_title(f"({letter}) {label_for_case}: {pair['label']}", fontsize=10.5, pad=16)
             for point, radius, color, symbol, label in zip(selected, [.5, .7, .9], colors, symbols, labels):
                 phases = []
                 for state in ("first", "second"):
@@ -78,11 +80,13 @@ def main() -> None:
                     if path not in loaded:
                         source_hashes[path.relative_to(ROOT).as_posix()] = digest(path)
                         loaded[path] = read_touchstone(path)
-                    assert source_hashes[path.relative_to(ROOT).as_posix()] == point[f"{state}_sha256"]
+                    if not (source_hashes[path.relative_to(ROOT).as_posix()] == point[f"{state}_sha256"]):
+                        raise ValueError('Publication source contract failed: source_hashes[path.relative_to(ROOT).as_posix()] == point[f"{state}_sha256"]')
                     trace = loaded[path]
                     index = int(point[f"{state}_sample_index_zero_based"])
                     value = complex(float(point[f"{state}_real"]), float(point[f"{state}_imag"]))
-                    assert trace.values[index][0] == value
+                    if not (trace.values[index][case["exported_s_index"]] == value):
+                        raise ValueError('Publication source contract failed: trace.values[index][case["exported_s_index"]] == value')
                     phase = float(np.angle(value, deg=True))
                     np.testing.assert_allclose(phase, float(point[f"{state}_phase_deg"]), atol=1e-12)
                     phases.append(phase)
@@ -113,8 +117,10 @@ def main() -> None:
         save_paper_figure(fig, path)
         outputs.append(path)
     plt.close(fig)
-    assert len(points) == 24
-    assert digest(source) == before
+    if not (len(points) == 24):
+        raise ValueError('Publication source contract failed: len(points) == 24')
+    if not (digest(source) == before):
+        raise ValueError('Publication source contract failed: digest(source) == before')
     record = {"input_metric_table_sha256":before, "source_sha256":source_hashes,
               "point_count":len(points), "points":points,
               "angle_definition":"raw exported S11 phase; no common rotation or de-embedding",
@@ -122,11 +128,11 @@ def main() -> None:
               "radius_definition":"display only: 0.5/0.7/0.9 for the three frequencies; not magnitude",
               "reference_plane_role":"first plunger position of each pair, not the external port reference plane",
               "code_sha256":{p.relative_to(ROOT).as_posix():digest(p) for p in
-                             [Path(__file__), PRESET_PATH, ROOT/"deflector_tuning/visualization/lps_paper_style.py",
+                             [Path(__file__), PRESET_PATH, ROOT/"deflector_tuning/workflows/paper_plot_contracts.py", ROOT/"deflector_tuning/visualization/lps_paper_style.py",
                               ROOT/"deflector_tuning/visualization/polar_drawing.py"]},
               "outputs":[{"path":p.relative_to(paper).as_posix(),"sha256":digest(p)} for p in outputs]}
     (paper/"docs/evidence/polar-comparison-manifest.json").write_text(json.dumps(record,indent=2)+"\n",encoding="utf-8")
-    print("PASS: 24 polar endpoints match 8 raw CST files and all 12 signed pair differences")
+    print(f"PASS: {len(points)} polar endpoints match {len(loaded)} raw CST files and all configured pair differences")
 
 
 if __name__ == "__main__":

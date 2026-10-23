@@ -26,6 +26,7 @@ import numpy as np
 from deflector_tuning.analysis.field_sections import load_field_section, normalized_field_magnitude
 from deflector_tuning.data_loading.field3d import find_field3d_pairs, EPSILON_0_F_PER_M, MU_0_H_PER_M
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
+from deflector_tuning.workflows.paper_plot_contracts import marker_labels, validate_comparison_layout, case_label
 from deflector_tuning.dispersion.cst import load_cst_dispersion_txt
 from deflector_tuning.visualization.lps_paper_style import (
     PRESET_PATH, apply_lps_style, field_colormap, finish_axes, save_paper_figure,
@@ -57,12 +58,17 @@ def save(fig, paper, stem):
 
 
 def field_figure(root, paper, config):
+    if config["fixed_axis"] != "x":
+        raise ValueError("Publication field panels support fixed x (y-z sections) only")
+    cases = config["field_cases"]
+    if not 1 <= len(cases) <= 5 or len({case["id"] for case in cases}) != len(cases):
+        raise ValueError("Publication field layout requires one to five distinct field cases")
     dataset = root / config["field_dataset"]
     pairs = {pair.case_id: pair for pair in find_field3d_pairs(dataset)}
     with (root / config["cached_energy_table"]).open(encoding="utf-8") as stream:
         cached = {row["case_id"]: row for row in csv.DictReader(stream)}
     fig, axes = plt.subplots(2, len(config["field_cases"]), figsize=(7.08, 3.35),
-                             sharex=True, sharey=True)
+                             sharex=True, sharey=True, squeeze=False)
     fig.subplots_adjust(left=0.10, right=0.87, bottom=0.15, top=0.89,
                         wspace=0.12, hspace=0.18)
     cmap = field_colormap()
@@ -77,13 +83,16 @@ def field_figure(root, paper, config):
             before = digest(path)
             section = load_field_section(path, fixed_axis=config["fixed_axis"],
                                          coordinate_mm=config["requested_coordinate_mm"])
-            assert before == digest(path), "Raw file changed during reading"
+            if not (before == digest(path)):
+                raise ValueError("Raw file changed during reading")
             if reference_grid is None:
                 reference_grid = section
-            assert section.actual_coordinate_mm == reference_grid.actual_coordinate_mm
+            if not (section.actual_coordinate_mm == reference_grid.actual_coordinate_mm):
+                raise ValueError('Publication source contract failed: section.actual_coordinate_mm == reference_grid.actual_coordinate_mm')
             np.testing.assert_array_equal(section.transverse_mm, reference_grid.transverse_mm)
             np.testing.assert_array_equal(section.z_mm, reference_grid.z_mm)
-            assert section.full_grid_shape == reference_grid.full_grid_shape
+            if not (section.full_grid_shape == reference_grid.full_grid_shape):
+                raise ValueError('Publication source contract failed: section.full_grid_shape == reference_grid.full_grid_shape')
             energy = float(0.25 * factor * section.full_component_abs2_sums.sum()
                            * np.prod(section.full_spacing_mm) * 1e-9)
             np.testing.assert_allclose(energy, float(cached[case["id"]][f"{kind}_region_j"]), rtol=1e-10)
@@ -140,7 +149,7 @@ def field_figure(root, paper, config):
                    "excitation_normalization_verified": False,
                    "same_geometry_as_june_scattering_verified": False,
                    "field_monitor_frequency": "2.857 GHz in filename; full precision unavailable",
-                   "reference_case": "NoPlunger label; navigator run 5 has NumDepth=14",
+                   "configured_cases": config["field_cases"],
                    "navigator_sha256": digest(dataset / "result_navigator.csv")}
 
 
@@ -148,10 +157,15 @@ def dispersion_figure(root, paper, config, markers):
     source = root / config["dispersion_source"]
     table = load_cst_dispersion_txt(source)
     data = table[table.mode_index == config["mode_index"]].copy()
-    assert not data.phase_deg.duplicated().any()
-    assert len(data) == 181
+    if not (not data.phase_deg.duplicated().any()):
+        raise ValueError('Publication source contract failed: not data.phase_deg.duplicated().any()')
+    if not (len(data) == 181):
+        raise ValueError('Publication source contract failed: len(data) == 181')
     values = dict(zip(data.phase_deg, data.freq_GHz))
-    np.testing.assert_allclose([values[120], (values[90]+values[120])/2, values[90]],
+    marker_labels({"markers": markers})
+    derived_frequencies = {"f_2pi3": values[120], "f_mean": (values[90] + values[120]) / 2,
+                           "f_pi2": values[90]}
+    np.testing.assert_allclose([derived_frequencies[m["name"]] for m in markers],
                                [m["requested_GHz"] for m in markers], rtol=0, atol=1e-12)
     fig, axes = plt.subplots(1, 2, figsize=(7.08, 2.85), layout="constrained")
     for ax in axes:
@@ -178,32 +192,35 @@ def dispersion_figure(root, paper, config, markers):
 
 
 def reflection_figure(root,paper,config):
+    validate_comparison_layout(config)
     source=paper/"tables/paper-short-state-metrics.csv"
     before=digest(source)
     with source.open(encoding="utf-8") as stream:
         rows=list(csv.DictReader(stream))
     marks=np.array([m["requested_GHz"] for m in config["markers"]])
-    span=marks[-1]-marks[0]
-    limits=(marks[0]-0.15*span,marks[-1]+0.15*span)
+    span=marks.max()-marks.min()
+    limits=(marks.min()-0.15*span,marks.max()+0.15*span)
     fig,axes=plt.subplots(2,2,figsize=(7.08,4.8),sharey="row")
     fig.subplots_adjust(left=.12,right=.985,bottom=.08,top=.82,wspace=.14,hspace=.44)
     traces,inputs=[],{}
     for col,case in enumerate(config["cases"]):
-        axes[0,col].set_title(("(a) Extended" if col==0 else "(b) Reduced"),fontsize=9,pad=6)
+        axes[0,col].set_title(f"({chr(97 + col)}) {case_label(case)}",fontsize=9,pad=6)
         for pair_index,pair in enumerate(config["pairs"]):
             selected=[next(r for r in rows if r["case"]==case["id"] and r["pair"]==pair["name"] and r["marker"]==m["name"]) for m in config["markers"]]
             for state_index,state in enumerate(("first","second")):
                 row=selected[0]
                 path=root/row[f"{state}_source"]
-                assert digest(path)==row[f"{state}_sha256"]
+                if not (digest(path)==row[f"{state}_sha256"]):
+                    raise ValueError('Publication source contract failed: digest(path)==row[f"{state}_sha256"]')
                 inputs[path.relative_to(root).as_posix()]=digest(path)
                 trace=read_touchstone(path)
                 scales={"Hz":1e-9,"kHz":1e-6,"MHz":1e-3,"GHz":1.0}
                 freq=np.asarray(trace.frequency)*scales[trace.header.frequency_unit]
-                values=np.asarray(trace.values)[:,0]
+                values=np.asarray(trace.values)[:,case["exported_s_index"]]
                 for point in selected:
                     idx=int(point[f"{state}_sample_index_zero_based"])
-                    assert values[idx]==complex(float(point[f"{state}_real"]),float(point[f"{state}_imag"]))
+                    if not (values[idx]==complex(float(point[f"{state}_real"]),float(point[f"{state}_imag"]))):
+                        raise ValueError('Publication source contract failed: values[idx]==complex(float(point[f"{state}_real"]),float(point[f"{state}_imag"]))')
                 keep=(freq>=limits[0])&(freq<=limits[1])
                 phase=np.angle(values[keep],deg=True)
                 display=phase.copy()
@@ -220,7 +237,7 @@ def reflection_figure(root,paper,config):
         for m in marks:
             axes[0,col].axvline(m,color="0.65",ls=":",lw=.7,zorder=0)
         axes[0,col].set(xlim=limits,ylim=(-195,195),yticks=[-180,-90,0,90,180],xlabel="Frequency [GHz]")
-        axes[1,col].set(xticks=[0,1,2],xticklabels=[r"$f_{2\pi/3}$",r"$f_m$",r"$f_{\pi/2}$"],
+        axes[1,col].set(xticks=[0,1,2],xticklabels=marker_labels(config),
                         ylim=(-180,180),yticks=[-150,0,150],xlim=(-.3,2.3))
         axes[1,col].axhline(0,color=".4",ls="--",lw=.8)
     axes[0,0].set_ylabel("Reflection phase [deg]")
@@ -233,7 +250,8 @@ def reflection_figure(root,paper,config):
     paths=save(fig,paper,"fig-cst-phase-comparison")
     out=paper/"tables/paper-reflection-curves.csv"
     write_rows(out,traces)
-    assert before==digest(source)
+    if not (before==digest(source)):
+        raise ValueError('Publication source contract failed: before==digest(source)')
     return paths+[out],{"metric_table_sha256":before,"source_sha256":inputs,
                         "curve_rows":len(traces),"frequency_limits_GHz":limits,
                         "display_rule":"Wrapped phase; lines break at >180 degree jumps; no smoothing"}
@@ -250,6 +268,7 @@ def main():
     root,paper=args.analysis_root.resolve(),args.paper_root.resolve()
     config=json.loads(args.config.read_text(encoding="utf-8"))
     scattering=json.loads((root/config["scattering_config"]).read_text(encoding="utf-8"))
+    validate_comparison_layout(scattering)
     protected={path:digest(path) for path in (paper/"tables").glob("*.csv")}
     for folder in ("fig","tables","docs/evidence"):(paper/folder).mkdir(parents=True,exist_ok=True)
     apply_lps_style()
@@ -258,17 +277,19 @@ def main():
     paths,reflection=reflection_figure(root,paper,scattering); outputs+=paths
     unchanged={path.name:digest(path)==value for path,value in protected.items()
                if path not in outputs}
-    assert all(unchanged.values())
+    if not (all(unchanged.values())):
+        raise ValueError('Publication source contract failed: all(unchanged.values())')
     record={"generated_utc":datetime.now(timezone.utc).isoformat(),"data_kind":"simulation",
             "config":config,"field_comparison":fields,"dispersion":dispersion,"reflection":reflection,
             "previous_numerical_tables_unchanged":unchanged,
             "code_sha256":{str(Path(__file__).relative_to(root)):digest(__file__),
+                            "deflector_tuning/workflows/paper_plot_contracts.py":digest(root/"deflector_tuning/workflows/paper_plot_contracts.py"),
                             "deflector_tuning/analysis/field_sections.py":digest(root/"deflector_tuning/analysis/field_sections.py"),
                             "deflector_tuning/visualization/lps_paper_style.py":digest(root/"deflector_tuning/visualization/lps_paper_style.py"),
                             PRESET_PATH.relative_to(ROOT).as_posix():digest(PRESET_PATH)},
             "outputs":[{"path":p.relative_to(paper).as_posix(),"sha256":digest(p)} for p in outputs]}
     (paper/"docs/evidence/field-comparison-manifest.json").write_text(json.dumps(record,indent=2,allow_nan=False)+"\n",encoding="utf-8")
-    LOGGER.info("PASS: five E/H cases, dispersion and combined reflection plots; prior numeric tables unchanged")
+    LOGGER.info("PASS: %d E/H cases, dispersion and combined reflection plots; prior numeric tables unchanged", len(config["field_cases"]))
 
 
 if __name__=="__main__": main()

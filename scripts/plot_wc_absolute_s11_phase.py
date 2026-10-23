@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS
 from deflector_tuning.visualization.marker_styles import MARKER_COLORS
 from deflector_tuning.visualization.plot_config import (
     DESIGN_REFERENCE_LINEWIDTH,
@@ -46,6 +47,7 @@ def build_wc_absolute_phase_table(
     *,
     fixed_r_c_mm: float,
     num_depth: float = 2.0,
+    series_filters: dict[str, object] | None = None,
 ) -> pd.DataFrame:
     """Select the absolute f_2pi3 S11 phase for one fixed-radius iris scan."""
 
@@ -54,6 +56,11 @@ def build_wc_absolute_phase_table(
         raise ValueError(f"marker table is missing required columns: {missing}")
 
     numeric = marker_points.copy()
+    for column, value in (series_filters or {}).items():
+        if column not in numeric:
+            raise ValueError(f"Unknown series filter column: {column}")
+        numeric = numeric.loc[numeric[column] == value]
+
     for column in ("sim_NumDepth", "sim_r_c", "sim_w_c", "s_phase_deg"):
         numeric[column] = pd.to_numeric(numeric[column], errors="coerce")
     selected = numeric[
@@ -62,7 +69,9 @@ def build_wc_absolute_phase_table(
         & numeric["sim_r_c"].sub(fixed_r_c_mm).abs().le(1e-9)
     ].dropna(subset=["sim_w_c", "s_phase_deg"])
     selected = selected.sort_values("sim_w_c", kind="mergesort")
-    selected = selected.drop_duplicates(subset=["sim_w_c"], keep="last").reset_index(drop=True)
+    if selected["sim_w_c"].duplicated().any():
+        raise ValueError("Multiple traces at the same width; select one series using series_filters")
+    selected = selected.reset_index(drop=True)
     if selected.empty:
         raise ValueError(
             f"no {MARKER_NAME} iris rows found at r_c={fixed_r_c_mm:g} mm "
@@ -154,20 +163,27 @@ def plot_wc_absolute_phase(
         plt.close(fig)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Build CLI options using the current project scientific defaults."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-csv", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--r-c-mm", type=float, default=56.59)
+    parser.add_argument("--r-c-mm", type=float, default=float(DEFAULT_PROJECT_DEFAULTS.design_point_by_axis["sim_r_c"]))
     parser.add_argument("--num-depth", type=float, default=2.0)
     parser.add_argument("--reference-w-c-mm", type=float)
-    args = parser.parse_args()
+    parser.add_argument("--source", help="Select one source_file value before width validation")
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     marker_points = pd.read_csv(args.input_csv)
     phase_table = build_wc_absolute_phase_table(
         marker_points,
         fixed_r_c_mm=args.r_c_mm,
         num_depth=args.num_depth,
+        series_filters={"source_file": args.source} if args.source is not None else None,
     )
     output_path = plot_wc_absolute_phase(
         phase_table,

@@ -1,4 +1,4 @@
-"""Locate the raw Torque-13.5 state on the simulated port-2 ``r_c`` phase line."""
+"""Locate a measured raw state on the simulated port-2 ``r_c`` phase line."""
 
 from __future__ import annotations
 
@@ -13,22 +13,30 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS
 from deflector_tuning.analysis.phase_radius_equivalence import build_raw_anchored_phase_position
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
+from deflector_tuning.analysis.complex_sampling import sample_complex_frequency
 from deflector_tuning.visualization.phase_radius_equivalence_plots import plot_raw_phase_position_on_simulation_line
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
+    """Build CLI options using the current project scientific defaults."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sim_phase_line_csv", type=Path, help="Simulation r_c line-scan CSV for port 2")
     parser.add_argument("sim_markers_csv", type=Path, help="Simulation marker-frequency CSV")
     parser.add_argument("before_folder", type=Path, help="Raw folder before tuning")
     parser.add_argument("after_folder", type=Path, help="Raw folder after tuning")
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--baseline-r-c-mm", type=float, default=56.59)
-    parser.add_argument("--target-r-c-mm", type=float, default=56.59, help="Simulation design/reference value")
-    parser.add_argument("--fixed-w-c-mm", type=float, default=19.3224)
-    args = parser.parse_args()
+    parser.add_argument("--baseline-r-c-mm", type=float, default=float(DEFAULT_PROJECT_DEFAULTS.design_point_by_axis["sim_r_c"]))
+    parser.add_argument("--target-r-c-mm", type=float, default=float(DEFAULT_PROJECT_DEFAULTS.design_point_by_axis["sim_r_c"]), help="Simulation design/reference value")
+    parser.add_argument("--fixed-w-c-mm", type=float, default=float(DEFAULT_PROJECT_DEFAULTS.design_point_by_axis["sim_w_c"]))
+    parser.add_argument("--state-label", default="Measured state", help="Measured-state display label")
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     markers = pd.read_csv(args.sim_markers_csv).loc[:, ["marker_name", "freq_ghz"]]
     first_iris = _raw_phase_observation(
@@ -61,6 +69,7 @@ def main() -> None:
         baseline_r_c_mm=args.baseline_r_c_mm,
         target_r_c_mm=args.target_r_c_mm,
         fixed_w_c_mm=args.fixed_w_c_mm,
+        measured_state_label=args.state_label,
     )
     print(path)
 
@@ -75,10 +84,12 @@ def _raw_phase_observation(before_path: Path, after_path: Path, markers: pd.Data
 
 def _sample_s11_phase(path: Path, markers: pd.DataFrame) -> pd.DataFrame:
     data = read_touchstone(path)
-    frequency_hz = np.asarray(data.frequency, dtype=float)
-    s11 = np.asarray([row[0] for row in data.s_values])
-    targets_hz = markers["freq_ghz"].to_numpy(dtype=float) * 1e9
-    sampled = np.interp(targets_hz, frequency_hz, s11.real) + 1j * np.interp(targets_hz, frequency_hz, s11.imag)
+    if data.header.parameter != "S":
+        raise ValueError("Phase sampling requires S-parameter data")
+    sampled = sample_complex_frequency(
+        data.frequency, np.asarray(data.s_values)[:, 0], markers["freq_ghz"].to_numpy(dtype=float),
+        frequency_unit=data.header.frequency_unit,
+    )
     return markers.assign(s11_phase_deg=np.angle(sampled, deg=True))
 
 

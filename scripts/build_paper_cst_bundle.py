@@ -12,7 +12,6 @@ import argparse
 import csv
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
-import hashlib
 import json
 from pathlib import Path
 import re
@@ -29,132 +28,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from deflector_tuning.data_loading.loaders.sim_loader import _read_cst_parameter_header
+from deflector_tuning.data_loading.cst_metadata import sha256, read_cst_metadata, validate_pair_metadata
+from deflector_tuning.analysis.cst_phase_metrics import phase_pair_metrics, radius_phase_response
+from deflector_tuning.analysis.complex_sampling import nearest_sample_index
+from deflector_tuning.workflows.paper_cst_sources import resolve_markers
 from deflector_tuning.data_loading.readers.touchstone_reader import read_touchstone
+from deflector_tuning.workflows.paper_plot_contracts import marker_labels, validate_comparison_layout
 from deflector_tuning.visualization.lps_paper_style import apply_lps_style, finish_axes, save_paper_figure
-
-
-def sha256(path: Path) -> str:
-    """Hash the source bytes, independently of parsing or text newlines."""
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def nearest_sample_index(frequency_GHz: np.ndarray, requested_GHz: float) -> int:
-    """Choose the nearest exported sample; an exact tie selects the first row."""
-    frequencies = np.asarray(frequency_GHz, dtype=float)
-    if (frequencies.ndim != 1 or frequencies.size == 0
-            or not np.isfinite(frequencies).all() or not np.isfinite(requested_GHz)
-            or np.any(np.diff(frequencies) <= 0)):
-        raise ValueError("Frequency grid must be finite, nonempty and strictly increasing")
-    if not frequencies[0] <= requested_GHz <= frequencies[-1]:
-        raise ValueError(f"Marker {requested_GHz} GHz lies outside the exported grid")
-    return int(np.argmin(np.abs(frequencies - requested_GHz)))
-
-
-def phase_pair_metrics(first: complex, second: complex, target_deg: float) -> dict[str, float]:
-    """Return directed second/first phase separation and wrapped target residual.
-
-    Separation is in [0, 360); target residual is in [-180, 180). This is a
-    reference-phase comparison, not an independent impedance matching test.
-    """
-    if not all(np.isfinite(value) and abs(value) > 0 for value in (first, second)):
-        raise ValueError("Phase inputs must be finite and nonzero")
-    delta = float(np.rad2deg(np.angle(second / first)) % 360.0)
-    # Floating point modulo can round an infinitesimal negative value to 360.
-    if delta >= 360.0:
-        delta = 0.0
-    return {
-        "first_real": float(first.real), "first_imag": float(first.imag),
-        "second_real": float(second.real), "second_imag": float(second.imag),
-        "first_phase_deg": float(np.rad2deg(np.angle(first))),
-        "second_phase_deg": float(np.rad2deg(np.angle(second))),
-        "first_modulus": float(abs(first)), "second_modulus": float(abs(second)),
-        "delta_deg": delta,
-        "target_delta_deg": float(target_deg),
-        "signed_target_residual_deg": float((delta - target_deg + 180.0) % 360.0 - 180.0),
-        "relative_phase_psi_deg": float((delta - 180.0 + 180.0) % 360.0 - 180.0),
-    }
-
-
-def validate_pair_metadata(
-    first: dict[str, Any], second: dict[str, Any], short_state_fields: list[str],
-    *, require_same_project: bool = True,
-) -> dict[str, Any]:
-    """Reject any metadata difference not explicitly declared as a state field."""
-    mismatches: dict[str, Any] = {}
-    fields = ["option_line", "port_assignments"]
-    if require_same_project:
-        fields.append("project")
-    for name in fields:
-        if first[name] != second[name]:
-            mismatches[name] = {"first": first[name], "second": second[name]}
-    parameters_a, parameters_b = first["parameters"], second["parameters"]
-    varying: dict[str, Any] = {}
-    missing = "<missing>"
-    for name in sorted(set(parameters_a) | set(parameters_b)):
-        left, right = parameters_a.get(name, missing), parameters_b.get(name, missing)
-        if left != right:
-            difference = {"first": left, "second": right}
-            if name in short_state_fields and left != missing and right != missing:
-                varying[name] = difference
-            else:
-                mismatches[name] = difference
-    if mismatches:
-        raise ValueError("Pair metadata mismatch: " + json.dumps(mismatches, sort_keys=True))
-    return {"consistent": True, "varying_short_state_fields": varying,
-            "different_project_names": ([first["project"], second["project"]]
-                                        if first["project"] != second["project"] else [])}
-
-
-def radius_phase_response(
-    radii: np.ndarray, raw_phases_deg: np.ndarray, nominal_radius: float
-) -> dict[str, Any]:
-    """Unwrap along radius and calculate the centered local phase derivative."""
-    radii, phases = np.asarray(radii, dtype=float), np.asarray(raw_phases_deg, dtype=float)
-    if (radii.ndim != 1 or radii.shape != phases.shape or len(radii) < 3
-            or not np.isfinite(radii).all() or not np.isfinite(phases).all()
-            or np.any(np.diff(radii) <= 0)):
-        raise ValueError("Radius and phase must be finite equal-length arrays on a sorted grid")
-    matches = np.flatnonzero(np.isclose(radii, nominal_radius, atol=1e-10, rtol=0))
-    if len(matches) != 1 or matches[0] in (0, len(radii) - 1):
-        raise ValueError("Nominal radius must identify one interior grid point")
-    index = int(matches[0])
-    if not np.isclose(radii[index] - radii[index - 1], radii[index + 1] - radii[index],
-                      atol=1e-10, rtol=0):
-        raise ValueError("Nominal centered derivative requires equal adjacent radius steps")
-    unwrapped = np.rad2deg(np.unwrap(np.deg2rad(phases)))
-    unwrapped -= 360.0 * round((unwrapped[index] - phases[index]) / 360.0)
-    slope = (unwrapped[index + 1] - unwrapped[index - 1]) / (radii[index + 1] - radii[index - 1])
-    return {"unwrapped_phase_deg": unwrapped.tolist(),
-            "branch_turns": np.rint((unwrapped - phases) / 360.0).astype(int).tolist(),
-            "nominal_index": index, "nominal_central_slope_deg_per_mm": float(slope),
-            "slope_lower_radius_mm": float(radii[index - 1]),
-            "slope_upper_radius_mm": float(radii[index + 1])}
-
-
-def read_cst_metadata(path: Path) -> dict[str, Any]:
-    """Read CST comments and reuse the existing CST parameter-header parser."""
-    comments: list[str] = []
-    option_line = ""
-    with path.open(encoding="utf-8", errors="strict") as stream:
-        for raw_line in stream:
-            line = raw_line.strip()
-            if line.startswith("!"):
-                comments.append(line)
-            elif line.startswith("#"):
-                option_line = line
-                break
-    if not any("generated by CST" in line for line in comments):
-        raise ValueError(f"No CST simulation export identification: {path}")
-    project = next((line.split(":", 1)[1].strip() for line in comments
-                    if line.startswith("! Project name:")), None)
-    assignments = [line for line in comments if re.match(r"!\s*Touchstone port\s+\d+\s*=", line)]
-    parameters = {key.removeprefix("sim_"): value
-                  for key, value in _read_cst_parameter_header(path).items()}
-    if not project or not option_line or not assignments or "NumDepth" not in parameters:
-        raise ValueError(f"Incomplete CST source identity or short-state metadata: {path}")
-    return {"project": project, "option_line": option_line, "parameters": parameters,
-            "port_assignments": assignments, "header_comments": comments}
 
 
 def simulation_path(root: Path, relative: str) -> Path:
@@ -165,28 +45,6 @@ def simulation_path(root: Path, relative: str) -> Path:
     if not path.is_dir():
         raise FileNotFoundError(path)
     return path
-
-
-def resolve_markers(root: Path, config: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Verify configured markers against the actual dispersion-summary row."""
-    source = root / config["marker_source"]
-    with source.open(newline="", encoding="utf-8") as stream:
-        candidates = [row for row in csv.DictReader(stream)
-                      if int(row["mode_index"]) == config["marker_mode_index"]]
-    if len(candidates) != 1:
-        raise ValueError("Dispersion mode must identify exactly one source row")
-    row = candidates[0]
-    markers = []
-    for item in config["markers"]:
-        source_values = [float(row[column]) for column in item.get(
-            "mean_of_columns", [item.get("source_column")])]
-        derived = float(np.mean(source_values))
-        if not np.isclose(derived, item["requested_GHz"], atol=1e-12, rtol=0):
-            raise ValueError(f"Configured marker disagrees with dispersion source: {item['name']}")
-        markers.append({**item, "source_derived_GHz": derived})
-    return markers, {"path": source.relative_to(root).as_posix(), "sha256": sha256(source),
-                     "mode_index": config["marker_mode_index"], "source_row": row,
-                     "markers": markers}
 
 
 def original_export_path(root: Path, folder: Path, transform: dict[str, Any], path: Path) -> Path:
@@ -232,8 +90,8 @@ def load_case(root: Path, case: dict[str, Any], depths: list[float]) -> tuple[di
             if metadata["parameters"].get(name) != expected:
                 raise ValueError(f"{path.name}: {name} does not equal configured {expected}")
         parsed = read_touchstone(path)
-        if parsed.header.parameter != "S":
-            raise ValueError(f"Only raw S parameters are supported: {path}")
+        if parsed.header.parameter != "S" or parsed.header.reference_ohm != 0:
+            raise ValueError(f"Expected unrenormalized CST S data with R 0: {path}")
         scales = {"Hz": 1e-9, "kHz": 1e-6, "MHz": 1e-3, "GHz": 1.0}
         frequency = np.asarray(parsed.frequency) * scales[parsed.header.frequency_unit]
         values = np.asarray(parsed.values, dtype=complex)
@@ -490,13 +348,13 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 def draw_figures(output_root: Path, config: dict[str, Any], rows: list[dict]) -> list[Path]:
     """Plot absolute phases and target residuals on matched, full-width axes."""
+    validate_comparison_layout(config)
     style = apply_lps_style()
     colors = ["C0", "C1"]
     output_paths = []
     markers = config["markers"]
-    tick_labels = [r"$f_{2\pi/3}$" + "\n" + f"{markers[0]['requested_GHz']:.6f}",
-                   r"$f_m$" + "\n" + f"{markers[1]['requested_GHz']:.6f}",
-                   r"$f_{\pi/2}$" + "\n" + f"{markers[2]['requested_GHz']:.6f}"]
+    tick_labels = [label + "\n" + f"{marker['requested_GHz']:.6f}"
+                   for label, marker in zip(marker_labels(config), markers)]
     x = np.arange(len(markers), dtype=float)
     residual_limit = max(10, int(np.ceil(max(abs(row["signed_target_residual_deg"])
                                             for row in rows) / 10.0) * 10))
@@ -544,7 +402,7 @@ def draw_figures(output_root: Path, config: dict[str, Any], rows: list[dict]) ->
         fig.text(0.54, 0.115, "Requested marker frequency (GHz)", ha="center", fontsize=9)
         footer = ("CST simulation; nearest samples; raw exported port order; R 0 (unrenormalized)."
                   if kind == "phase" else
-                  "Reference targets: 240°, 180°, 120°; cases have different geometries.")
+                  "Reference targets: " + ", ".join(f"{m['target_delta_deg']:g}°" for m in markers) + "; cases have different geometries.")
         fig.text(0.54, 0.022, footer, ha="center", fontsize=7.5)
         for suffix in ("pdf", "png"):
             path = output_root / "fig" / f"{stem}.{suffix}"
@@ -564,7 +422,7 @@ def draw_radius_figure(output_root: Path, config: dict[str, Any], rows: list[dic
     """Draw the full configured radius scan at a readable single-column size."""
     apply_lps_style()
     fig, ax = plt.subplots(figsize=(3.40, 2.8), layout="constrained")
-    labels = [r"$f_{2\pi/3}$", r"$f_m$", r"$f_{\pi/2}$"]
+    labels = marker_labels(config)
     for marker, label, symbol, color in zip(config["markers"], labels, ("o", "s", "^"), ("C0", "C1", "C2")):
         points = sorted((row for row in rows if row["marker"] == marker["name"]), key=lambda row: row["r_c_mm"])
         ax.plot([row["r_c_mm"] for row in points], [row["unwrapped_phase_deg"] for row in points],
@@ -600,6 +458,7 @@ def main(argv: list[str] | None = None) -> Path:
     args = parser.parse_args(argv)
     config_path, output_root = args.config.resolve(), args.output_root.resolve()
     config = json.loads(config_path.read_text(encoding="utf-8"))
+    validate_comparison_layout(config)
     # Validate all sources and pairs before writing any publication product.
     metrics, geometry, audit = make_tables(ROOT, config)
     radius_rows, radius_audit = make_radius_table(ROOT, config)
@@ -612,6 +471,11 @@ def main(argv: list[str] | None = None) -> Path:
     outputs.extend(draw_figures(output_root, config, metrics))
     outputs.extend(draw_radius_figure(output_root, config, radius_rows))
     source_files = [Path(__file__).resolve(), config_path,
+                    ROOT / "deflector_tuning/workflows/paper_plot_contracts.py",
+                    ROOT / "deflector_tuning/workflows/paper_cst_sources.py",
+                    ROOT / "deflector_tuning/data_loading/cst_metadata.py",
+                    ROOT / "deflector_tuning/analysis/cst_phase_metrics.py",
+                    ROOT / "deflector_tuning/analysis/complex_sampling.py",
                     ROOT / "deflector_tuning/data_loading/readers/touchstone_reader.py",
                     ROOT / "deflector_tuning/data_loading/loaders/sim_loader.py",
                     ROOT / "deflector_tuning/visualization/lps_paper_style.py",
