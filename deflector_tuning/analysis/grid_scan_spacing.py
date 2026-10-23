@@ -163,7 +163,11 @@ def _finite_difference(
     lower_point = max(lower, key=lambda item: float(item[varying_column])) if lower else None
     upper_point = min(upper, key=lambda item: float(item[varying_column])) if upper else None
     if lower_point is not None and upper_point is not None:
-        return _phase_slope(lower_point, upper_point, varying_column=varying_column)
+        # Unwrap each adjacent step around the center, not the two-step span.
+        lower_step = _wrap180(float(point["s_phase_deg"]) - float(lower_point["s_phase_deg"]))
+        upper_step = _wrap180(float(upper_point["s_phase_deg"]) - float(point["s_phase_deg"]))
+        span = float(upper_point[varying_column]) - float(lower_point[varying_column])
+        return (lower_step + upper_step) / span
     neighbor = lower_point if lower_point is not None else upper_point
     if neighbor is None:
         return math.nan

@@ -51,7 +51,9 @@ def run_kyhl_validation(
     field_summary = summarize_field_energy_pairs(field_pairs)
     field_summary.to_csv(output_dir / "field_energy_ratio_summary.csv", index=False)
 
-    phase_points = build_no_plunger_phase_points(phase_profile)
+    phase_points = build_no_plunger_phase_points(
+        phase_profile, dataset_id=profile_dir.name, source="EM_fieldPhase.txt",
+    )
     phase_points.to_csv(output_dir / "no_plunger_phase_points.csv", index=False)
     phase_residuals = build_no_plunger_phase_residuals(phase_points)
     phase_residuals.to_csv(output_dir / "no_plunger_phase_residuals.csv", index=False)

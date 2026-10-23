@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import pandas as pd
+import math
+import warnings
+
+from deflector_tuning.data_contracts import simulation_geometry_columns
 
 GROUP_COLUMNS: list[str] = [
     "dataset_id",
@@ -13,8 +17,6 @@ GROUP_COLUMNS: list[str] = [
     "port_side",
     "s_name",
 ]
-GEOMETRY_METADATA_PREFIXES: tuple[str, ...] = ("sim_",)
-TUNE_SWEEP_METADATA_COLUMNS: frozenset[str] = frozenset({"sim_NumTune", "sim_NumDepth"})
 OUTPUT_COLUMNS: list[str] = [
     "dataset_id",
     "data_kind",
@@ -40,22 +42,26 @@ OUTPUT_COLUMNS: list[str] = [
 ]
 
 
-def compute_phase_advance(marker_points: pd.DataFrame) -> pd.DataFrame:
+def compute_phase_advance(marker_points: pd.DataFrame, *, expected_position_step: float = 1.0) -> pd.DataFrame:
     """Compute local phase advance between same-family periodic positions.
 
     Uses the project convention that a signed -120 degree phase step is a
     240-degree phase advance. Phase advance is computed within periodic
     position families, not by mixing adjacent cell/iris positions: half-integer
     positions are treated as cell-to-cell and integer positions as iris-to-iris.
+    Nonlocal gaps are warned about and excluded; expected_position_step is one
+    same-family physical period, never an inferred distance between samples.
     """
 
+    if not math.isfinite(expected_position_step) or expected_position_step <= 0:
+        raise ValueError("expected_position_step must be finite and positive")
     table = marker_points.copy()
     for column in GROUP_COLUMNS:
         if column not in table:
             table[column] = pd.NA
     if "tune_position" not in table:
         table["tune_position"] = pd.NA
-    metadata_columns = _geometry_metadata_columns(table)
+    metadata_columns = simulation_geometry_columns(table)
     output_columns = _output_columns(metadata_columns)
 
     table["_tune_sort"] = pd.to_numeric(table["tune_position"], errors="coerce")
@@ -68,13 +74,26 @@ def compute_phase_advance(marker_points: pd.DataFrame) -> pd.DataFrame:
     grouping_columns = [*GROUP_COLUMNS, *metadata_columns, "position_family"]
     for group_values, group in table.groupby(grouping_columns, dropna=False, sort=False):
         group = group.sort_values("_tune_sort", kind="mergesort").reset_index(drop=True)
+        duplicated = group["_tune_sort"].duplicated(keep=False)
+        if duplicated.any():
+            positions = sorted(group.loc[duplicated, "_tune_sort"].unique())
+            raise ValueError(
+                f"Ambiguous duplicate tune positions {positions} within one condition; "
+                "select one trace per position or supply distinct condition metadata"
+            )
         if len(group) < 2:
             continue
         group_metadata = dict(zip(grouping_columns, group_values, strict=True))
         for index in range(len(group) - 1):
             start = group.iloc[index]
             end = group.iloc[index + 1]
-            if float(end["_tune_sort"]) == float(start["_tune_sort"]):
+            step = float(end["_tune_sort"]) - float(start["_tune_sort"])
+            if not math.isclose(step, expected_position_step, rel_tol=0.0, abs_tol=1e-9):
+                warnings.warn(
+                    f"Skipping nonlocal phase transition {start['tune_position']} -> "
+                    f"{end['tune_position']}; expected position step {expected_position_step:g}",
+                    UserWarning, stacklevel=2,
+                )
                 continue
             signed_step = _wrap180(float(end["s_phase_deg"]) - float(start["s_phase_deg"]))
             phase_advance = signed_step % 360.0
@@ -97,16 +116,6 @@ def compute_phase_advance(marker_points: pd.DataFrame) -> pd.DataFrame:
                 }
             )
     return pd.DataFrame(rows, columns=output_columns)
-
-
-def _geometry_metadata_columns(table: pd.DataFrame) -> list[str]:
-    return [
-        column
-        for column in table.columns
-        if column not in GROUP_COLUMNS
-        and column not in TUNE_SWEEP_METADATA_COLUMNS
-        and any(column.startswith(prefix) for prefix in GEOMETRY_METADATA_PREFIXES)
-    ]
 
 
 def _output_columns(metadata_columns: list[str]) -> list[str]:

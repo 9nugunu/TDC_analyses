@@ -259,7 +259,8 @@ def build_raw_anchored_phase_position(
         marker["sim_r_c"] = pd.to_numeric(marker["sim_r_c"], errors="coerce")
         marker["s_phase_deg"] = pd.to_numeric(marker["s_phase_deg"], errors="coerce")
         marker = marker[np.isfinite(marker["sim_r_c"]) & np.isfinite(marker["s_phase_deg"])].sort_values("sim_r_c")
-        marker = marker.drop_duplicates("sim_r_c", keep="last")
+        if marker["sim_r_c"].duplicated().any():
+            raise ValueError(f"simulation_phase_line contains duplicate radii for marker: {marker_name}")
         if len(marker) < 2:
             raise ValueError(f"simulation_phase_line has no usable phase curve for marker: {marker_name}")
         radii = marker["sim_r_c"].to_numpy(dtype=float)
@@ -304,11 +305,12 @@ def build_experiment_simulation_phase_comparison(
         marker["sim_r_c"] = pd.to_numeric(marker["sim_r_c"], errors="coerce")
         marker["s_phase_deg"] = pd.to_numeric(marker["s_phase_deg"], errors="coerce")
         marker = marker[np.isfinite(marker["sim_r_c"]) & np.isfinite(marker["s_phase_deg"])].sort_values("sim_r_c")
-        marker = marker.drop_duplicates("sim_r_c", keep="last")
+        if marker["sim_r_c"].duplicated().any():
+            raise ValueError(f"simulation_phase_line contains duplicate radii for marker: {marker_name}")
         if len(marker) < 2:
             raise ValueError(f"simulation_phase_line has no usable phase curve for marker: {marker_name}")
         radii = marker["sim_r_c"].to_numpy(dtype=float)
-        if before_r_c_mm < radii.min() or current_r_c_mm > radii.max():
+        if not all(np.isfinite(r) and radii.min() <= r <= radii.max() for r in (before_r_c_mm, current_r_c_mm)):
             raise ValueError(f"candidate r_c positions are outside the simulated {marker_name} range")
         phase = np.rad2deg(np.unwrap(np.deg2rad(marker["s_phase_deg"].to_numpy(dtype=float))))
         sim_before = float(np.interp(before_r_c_mm, radii, phase))
@@ -348,7 +350,8 @@ def _simulated_phase_change_curves(
         marker["sim_r_c"] = pd.to_numeric(marker["sim_r_c"], errors="coerce")
         marker["s_phase_deg"] = pd.to_numeric(marker["s_phase_deg"], errors="coerce")
         marker = marker[np.isfinite(marker["sim_r_c"]) & np.isfinite(marker["s_phase_deg"])].sort_values("sim_r_c")
-        marker = marker.drop_duplicates("sim_r_c", keep="last")
+        if marker["sim_r_c"].duplicated().any():
+            raise ValueError(f"simulation_phase_line contains duplicate radii for marker: {marker_name}")
         if len(marker) < 2:
             continue
         radii = marker["sim_r_c"].to_numpy(dtype=float)
@@ -400,7 +403,9 @@ def _marker_curve(
     marker["sim_r_c"] = pd.to_numeric(marker["sim_r_c"], errors="coerce")
     marker["s_phase_deg"] = pd.to_numeric(marker["s_phase_deg"], errors="coerce")
     marker = marker[np.isfinite(marker["sim_r_c"]) & np.isfinite(marker["s_phase_deg"])]
-    marker = marker.sort_values("sim_r_c").drop_duplicates("sim_r_c", keep="last")
+    marker = marker.sort_values("sim_r_c")
+    if marker["sim_r_c"].duplicated().any():
+        raise ValueError(f"simulation_phase_line contains duplicate radii for marker: {marker_name}")
     if len(marker) < 2:
         raise ValueError(f"simulation_phase_line has no usable phase curve for marker: {marker_name}")
     radii = marker["sim_r_c"].to_numpy(dtype=float)

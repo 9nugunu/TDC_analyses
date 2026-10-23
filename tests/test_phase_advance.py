@@ -157,7 +157,7 @@ def test_compute_phase_advance_keeps_markers_and_port_sides_separate() -> None:
         assert row["phase_err_240_deg"] == pytest.approx(0.0)
 
 
-def test_compute_phase_advance_skips_same_position_file_pairs() -> None:
+def test_compute_phase_advance_rejects_ambiguous_same_position_file_pairs() -> None:
     marker_points = pd.DataFrame(
         [
             {
@@ -208,16 +208,9 @@ def test_compute_phase_advance_skips_same_position_file_pairs() -> None:
         ]
     )
 
-    result = compute_phase_advance(marker_points)
-
-    assert result[["file_from", "file_to", "pos_from", "pos_to"]].to_dict("records") == [
-        {
-            "file_from": "1_portE.S2P",
-            "file_to": "2_portE.S2P",
-            "pos_from": 1.0,
-            "pos_to": 2.0,
-        }
-    ]
+    for ordered in (marker_points, marker_points.iloc[::-1]):
+        with pytest.raises(ValueError, match="duplicate tune positions.*select one trace"):
+            compute_phase_advance(ordered)
 
 
 def test_compute_phase_advance_uses_periodic_position_families_not_adjacent_mixed_positions() -> None:

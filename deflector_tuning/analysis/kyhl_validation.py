@@ -8,11 +8,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from deflector_tuning.analysis.field_energy_ratio import (
+    compute_cell_iris_field_energy_ratios,
+    summarize_cell_iris_field_energy_ratios,
+    interpolate_profile,
+    safe_ratio,
+)
 from deflector_tuning.data_loading.field_profiles import (
     FieldPhaseExport,
     FieldPhaseTrace,
     FieldProfileExport,
-    FieldProfileTrace,
 )
 
 TARGET_COUPLER_PHASE_DEG = 240.0
@@ -33,71 +38,43 @@ class HalfCellStation:
 def build_field_energy_pairs(export: FieldProfileExport) -> pd.DataFrame:
     """Compute pairwise E_I^2/E_C^2 ratios from the no-plunger E-field profile."""
 
-    trace = _single_profile_trace(export, expected_kind="e")
-    params = export.parameters
-    period = params["d"] + params["t"]
-    iris_z = np.array([params["t"] / 2.0 + i * period for i in range(REGULAR_CELL_COUNT + 1)])
-    cell_z = np.array([params["t"] + params["d"] / 2.0 + i * period for i in range(REGULAR_CELL_COUNT)])
+    ratios = compute_cell_iris_field_energy_ratios(export, regular_cell_count=REGULAR_CELL_COUNT)
+    return ratios.drop(columns=["field_kind", "component", "trace_label"]).rename(columns=_FIELD_PAIR_COLUMNS)
 
-    iris_e = interpolate_profile(trace.z_mm, trace.values, iris_z)
-    cell_e = interpolate_profile(trace.z_mm, trace.values, cell_z)
 
-    rows = []
-    for idx in range(REGULAR_CELL_COUNT):
-        upstream = iris_e[idx]
-        downstream = iris_e[idx + 1]
-        adjacent_average_energy = 0.5 * (upstream**2 + downstream**2)
-        adjacent_max_energy = max(upstream**2, downstream**2)
-        cell_energy = cell_e[idx] ** 2
-        rows.append(
-            {
-                "pair_index": idx + 1,
-                "cell_label": f"R{idx + 1}",
-                "upstream_iris_label": "IN" if idx == 0 else f"I{idx}",
-                "downstream_iris_label": "OUT" if idx == REGULAR_CELL_COUNT - 1 else f"I{idx + 1}",
-                "cell_center_z_mm": cell_z[idx],
-                "upstream_iris_z_mm": iris_z[idx],
-                "downstream_iris_z_mm": iris_z[idx + 1],
-                "E_cell": cell_e[idx],
-                "E_upstream_iris": upstream,
-                "E_downstream_iris": downstream,
-                "E_cell_squared": cell_energy,
-                "E_upstream_iris_squared": upstream**2,
-                "E_downstream_iris_squared": downstream**2,
-                "ratio_upstream_iris_to_cell": upstream**2 / cell_energy,
-                "ratio_downstream_iris_to_cell": downstream**2 / cell_energy,
-                "ratio_adjacent_average_iris_to_cell": adjacent_average_energy / cell_energy,
-                "ratio_adjacent_max_iris_to_cell": adjacent_max_energy / cell_energy,
-            }
-        )
-    return pd.DataFrame(rows)
+_FIELD_PAIR_COLUMNS = {
+    "cell_field_value": "E_cell",
+    "upstream_iris_field_value": "E_upstream_iris",
+    "downstream_iris_field_value": "E_downstream_iris",
+    "cell_field_energy": "E_cell_squared",
+    "upstream_iris_field_energy": "E_upstream_iris_squared",
+    "downstream_iris_field_energy": "E_downstream_iris_squared",
+    "upstream_iris_to_cell_energy_ratio": "ratio_upstream_iris_to_cell",
+    "downstream_iris_to_cell_energy_ratio": "ratio_downstream_iris_to_cell",
+    "adjacent_average_iris_to_cell_energy_ratio": "ratio_adjacent_average_iris_to_cell",
+    "adjacent_max_iris_to_cell_energy_ratio": "ratio_adjacent_max_iris_to_cell",
+}
 
 
 def summarize_field_energy_pairs(field_pairs: pd.DataFrame) -> pd.DataFrame:
-    """Summarize candidate field-energy sensitivity ratios."""
-
-    rows = []
-    for column, label in [
-        ("ratio_upstream_iris_to_cell", "upstream_iris_pair"),
-        ("ratio_downstream_iris_to_cell", "downstream_iris_pair"),
-        ("ratio_adjacent_average_iris_to_cell", "adjacent_iris_average"),
-        ("ratio_adjacent_max_iris_to_cell", "adjacent_iris_max"),
-    ]:
-        values = field_pairs[column].astype(float)
-        rows.append(
-            {
-                "ratio_definition": label,
-                "pair_count": int(values.count()),
-                "mean_ratio": float(values.mean()),
-                "std_ratio": float(values.std(ddof=1)),
-                "min_ratio": float(values.min()),
-                "max_ratio": float(values.max()),
-            }
-        )
-    return pd.DataFrame(rows)
+    """Adapt shared field-energy statistics to the validation CSV contract."""
+    shared = field_pairs.rename(columns={v: k for k, v in _FIELD_PAIR_COLUMNS.items()})
+    summary = summarize_cell_iris_field_energy_ratios(shared).rename(columns={
+        "mean_energy_ratio": "mean_ratio", "std_energy_ratio": "std_ratio",
+        "min_energy_ratio": "min_ratio", "max_energy_ratio": "max_ratio",
+    })
+    summary["ratio_definition"] = summary["ratio_definition"].replace({
+        "upstream_iris_to_cell": "upstream_iris_pair",
+        "downstream_iris_to_cell": "downstream_iris_pair",
+        "adjacent_average_iris_to_cell": "adjacent_iris_average",
+        "adjacent_max_iris_to_cell": "adjacent_iris_max",
+    })
+    return summary
 
 
-def build_no_plunger_phase_points(export: FieldPhaseExport) -> pd.DataFrame:
+def build_no_plunger_phase_points(
+    export: FieldPhaseExport, *, dataset_id: str | None = None, source: str | None = None,
+) -> pd.DataFrame:
     """Sample unwrapped no-plunger phase at alternating iris/cell half-cell stations."""
 
     trace = _single_phase_trace(export, expected_kind="e")
@@ -113,8 +90,8 @@ def build_no_plunger_phase_points(export: FieldPhaseExport) -> pd.DataFrame:
     for station, phase_deg, wrapped_deg in zip(stations, sampled_phase, sampled_phase_wrapped):
         rows.append(
             {
-                "dataset_id": "sim_profile_260618_PhaseDistribution",
-                "source": "EM_fieldPhase.txt",
+                "dataset_id": dataset_id,
+                "source": source,
                 "field_kind": trace.field_kind,
                 "component": trace.component,
                 "station_index": station.station_index,
@@ -131,6 +108,9 @@ def build_no_plunger_phase_points(export: FieldPhaseExport) -> pd.DataFrame:
 def build_no_plunger_phase_residuals(phase_points: pd.DataFrame) -> pd.DataFrame:
     """Compute residuals from the ideal 60 degree half-cell phase map."""
 
+    for column in ("dataset_id", "source", "field_kind", "component"):
+        if column in phase_points and phase_points[column].nunique(dropna=False) > 1:
+            raise ValueError(f"phase_points must contain one {column}; select one phase trace")
     rows = []
     for slope in (IDEAL_HALF_CELL_PHASE_DEG, -IDEAL_HALF_CELL_PHASE_DEG):
         phase = phase_points["phase_unwrapped_deg"].astype(float).to_numpy()
@@ -151,12 +131,14 @@ def summarize_no_plunger_phase_residuals(residuals: pd.DataFrame) -> pd.DataFram
     """Summarize no-plunger phase residuals by ideal slope convention."""
 
     rows = []
-    for slope, group in residuals.groupby("ideal_slope_deg_per_half_cell", sort=True):
+    for (dataset_id, source, slope), group in residuals.groupby(
+        ["dataset_id", "source", "ideal_slope_deg_per_half_cell"], sort=True, dropna=False,
+    ):
         errors = group["phase_residual_deg"].astype(float)
         rows.append(
             {
-                "dataset_id": "sim_profile_260618_PhaseDistribution",
-                "source": "EM_fieldPhase.txt",
+                "dataset_id": dataset_id,
+                "source": source,
                 "ideal_slope_deg_per_half_cell": float(slope),
                 "point_count": int(errors.count()),
                 "rms_phase_error_deg": rms(errors),
@@ -182,7 +164,7 @@ def build_phase_correction_proxy(path: Path) -> pd.DataFrame:
         return pd.DataFrame(
             [
                 {
-                    "dataset_id": "sim_sweep_260618_Nodalshift",
+                    "dataset_id": None,
                     "marker_name": "not_available",
                     "metric_definition": "no usable nodal sweep summary table found",
                     "R_phase_proxy": np.nan,
@@ -387,13 +369,6 @@ def build_half_cell_stations(params: dict[str, float]) -> list[HalfCellStation]:
     return stations
 
 
-def interpolate_profile(source_z: np.ndarray, source_y: np.ndarray, target_z: np.ndarray) -> np.ndarray:
-    """Interpolate a profile after sorting by z."""
-
-    z_sorted, y_sorted = _sorted_xy(source_z, source_y)
-    return np.interp(target_z, z_sorted, y_sorted)
-
-
 def wrap_deg(values: np.ndarray | pd.Series) -> np.ndarray:
     """Wrap angle differences to [-180, 180) degrees."""
 
@@ -407,23 +382,6 @@ def rms(values: pd.Series | np.ndarray) -> float:
     array = np.asarray(values, dtype=float)
     array = array[np.isfinite(array)]
     return float(np.sqrt(np.mean(array**2))) if len(array) else float("nan")
-
-
-def safe_ratio(numerator: float, denominator: float) -> float:
-    """Return numerator/denominator, guarding zero denominators."""
-
-    return float(numerator / denominator) if denominator else float("nan")
-
-
-def _single_profile_trace(
-    export: FieldProfileExport,
-    *,
-    expected_kind: str,
-) -> FieldProfileTrace:
-    traces = [trace for trace in export.traces if _normalized_field_kind(trace.field_kind) == expected_kind]
-    if not traces:
-        raise ValueError(f"No {expected_kind} profile trace found")
-    return traces[0]
 
 
 def _single_phase_trace(

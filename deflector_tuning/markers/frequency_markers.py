@@ -36,6 +36,8 @@ def extract_marker_frequencies(
 ) -> pd.DataFrame:
     """Extract f_2pi3/f_mean/f_pi2 marker frequencies from a dispersion summary.
 
+    Pass a summary CSV path to select a branch explicitly. A directory must
+    contain exactly one candidate summary in its selected search location.
     Simulation markers use the dispersion frequencies directly. Experimental
     markers apply the measurement-condition temperature/humidity correction to
     the same dispersion basis.
@@ -48,6 +50,8 @@ def extract_marker_frequencies(
     if mode_rows.empty:
         raise ValueError(f"No mode_index={mode_index} row in {summary_path}")
     row = mode_rows.iloc[0]
+    if len(mode_rows) != 1:
+        raise ValueError(f"Multiple mode_index={mode_index} rows in {summary_path}")
 
     uncorrected = {
         "f_2pi3": float(row["freq_120_GHz"]),
@@ -73,7 +77,7 @@ def extract_marker_frequencies(
     else:
         raise ValueError("marker_role must be 'sim' or 'exp'")
 
-    source_file = summary_path.relative_to(folder).as_posix()
+    source_file = summary_path.name if folder.is_file() else summary_path.relative_to(folder).as_posix()
     return pd.DataFrame(
         [
             {
@@ -92,11 +96,15 @@ def extract_marker_frequencies(
 
 
 def _find_dispersion_summary(folder: Path) -> Path:
+    if folder.is_file():
+        return folder
     candidates = sorted((folder / "processed").glob("*summary.csv"))
     if not candidates:
         candidates = sorted(folder.glob("*summary.csv"))
     if not candidates:
         raise FileNotFoundError(f"No dispersion summary CSV found under {folder}")
+    if len(candidates) != 1:
+        raise ValueError(f"Multiple dispersion summaries found under {folder}; pass an explicit CSV path: {candidates}")
     return candidates[0]
 
 
