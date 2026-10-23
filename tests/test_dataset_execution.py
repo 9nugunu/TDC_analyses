@@ -52,12 +52,13 @@ def test_dataset_execution_forwards_scientific_options_and_registers_campaign(
     assert execution.phase_shifts is None
 
 
+@pytest.mark.parametrize("selected_dispersion", [None, Path("chosen.csv")])
 @pytest.mark.parametrize("tables_only", [False, True])
 @pytest.mark.parametrize("comparison_enabled", [False, True])
 @pytest.mark.parametrize("measurement_kind", ["state", "auxiliary"])
 def test_dataset_execution_applies_shared_campaign_postprocessing_policy(
     monkeypatch, tmp_path: Path, tables_only: bool, comparison_enabled: bool,
-    measurement_kind: str,
+    measurement_kind: str, selected_dispersion,
 ) -> None:
     analysis = SimpleNamespace(output_dir=tmp_path / "analyses" / "state", manifest_path=tmp_path / "manifest.json")
     campaign = object()
@@ -77,12 +78,13 @@ def test_dataset_execution_applies_shared_campaign_postprocessing_policy(
         dataset_id="raw_sweep_260722_tune_s004", sparameter_path=Path("raw/raw_sweep_260722_tune_s004"),
         output_dir=analysis.output_dir, marker_role="exp", data_root=tmp_path / "data",
         file_workers=3, plot_workers=2, tables_only=tables_only, project_defaults=defaults,
+        dispersion_path=selected_dispersion,
     )
 
     expected = [("sensitivity", (match,), dict(current_result=analysis, render_figure=not tables_only, project_defaults=defaults))]
     if comparison_enabled and not tables_only:
         expected.append(("comparison", (match,), dict(current_result=analysis, data_root=tmp_path / "data",
-                                                     file_workers=3, plot_workers=2, project_defaults=defaults)))
+                                                     file_workers=3, plot_workers=2, project_defaults=defaults, dispersion_path=selected_dispersion)))
     if measurement_kind == "state" and not tables_only:
         expected.append(("phase", (campaign,), dict(analysis_root=tmp_path / "analyses", output_dir=analysis.output_dir,
                                                    current_state_id="s004")))

@@ -9,6 +9,7 @@ from deflector_tuning.project_defaults import DEFAULT_PROJECT_DEFAULTS, ProjectD
 from deflector_tuning.runner import run_folder_analysis
 from deflector_tuning.tuning_campaign import TuningCampaignMatch
 from deflector_tuning.workflows.models import RunResult
+from deflector_tuning.workflows.reference_marker_cache import marker_reference_signature, record_marker_signature
 from deflector_tuning.workflows.plunger_sensitivity import (
     PlungerSensitivityResult,
     run_plunger_sensitivity,
@@ -36,6 +37,11 @@ class DatasetExecutionResult:
     plunger_sensitivity: PlungerSensitivityResult | None = None
     tuning_cmp: TuningCmpResult | None = None
     phase_shifts: TuningPhaseShiftOutputs | None = None
+
+    @property
+    def tuning_comparison(self) -> TuningCmpResult | None:
+        """Descriptive alias retaining the existing tuning_cmp constructor field."""
+        return self.tuning_cmp
 
 
 def run_dataset_analysis(
@@ -79,6 +85,15 @@ def run_dataset_analysis(
         geometry_sweep_axis=geometry_sweep_axis,
         geometry_sweep_base=geometry_sweep_base,
     )
+    marker_output = getattr(result, "tables", {}).get("marker_pts")
+    marker_path = Path(marker_output) if marker_output is not None else None
+    if marker_path is not None and marker_path.is_file():
+        signature = marker_reference_signature(
+            source=Path(sparameter_path), data_root=Path(data_root),
+            project_defaults=project_defaults, marker_role=marker_role,
+            correction=marker_correction, dispersion_path=dispersion_path,
+        )
+        record_marker_signature(marker_path, signature)
     campaign_match = register_matching_tuning_campaign(
         dataset_id,
         manifest_path=result.manifest_path,
@@ -98,6 +113,7 @@ def run_dataset_analysis(
         if campaign_match.comparison_enabled and not tables_only:
             tuning_cmp = run_tuning_cmp(
                 campaign_match,
+                dispersion_path=dispersion_path,
                 current_result=result,
                 data_root=data_root,
                 file_workers=file_workers,

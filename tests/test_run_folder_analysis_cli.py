@@ -308,6 +308,7 @@ def test_main_registers_matching_campaign_without_new_cli_arguments(
     assert comparisons == [
         {
             "campaign_match": match,
+            "dispersion_path": args.dispersion_path,
             "current_result": result,
             "data_root": tmp_path / "data",
             "file_workers": 1,
