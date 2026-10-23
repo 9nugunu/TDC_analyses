@@ -14,3 +14,7 @@ outputs/
 
 # Temporary analysis, review, and smoke-check artifacts.
 /tmp/
+
+# Persistent coordination files for campaign YAML updates.
+/config/tuning_campaigns/.*.yaml.lock
+/config/tuning_campaigns/.*.yml.lock

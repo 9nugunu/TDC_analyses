@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -16,6 +18,7 @@ from deflector_tuning.tuning_campaign import (
     is_tuning_dataset_id,
     tuning_torque_nm_from_dataset_id,
 )
+from deflector_tuning.workflows._file_lock import exclusive_file_lock
 from deflector_tuning.workflows.manifest import register_tuning_campaign
 
 
@@ -99,64 +102,70 @@ def _persist_automatic_measurement(
 ) -> None:
     """Persist one inferred state or auxiliary measurement in central YAML."""
 
-    config_path = match.config_path
-    with config_path.open("r", encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle)
-    if not isinstance(raw, dict):
-        raise ValueError(f"Expected mapping YAML root in {config_path}")
-    state_id = match.state_id
-    if state_id is None:
-        raise ValueError(f"Automatic campaign match for {dataset_id!r} has no state")
-    if match.measurement_kind == "state":
-        states = raw.setdefault("states", {})
-        if not isinstance(states, dict):
-            raise ValueError(f"Expected states mapping in {config_path}")
-        state = match.campaign.states[state_id]
-        entry = {
-            "prev": state.previous_state_id,
-            "data": dataset_id,
-            "meas": state.measurement_status,
-            "flag": state.quality_flag,
-        }
-        if state.torque_nm is not None:
-            entry["torque_nm"] = state.torque_nm
-        existing = states.get(state_id)
-        if existing is not None and existing != entry:
+    config_path = match.config_path.resolve()
+    lock_path = config_path.with_name(f".{config_path.name}.lock")
+    with exclusive_file_lock(lock_path):
+        with config_path.open("r", encoding="utf-8") as handle:
+            raw = yaml.safe_load(handle)
+        if not isinstance(raw, dict):
+            raise ValueError(f"Expected mapping YAML root in {config_path}")
+        state_id = match.state_id
+        if state_id is None:
+            raise ValueError(f"Automatic campaign match for {dataset_id!r} has no state")
+        if match.measurement_kind == "state":
+            states = raw.setdefault("states", {})
+            if not isinstance(states, dict):
+                raise ValueError(f"Expected states mapping in {config_path}")
+            state = match.campaign.states[state_id]
+            entry = {
+                "prev": state.previous_state_id,
+                "data": dataset_id,
+                "meas": state.measurement_status,
+                "flag": state.quality_flag,
+            }
+            if state.torque_nm is not None:
+                entry["torque_nm"] = state.torque_nm
+            existing = states.get(state_id)
+            if existing is not None and existing != entry:
+                raise ValueError(
+                    f"Automatic state {state_id!r} already has a different record in {config_path}"
+                )
+            states.setdefault(state_id, entry)
+        elif match.measurement_kind == "aux":
+            auxiliary = raw.setdefault("aux", {})
+            if not isinstance(auxiliary, dict):
+                raise ValueError(f"Expected aux mapping in {config_path}")
+            entry = {
+                "state": state_id,
+                "cmp": False,
+                "sens": {"axis": "plunger_offset_mm", "ref_mm": 0},
+            }
+            existing = auxiliary.get(dataset_id)
+            if existing is not None and existing != entry:
+                raise ValueError(
+                    f"Automatic auxiliary dataset {dataset_id!r} already has a different record "
+                    f"in {config_path}"
+                )
+            auxiliary.setdefault(dataset_id, entry)
+        else:
             raise ValueError(
-                f"Automatic state {state_id!r} already has a different record in {config_path}"
+                f"Automatic campaign match for {dataset_id!r} has unknown measurement kind "
+                f"{match.measurement_kind!r}"
             )
-        states.setdefault(state_id, entry)
-    elif match.measurement_kind == "aux":
-        auxiliary = raw.setdefault("aux", {})
-        if not isinstance(auxiliary, dict):
-            raise ValueError(f"Expected aux mapping in {config_path}")
-        entry = {
-            "state": state_id,
-            "cmp": False,
-            "sens": {"axis": "plunger_offset_mm", "ref_mm": 0},
-        }
-        existing = auxiliary.get(dataset_id)
-        if existing is not None and existing != entry:
-            raise ValueError(
-                f"Automatic auxiliary dataset {dataset_id!r} already has a different record "
-                f"in {config_path}"
-            )
-        auxiliary.setdefault(dataset_id, entry)
-    else:
-        raise ValueError(
-            f"Automatic campaign match for {dataset_id!r} has unknown measurement kind "
-            f"{match.measurement_kind!r}"
-        )
-    temporary = config_path.with_name(f".{config_path.name}.tmp")
-    try:
-        temporary.write_text(
-            yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
-            encoding="utf-8",
-        )
-        temporary.replace(config_path)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=config_path.parent,
+                prefix=f".{config_path.name}.", suffix=".tmp", delete=False,
+            ) as handle:
+                temporary = Path(handle.name)
+                yaml.safe_dump(raw, handle, allow_unicode=True, sort_keys=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.replace(config_path)
+        finally:
+            if temporary is not None and temporary.exists():
+                temporary.unlink()
 
 
 def campaign_state_table(campaign: TuningCampaign) -> pd.DataFrame:
