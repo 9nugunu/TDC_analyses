@@ -170,3 +170,31 @@ This run covers the full automated test suite. The inspected analysis checkout
 contained no experimental/simulation input data, so no workstation production
 campaign was reprocessed. CST solvers were not rerun. The separate local
 representative-data checks above remain the evidence for real-data comparisons.
+
+### pandas warning follow-up (2026-10-23)
+
+The remaining warning was reproduced on the workstation at `46d7775` by
+running `test_run_folder_analysis_loads_sparameter_folder_once` with `-W error`.
+Numeric metadata was filled with the string `"<NA>"` before conversion, which
+raises `Pandas4Warning` with pandas 3.1.0. Nullable `Float64` metadata also
+raised `TypeError` in the added regression cases before the fix.
+
+Series identity comparison now converts metadata to pandas' nullable string
+dtype before filling missing values. Original metadata and plotted phase values
+are unchanged. Regression cases cover all-missing and mixed numeric metadata,
+both NumPy and nullable float dtypes, input preservation, and separate plotted
+series with one missing identifier. These tests treat warnings as errors.
+
+- Local Python 3.12 / pandas 3.0.5: **23 passed in 4.71 seconds**, exit 0:
+  `python -B -m pytest -q -p no:cacheprovider -W error tests/test_phase_advance_plots.py tests/test_runner_cache.py`.
+- SSH workstation Python 3.13.15 / pandas 3.1.0: **694 passed in 135.00 seconds**,
+  exit 0, with no warnings:
+  `python -B -m pytest -q -p no:cacheprovider -W error`.
+
+Both runs used `PYTHONDONTWRITEBYTECODE=1` and `MPLBACKEND=Agg`. The workstation
+run used the previously created isolated environment and a clean archive of
+`46d7775` with only the source fix and regression-test file overlaid. Their
+SHA256 hashes matched the local files. Evidence is retained in workstation
+`tmp/pandas_warning_fix_20261023/pytest-after.log`; the pre-fix failure is in
+`tmp/audit_validation_20261023_ws/pandas-warning-before.log`. No warning filter
+was added to production code, and no scientific calculations were changed.

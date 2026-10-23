@@ -1,4 +1,5 @@
 from pathlib import Path
+import warnings
 
 import pandas as pd
 import pytest
@@ -176,8 +177,18 @@ def test_plot_phase_advance_can_exclude_edge_transitions(tmp_path: Path) -> None
     assert paths["iris"].exists()
 
 
+@pytest.mark.parametrize(
+    ("port_sides", "expected_labels"),
+    [
+        (["in", "out", "in", "out"], {r"$f_{2\pi/3}$ in", r"$f_{2\pi/3}$ out"}),
+        ([1.0, float("nan"), 1.0, float("nan")], {r"$f_{2\pi/3}$ 1.0", r"$f_{2\pi/3}$"}),
+    ],
+)
 def test_plot_phase_advance_separates_duplicate_transition_series(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    port_sides: list[str | float],
+    expected_labels: set[str],
 ) -> None:
     table = pd.DataFrame(
         [
@@ -219,6 +230,7 @@ def test_plot_phase_advance_separates_duplicate_transition_series(
             },
         ]
     )
+    table["port_side"] = port_sides
     captured_lines: list[tuple[str, list[float], list[float]]] = []
 
     def capture_figure(fig, output_path: Path, config: PlotConfig) -> Path:
@@ -231,13 +243,30 @@ def test_plot_phase_advance_separates_duplicate_transition_series(
 
     monkeypatch.setattr(phase_advance_plots, "save_figure", capture_figure)
 
-    paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        paths = plot_phase_advance(table, tmp_path, split_by_family=True, config=PlotConfig(dpi=120))
 
     assert paths["cell"].exists()
     assert len(captured_lines) == 2
-    assert {line[0] for line in captured_lines} == {r"$f_{2\pi/3}$ in", r"$f_{2\pi/3}$ out"}
+    assert {line[0] for line in captured_lines} == expected_labels
     assert all(line[1] == [0, 1] for line in captured_lines)
     assert sorted(line[2] for line in captured_lines) == [[12.0, 267.0], [18.0, 253.0]]
+
+
+@pytest.mark.parametrize("dtype", ["float64", "Float64"])
+@pytest.mark.parametrize("values, expected", [([None, None], []), ([1.0, None], ["port_side"])])
+def test_series_columns_preserves_missing_numeric_metadata(
+    dtype: str, values: list[float | None], expected: list[str]
+) -> None:
+    table = pd.DataFrame({"port_side": pd.Series(values, dtype=dtype)})
+    original = table.copy(deep=True)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert phase_advance_plots._series_columns(table) == expected
+
+    pd.testing.assert_frame_equal(table, original)
 
 
 def test_plot_phase_advance_skips_family_split_when_positions_are_missing(tmp_path: Path) -> None:

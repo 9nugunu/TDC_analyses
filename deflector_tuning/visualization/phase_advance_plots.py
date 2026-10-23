@@ -201,7 +201,7 @@ def _series_columns(table: pd.DataFrame) -> list[str]:
     for column in SERIES_ID_COLUMNS:
         if column not in table:
             continue
-        values = table[column].fillna("<NA>").astype(str)
+        values = table[column].astype("string").fillna("<NA>")
         if values.nunique(dropna=False) > 1:
             columns.append(column)
     return columns
