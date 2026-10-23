@@ -35,7 +35,11 @@ from deflector_tuning.workflows.models import (
     RunResult,
 )
 
-FIELD3D_SCHEMA_VERSION = 5
+FIELD3D_SCHEMA_VERSION = 6
+DEFAULT_PLUNGER_RADIUS_MM = 8.0
+DEFAULT_FIRST_TIP_Z_MM = 14.574
+DEFAULT_CELL_BODY_MM = 29.148
+DEFAULT_IRIS_THICKNESS_MM = 5.84
 logger = logging.getLogger(__name__)
 FieldSummarizer = Callable[[str | Path], Field3DFileSummary]
 
@@ -50,10 +54,10 @@ def run_field3d_analysis(
     dispersion_path: Path,
     marker_role: str,
     summarize_file: FieldSummarizer = summarize_field3d_file,
-    plunger_radius_mm: float = 8.0,
-    first_tip_z_mm: float = 14.574,
-    cell_body_mm: float = 29.148,
-    iris_thickness_mm: float = 5.84,
+    plunger_radius_mm: float = DEFAULT_PLUNGER_RADIUS_MM,
+    first_tip_z_mm: float = DEFAULT_FIRST_TIP_Z_MM,
+    cell_body_mm: float = DEFAULT_CELL_BODY_MM,
+    iris_thickness_mm: float = DEFAULT_IRIS_THICKNESS_MM,
 ) -> RunResult:
     """Analyze matched 3D E/H exports or reuse unchanged saved products."""
 
@@ -67,6 +71,10 @@ def run_field3d_analysis(
     cached = load_cached_field3d_result(
         manifest_path,
         source_signatures=signatures,
+        plunger_radius_mm=plunger_radius_mm,
+        first_tip_z_mm=first_tip_z_mm,
+        cell_body_mm=cell_body_mm,
+        iris_thickness_mm=iris_thickness_mm,
     )
     if cached is not None:
         logger.info("Reusing unchanged 3D field analysis: %s", output_dir)
@@ -198,8 +206,16 @@ def load_cached_field3d_result(
     manifest_path: Path,
     *,
     source_signatures: list[dict[str, int | str]],
+    plunger_radius_mm: float = DEFAULT_PLUNGER_RADIUS_MM,
+    first_tip_z_mm: float = DEFAULT_FIRST_TIP_Z_MM,
+    cell_body_mm: float = DEFAULT_CELL_BODY_MM,
+    iris_thickness_mm: float = DEFAULT_IRIS_THICKNESS_MM,
 ) -> RunResult | None:
-    """Return a complete unchanged field3d result declared by a manifest."""
+    """Reuse complete outputs only for matching sources and calculation inputs.
+
+    Omitted calculation parameters request the same defaults as
+    :func:`run_field3d_analysis`. Legacy manifests are cache misses.
+    """
 
     if not manifest_path.is_file():
         return None
@@ -208,9 +224,14 @@ def load_cached_field3d_result(
     except (OSError, json.JSONDecodeError):
         return None
     metadata = manifest.get("field3d", {})
+    plunger_axis = metadata.get("plunger_axis", {})
     if (
         metadata.get("schema_version") != FIELD3D_SCHEMA_VERSION
         or metadata.get("sources") != source_signatures
+        or metadata.get("radius_mm") != plunger_radius_mm
+        or plunger_axis.get("first_tip_z_mm") != first_tip_z_mm
+        or plunger_axis.get("cell_body_mm") != cell_body_mm
+        or plunger_axis.get("iris_thickness_mm") != iris_thickness_mm
         or manifest.get("analysis_modes") != ["field3d"]
     ):
         return None

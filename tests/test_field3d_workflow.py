@@ -4,9 +4,16 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
-from deflector_tuning.data_loading.field3d import find_field3d_pairs
-from deflector_tuning.workflows.field3d import run_field3d_analysis
+from deflector_tuning.data_loading.field3d import (
+    find_field3d_pairs,
+    summarize_field3d_file,
+)
+from deflector_tuning.workflows.field3d import (
+    load_cached_field3d_result,
+    run_field3d_analysis,
+)
 
 
 def _write_pair(
@@ -102,7 +109,7 @@ def test_field3d_workflow_saves_compact_outputs_and_reuses_unchanged_manifest(
     assert volume_table.loc[0, "num_depth"] == 0.5
     assert volume_table.loc[0, "tip_z_mm"] == 2.0
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
-    assert manifest["field3d"]["schema_version"] == 5
+    assert manifest["field3d"]["schema_version"] == 6
     assert manifest["field3d"]["radius_mm"] == 1.1
     assert manifest["field3d"]["radius_basis"] == "configured_physical_radius"
     assert manifest["field3d"]["radius_source_case"] == "NumDepth0.5"
@@ -145,6 +152,94 @@ def test_field3d_workflow_saves_compact_outputs_and_reuses_unchanged_manifest(
         dispersion_path=tmp_path / "dispersion.txt",
         marker_role="sim",
         summarize_file=fail_if_recomputed,
+        plunger_radius_mm=1.1,
+        first_tip_z_mm=2.0,
+        cell_body_mm=2.0,
+        iris_thickness_mm=0.0,
     )
 
     assert cached == result
+
+
+@pytest.mark.parametrize(
+    ("parameter", "changed_value"),
+    [
+        ("plunger_radius_mm", 1.5),
+        ("first_tip_z_mm", 1.0),
+        ("cell_body_mm", 3.0),
+        ("iris_thickness_mm", 1.0),
+    ],
+)
+def test_field3d_cache_recomputes_after_each_calculation_parameter_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    parameter: str, changed_value: float,
+) -> None:
+    import deflector_tuning.workflows.field3d as workflow
+
+    def save_placeholder(table, path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"test figure")
+        return path
+
+    for name in (
+        "plot_field3d_components", "plot_slater_positions", "plot_slater_volumes",
+    ):
+        monkeypatch.setattr(workflow, name, save_placeholder)
+
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    _write_pair(input_dir, case_id="NoPlunger", tip_z_mm=None)
+    _write_pair(input_dir, case_id="NumDepth0.5", tip_z_mm=2.0)
+    pairs = find_field3d_pairs(input_dir)
+    output_dir = tmp_path / "output"
+    paths = dict(
+        output_dir=output_dir,
+        table_dir=output_dir / "tables",
+        figure_root=output_dir / "figures",
+        sparameter_path=input_dir,
+        dispersion_path=tmp_path / "dispersion.txt",
+        marker_role="sim",
+    )
+    parameters = dict(
+        plunger_radius_mm=1.1, first_tip_z_mm=2.0,
+        cell_body_mm=2.0, iris_thickness_mm=0.0,
+    )
+    result = run_field3d_analysis(pairs, **paths, **parameters)
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    summarized = []
+
+    def record_summary(path):
+        summarized.append(path)
+        return summarize_field3d_file(path)
+
+    parameters[parameter] = changed_value
+    run_field3d_analysis(pairs, **paths, **parameters, summarize_file=record_summary)
+    assert len(summarized) == 4
+    updated = json.loads(result.manifest_path.read_text(encoding="utf-8"))["field3d"]
+    actual = (
+        updated["radius_mm"] if parameter == "plunger_radius_mm"
+        else updated["plunger_axis"][parameter]
+    )
+    assert actual == changed_value
+    summarized.clear()
+    run_field3d_analysis(pairs, **paths, **parameters, summarize_file=record_summary)
+    assert summarized == []
+
+    assert load_cached_field3d_result(
+        result.manifest_path, source_signatures=manifest["field3d"]["sources"],
+        **parameters,
+    ) == result
+    # A caller omitting parameters requests the documented physical defaults.
+    assert load_cached_field3d_result(
+        result.manifest_path, source_signatures=manifest["field3d"]["sources"],
+    ) is None
+
+    # A complete legacy manifest must be recomputed, never deleted or reused.
+    legacy = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    legacy["field3d"]["schema_version"] = 5
+    result.manifest_path.write_text(json.dumps(legacy), encoding="utf-8")
+    assert load_cached_field3d_result(
+        result.manifest_path, source_signatures=legacy["field3d"]["sources"],
+        **parameters,
+    ) is None
+    assert all(path.is_file() for path in result.tables.values())
