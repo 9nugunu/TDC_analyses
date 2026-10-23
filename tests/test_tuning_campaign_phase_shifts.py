@@ -120,7 +120,8 @@ def test_absolute_phase_colors_repeat_the_polar_marker_palette_for_each_state() 
     ]
 
 
-def test_phase_shifts_start_at_s002_and_ignore_later_states(tmp_path) -> None:
+@pytest.mark.parametrize("iris_position,cell_position", [(2.0, 1.5), (3.0, 2.5), (3.25, 2.75)])
+def test_phase_shifts_start_at_s002_and_ignore_later_states(tmp_path, iris_position, cell_position) -> None:
     analysis_root = tmp_path / "analyses"
     for state_id, phase_shift in (("s001", 0.0), ("s002", 1.0), ("s003", 2.0)):
         table_path = analysis_root / f"dataset_{state_id}" / "tables" / "marker_pts.csv"
@@ -133,7 +134,7 @@ def test_phase_shifts_start_at_s002_and_ignore_later_states(tmp_path) -> None:
                     "marker_name": marker_name,
                     "s_phase_deg": base_phase + phase_shift,
                 }
-                for position, base_phase in ((2.0, 10.0), (1.5, -20.0))
+                for position, base_phase in ((iris_position, 10.0), (cell_position, -20.0))
                 for marker_name in ("f_2pi3", "f_mean", "f_pi2")
             ]
         ).to_csv(table_path, index=False)
@@ -144,8 +145,8 @@ def test_phase_shifts_start_at_s002_and_ignore_later_states(tmp_path) -> None:
             for state_id in ("s000", "s001", "s002", "s003")
         },
         simulation_references={
-            "iris": SimpleNamespace(experiment_positions=(1.0, 2.0)),
-            "cell": SimpleNamespace(experiment_positions=(0.5, 1.5)),
+            "iris": SimpleNamespace(experiment_positions=(1.0, iris_position)),
+            "cell": SimpleNamespace(experiment_positions=(0.5, cell_position)),
         },
     )
 
@@ -160,6 +161,10 @@ def test_phase_shifts_start_at_s002_and_ignore_later_states(tmp_path) -> None:
     summary = pd.read_csv(outputs.table_path)
     assert set(summary["state_id"]) == {"s001", "s002"}
     assert outputs.iris_absolute_figure_path == (
-        tmp_path / "output" / "figures" / "tuning_phase_shifts" / "iris_2p0_phase.png"
+        tmp_path / "output" / "figures" / "tuning_phase_shifts" / f"iris_{str(iris_position).replace(chr(46), chr(112))}_phase.png"
     )
     assert outputs.iris_absolute_figure_path.is_file()
+
+    assert set(summary["position"]) == {iris_position, cell_position}
+    assert outputs.position_figure_paths["cell"].is_file()
+    assert outputs.absolute_figure_paths["cell"].is_file()
