@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.data_loading.filename_metadata import metadata_from_filename
+from deflector_tuning.data_loading.filename_policy import FilenameMetadataPolicy
 from deflector_tuning.data_loading.dataset_naming import validate_dataset_id
 from deflector_tuning.data_loading.readers.touchstone_reader import (
     read_touchstone,
@@ -24,6 +25,9 @@ class FolderLoader:
 
     data_layer: DataLayer
     data_kind: DataKind
+
+    def __init__(self, *, filename_policy: FilenameMetadataPolicy | None = None) -> None:
+        self.filename_policy = filename_policy
 
     def load(self, path: str | Path) -> DataFolder:
         data_root = _dataset_root_from_path(Path(path), self.data_layer)
@@ -85,6 +89,7 @@ class FolderLoader:
             data_layer=data_folder.data_layer.folder_name,
             strict_cell_position=self.data_layer is DataLayer.SIM,
             file_workers=file_workers,
+            filename_policy=self.filename_policy,
         )
         return pd.DataFrame(rows, columns=_touchstone_columns(parameter))
 
@@ -97,6 +102,7 @@ def _load_touchstone_file_rows(
     data_layer: str,
     strict_cell_position: bool,
     file_workers: int,
+    filename_policy: FilenameMetadataPolicy | None = None,
 ) -> list[dict[str, object]]:
     effective_workers = min(max(int(file_workers), 1), len(touchstone_files) or 1)
     if effective_workers <= 1:
@@ -113,6 +119,7 @@ def _load_touchstone_file_rows(
                     data_kind=data_kind,
                     data_layer=data_layer,
                     strict_cell_position=strict_cell_position,
+                    filename_policy=filename_policy,
                 )
             )
         return rows
@@ -127,6 +134,7 @@ def _load_touchstone_file_rows(
                 data_kind=data_kind,
                 data_layer=data_layer,
                 strict_cell_position=strict_cell_position,
+                filename_policy=filename_policy,
             ): index
             for index, touchstone_file in enumerate(touchstone_files)
         }
@@ -150,12 +158,14 @@ def _read_one_touchstone_file_rows(
     data_kind: str,
     data_layer: str,
     strict_cell_position: bool,
+    filename_policy: FilenameMetadataPolicy | None = None,
 ) -> list[dict[str, object]]:
     touchstone_data = read_touchstone(touchstone_file)
     metadata = metadata_from_filename(
         touchstone_file,
         dataset_id,
         strict_cell_position=strict_cell_position,
+        policy=filename_policy,
     )
     rows: list[dict[str, object]] = []
     parameter = touchstone_data.header.parameter

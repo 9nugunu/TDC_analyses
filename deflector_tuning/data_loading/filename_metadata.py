@@ -5,23 +5,25 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from deflector_tuning.data_loading.filename_policy import FilenameMetadataPolicy, legacy_filename_policy
+
 
 def metadata_from_filename(
     file_path: str | Path,
     dataset_id: str,
     *,
     strict_cell_position: bool = False,
+    policy: FilenameMetadataPolicy | None = None,
 ) -> dict[str, object]:
     """Extract lightweight metadata from known tuning filenames.
 
-    ``in``/``out`` side labels are only meaningful before full brazing. Once a
-    dataset name contains ``fullbrazing``, keep the numeric tune position but
-    ignore the side label.
+    An explicit policy controls whether ``in``/``out`` prefixes identify ports.
+    Omitting it preserves the legacy assembly-name policy for existing callers.
     """
 
     stem = Path(file_path).stem.replace("_processed", "")
     side = _side_from_stem(stem)
-    if "fullbrazing" in dataset_id.lower():
+    if not (policy or legacy_filename_policy(dataset_id)).preserve_port_side:
         side = None
     return {
         "tune_position": _first_number(stem, strict_cell_position=strict_cell_position),

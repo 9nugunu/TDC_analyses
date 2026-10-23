@@ -29,7 +29,7 @@ class PreproLoader(FolderLoader):
             csv_table = pd.read_csv(csv_file)
             if "freq[Hz]" not in csv_table.columns or "Magnitude" not in csv_table.columns:
                 raise ValueError(f"Unsupported prepro CSV schema in {csv_file.name}")
-            metadata = metadata_from_filename(csv_file, data_folder.dataset_id)
+            metadata = metadata_from_filename(csv_file, data_folder.dataset_id, policy=self.filename_policy)
             table = pd.DataFrame(
                 {
                     "dataset_id": data_folder.dataset_id,

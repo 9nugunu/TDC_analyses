@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
+from deflector_tuning.data_loading.filename_policy import FilenameMetadataPolicy
 from deflector_tuning.data_loading.loaders.prepro_loader import PreproLoader
 from deflector_tuning.data_loading.loaders.raw_loader import RawLoader
 from deflector_tuning.data_loading.loaders.sim_loader import SimLoader
@@ -17,8 +18,9 @@ from deflector_tuning.data_loading.source_layer import DataLayer, detect_data_la
 class DataLoader:
     """Route a path by ``data/sim``, ``data/raw``, or ``data/prepro``."""
 
-    def __init__(self, *, file_workers: int = 1) -> None:
+    def __init__(self, *, file_workers: int = 1, filename_policy: FilenameMetadataPolicy | None = None) -> None:
         self.file_workers = max(int(file_workers), 1)
+        self.filename_policy = filename_policy
 
     def load(self, path: str | Path) -> pd.DataFrame:
         """Load a folder into the default analysis table.
@@ -102,11 +104,11 @@ class DataLoader:
 
         data_layer = detect_data_layer(path)
         if data_layer is DataLayer.SIM:
-            return SimLoader()
+            return SimLoader(filename_policy=self.filename_policy)
         if data_layer is DataLayer.RAW:
-            return RawLoader()
+            return RawLoader(filename_policy=self.filename_policy)
         if data_layer is DataLayer.PREPRO:
-            return PreproLoader()
+            return PreproLoader(filename_policy=self.filename_policy)
         raise ValueError(f"No loader for data layer {data_layer!r}")
 
 

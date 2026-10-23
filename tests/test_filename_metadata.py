@@ -3,6 +3,24 @@ from pathlib import Path
 from deflector_tuning.data_loading.central_loader import DataLoader
 
 
+def test_explicit_port_policy_overrides_legacy_dataset_name(tmp_path):
+    from deflector_tuning.data_loading.filename_policy import FilenameMetadataPolicy
+    folder = tmp_path / "data/raw/raw_sweep_260723_fullbrazing"
+    folder.mkdir(parents=True)
+    (folder / "in_0.5cell.s1p").write_text("# GHz S RI R 50\n2.85 1 0\n")
+    table = DataLoader(filename_policy=FilenameMetadataPolicy(preserve_port_side=True)).load(folder)
+    assert table.iloc[0].port_side == "in"
+
+
+def test_explicit_port_policy_applies_to_csv_without_name_convention(tmp_path):
+    from deflector_tuning.data_loading.filename_policy import FilenameMetadataPolicy
+    folder = tmp_path / "data/prepro/prepro_sweep_260723_custom"
+    folder.mkdir(parents=True)
+    (folder / "out_0.5cell.csv").write_text("freq[Hz],Magnitude,Phase_deg\n2850000000,-1,20\n")
+    table = DataLoader(filename_policy=FilenameMetadataPolicy(preserve_port_side=False)).load(folder)
+    assert table.iloc[0].port_side is None
+
+
 def test_halfbrazing_in_out_file_gets_port_side_and_tune_position(tmp_path: Path) -> None:
     folder = tmp_path / "data" / "raw" / "raw_sweep_250609_sparams_beforebrazing"
     folder.mkdir(parents=True)

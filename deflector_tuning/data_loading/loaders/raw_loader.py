@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from deflector_tuning.data_loading.filename_metadata import metadata_from_filename
+from deflector_tuning.data_loading.filename_policy import FilenameMetadataPolicy
 from deflector_tuning.data_loading.loaders.folder_loader import FolderLoader
 from deflector_tuning.data_loading.records import DataKind
 from deflector_tuning.data_loading.source_layer import DataLayer
@@ -30,19 +31,19 @@ class RawLoader(FolderLoader):
         ):
             if not _is_supported_raw_csv(csv_file):
                 continue
-            rows.append(_read_raw_csv(csv_file, data_folder.dataset_id))
+            rows.append(_read_raw_csv(csv_file, data_folder.dataset_id, filename_policy=self.filename_policy))
         if not rows:
             return pd.DataFrame(columns=_RAW_COLUMNS)
         return pd.concat(rows, ignore_index=True)[_RAW_COLUMNS]
 
 
-def _read_raw_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
+def _read_raw_csv(csv_file: Path, dataset_id: str, *, filename_policy: FilenameMetadataPolicy | None = None) -> pd.DataFrame:
     text = csv_file.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
     if _has_ri_header(lines):
-        return _read_ri_csv(csv_file, dataset_id)
+        return _read_ri_csv(csv_file, dataset_id, filename_policy=filename_policy)
     if _has_formatted_data_header(lines):
-        return _read_mag_phase_csv(csv_file, dataset_id)
+        return _read_mag_phase_csv(csv_file, dataset_id, filename_policy=filename_policy)
     raise ValueError(f"Unsupported raw CSV schema in {csv_file.name}")
 
 
@@ -60,7 +61,7 @@ def _has_formatted_data_header(lines: list[str]) -> bool:
     return any("Frequency, Formatted Data, Formatted Data" in line for line in lines[:10])
 
 
-def _read_ri_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
+def _read_ri_csv(csv_file: Path, dataset_id: str, *, filename_policy: FilenameMetadataPolicy | None = None) -> pd.DataFrame:
     table = pd.read_csv(csv_file, sep=";", comment="#")
     table = table.dropna(axis="columns", how="all")
     column_pair = _find_ri_s11_column_pair(table.columns)
@@ -71,7 +72,7 @@ def _read_ri_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
     s_real = table[real_column]
     s_imag = table[imag_column]
     s_complex = s_real + 1j * s_imag
-    metadata = metadata_from_filename(csv_file, dataset_id)
+    metadata = metadata_from_filename(csv_file, dataset_id, policy=filename_policy)
     return pd.DataFrame(
         {
             "dataset_id": dataset_id,
@@ -92,7 +93,7 @@ def _read_ri_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
     )
 
 
-def _read_mag_phase_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
+def _read_mag_phase_csv(csv_file: Path, dataset_id: str, *, filename_policy: FilenameMetadataPolicy | None = None) -> pd.DataFrame:
     table = pd.read_csv(csv_file, skiprows=2)
     table = table.rename(
         columns={
@@ -102,7 +103,7 @@ def _read_mag_phase_csv(csv_file: Path, dataset_id: str) -> pd.DataFrame:
         }
     )
     freq_hz = table["freq_hz"]
-    metadata = metadata_from_filename(csv_file, dataset_id)
+    metadata = metadata_from_filename(csv_file, dataset_id, policy=filename_policy)
     return pd.DataFrame(
         {
             "dataset_id": dataset_id,
